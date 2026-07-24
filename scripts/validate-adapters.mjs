@@ -20,6 +20,7 @@ const tools = parse("plugins/keep-keys/mcp/tools.json");
 
 const version = codex.version;
 const releaseCommit = "3bb6e306edc73270e96e25429ddf07861ad99ee3";
+const catalogCommit = "9713ee0bde0f29e1cc20a05094971ea34629678d";
 assert.equal(version, "0.2.0");
 assert.equal(claude.version, version);
 assert.equal(claudeMarketplace.version, version);
@@ -77,6 +78,10 @@ assert.equal(
 );
 assert.match(read("adapters/hermes/plugin.py"), /ctx\.register_skill\("keep-keys", _SKILL\)/);
 assert.doesNotMatch(read("adapters/hermes/plugin.py"), /shell\s*=\s*True/);
+for (const document of ["README.md", "INSTALL.md"]) {
+  assert.match(read(document), new RegExp(releaseCommit, "g"));
+  assert.match(read(document), new RegExp(catalogCommit, "g"));
+}
 
 for (const tool of tools) {
   assert.match(tool.name, /^keepkeys_[a-z_]+$/);

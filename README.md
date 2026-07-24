@@ -28,8 +28,8 @@ the plaintext value is not.
 | Client | Native package surface | Install |
 | --- | --- | --- |
 | **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keep-keys --ref 3bb6e306edc73270e96e25429ddf07861ad99ee3`<br>`codex plugin add keep-keys@barnlabs` |
-| **Claude Code** | Claude plugin + source-pinned marketplace | `claude plugin marketplace add barnlabs/keep-keys`<br>`claude plugin install keep-keys@barnlabs` |
-| **Oh My Pi** | OMP/Claude-compatible, source-pinned marketplace | `omp plugin marketplace add barnlabs/keep-keys`<br>`omp plugin install keep-keys@barnlabs` |
+| **Claude Code** | Claude plugin + source-pinned marketplace | `claude plugin marketplace add https://raw.githubusercontent.com/barnlabs/keep-keys/9713ee0bde0f29e1cc20a05094971ea34629678d/.claude-plugin/marketplace.json`<br>`claude plugin install keep-keys@barnlabs` |
+| **Oh My Pi** | OMP/Claude-compatible, source-pinned marketplace | `omp plugin marketplace add https://raw.githubusercontent.com/barnlabs/keep-keys/9713ee0bde0f29e1cc20a05094971ea34629678d/.omp-plugin/marketplace.json`<br>`omp plugin install keep-keys@barnlabs` |
 | **Hermes** | Repository-root Hermes plugin | [Install from the reviewed checkout](INSTALL.md#hermes) |
 | **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keep-keys --ref 3bb6e306edc73270e96e25429ddf07861ad99ee3` |
 
@@ -39,9 +39,10 @@ repository also exposes a standard `skills/keep-keys/SKILL.md` for compatible
 **macOS-only**; it requires macOS 13+, Node.js 18+, and Apple Command Line
 Tools.
 
-The Claude and OMP catalogs pin their plugin source to that same reviewed full
-commit SHA. See [INSTALL.md](INSTALL.md) for client-specific setup, immutable
-Hermes installation, verification, upgrades, and removal.
+The Claude and OMP commands pin the catalog itself to reviewed commit
+`9713ee0bde0f29e1cc20a05094971ea34629678d`; that catalog pins its plugin source
+to the functional commit above. See [INSTALL.md](INSTALL.md) for client-specific
+setup, immutable Hermes installation, verification, upgrades, and removal.
 
 ## The promise—and its edge
 

@@ -17,11 +17,15 @@ pin.
    caches without reading user secrets.
 6. Review the final diff against `docs/threat-model.md` and
    `docs/compatibility.md`.
-7. Commit the functional release.
-8. Replace documentation placeholders with that exact functional commit SHA,
-   rerun documentation/manifest checks, commit, and push.
-9. Confirm GitHub CI and the public README.
-10. Create a tag or GitHub Release only with maintainer authorization.
+7. Commit the functional release; this is the source SHA used by Codex, Gemini,
+   Hermes, and the Claude/OMP plugin entries.
+8. Replace the Claude and OMP plugin-source SHA fields with that functional SHA,
+   validate both catalogs, and commit the catalogs.
+9. Replace install-document placeholders with the functional SHA and the raw
+   catalog URL at the catalog commit SHA. Rerun all checks and commit.
+10. Push the complete commit chain, confirm GitHub CI, test the public immutable
+    URLs, and verify the public README.
+11. Create a tag or GitHub Release only with maintainer authorization.
 
 ## Rollback
 

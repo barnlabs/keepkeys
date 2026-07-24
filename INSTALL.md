@@ -29,16 +29,17 @@ Restart Codex or begin a new task, then ask:
 ## Claude Code
 
 ```sh
-claude plugin marketplace add barnlabs/keep-keys
+claude plugin marketplace add \
+  https://raw.githubusercontent.com/barnlabs/keep-keys/9713ee0bde0f29e1cc20a05094971ea34629678d/.claude-plugin/marketplace.json
 claude plugin install keep-keys@barnlabs
 ```
 
-Claude Code does not expose a raw-commit option for marketplace checkout. The
-BarnLabs catalog therefore pins the actual `plugins/keep-keys` source with a
-`git-subdir` entry and the reviewed full SHA
+Claude Code does not expose a raw-commit option for a Git marketplace checkout,
+so this command adds the catalog as a direct file from reviewed catalog commit
+`9713ee0bde0f29e1cc20a05094971ea34629678d`. That immutable catalog pins the
+actual `plugins/keep-keys` source with a `git-subdir` entry and functional SHA
 `3bb6e306edc73270e96e25429ddf07861ad99ee3`. A changed `main` catalog cannot
-silently substitute different 0.2.0 plugin code without also changing that
-visible pin. Verify with:
+alter either part of this installation. Verify with:
 
 ```sh
 claude plugin validate .
@@ -55,7 +56,8 @@ plugin source to reviewed commit
 `3bb6e306edc73270e96e25429ddf07861ad99ee3`:
 
 ```sh
-omp plugin marketplace add barnlabs/keep-keys
+omp plugin marketplace add \
+  https://raw.githubusercontent.com/barnlabs/keep-keys/9713ee0bde0f29e1cc20a05094971ea34629678d/.omp-plugin/marketplace.json
 omp plugin install keep-keys@barnlabs
 omp plugin list
 ```
@@ -162,18 +164,21 @@ codex plugin marketplace add barnlabs/keep-keys --ref NEW_REVIEWED_COMMIT_SHA
 codex plugin add keep-keys@barnlabs
 ```
 
-Claude Code and OMP require a new reviewed catalog source SHA for every KeepKeys
-release; updating only `main` does not change the installed plugin. Gemini can
-pin the new commit directly. Hermes should repeat the detached-checkout install
-with the new reviewed SHA.
+Claude Code and OMP require a newly reviewed raw catalog URL for every KeepKeys
+release; updating only `main` does not change the installed plugin. Remove the
+old BarnLabs marketplace, add the new full-SHA raw URL, and reinstall
+`keep-keys@barnlabs`. Gemini can pin the new commit directly. Hermes should
+repeat the detached-checkout install with the new reviewed SHA.
 
 Client refresh commands:
 
 ```sh
-claude plugin marketplace update barnlabs
-claude plugin update keep-keys@barnlabs
-omp plugin marketplace update barnlabs
-omp plugin upgrade keep-keys@barnlabs
+claude plugin marketplace remove barnlabs
+claude plugin marketplace add NEW_REVIEWED_RAW_CATALOG_URL
+claude plugin install keep-keys@barnlabs
+omp plugin marketplace remove barnlabs
+omp plugin marketplace add NEW_REVIEWED_RAW_CATALOG_URL
+omp plugin install keep-keys@barnlabs
 hermes plugins update keep-keys
 gemini extensions update keep-keys
 ```
