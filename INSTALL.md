@@ -12,9 +12,11 @@ KeepKeys 0.1 does not claim Windows, Linux, iPhone/iPad, or ChatGPT web support.
 ## Install from the BarnLabs marketplace
 
 ```sh
-codex plugin marketplace add barnlabs/keep-keys --ref main
+codex plugin marketplace add barnlabs/keep-keys --ref a6055594caa58261cbde00a168e090f96e89f960
 codex plugin add keep-keys@barnlabs
 ```
+
+This full commit SHA is the reviewed KeepKeys 0.1.0 source. It is deliberately immutable; the security-sensitive install path does not follow `main`.
 
 Restart the desktop app or start a new Codex task so the plugin and its MCP server load from the installed cache.
 
@@ -58,8 +60,11 @@ codex plugin add keep-keys@barnlabs
 
 ## Upgrade
 
+Choose and review the exact newer KeepKeys commit first. Then replace `NEW_REVIEWED_COMMIT_SHA` below; do not substitute a mutable branch:
+
 ```sh
-codex plugin marketplace upgrade barnlabs
+codex plugin marketplace remove barnlabs
+codex plugin marketplace add barnlabs/keep-keys --ref NEW_REVIEWED_COMMIT_SHA
 codex plugin add keep-keys@barnlabs
 ```
 
