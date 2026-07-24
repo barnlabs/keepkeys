@@ -16,6 +16,7 @@ const claudeMcp = parse("plugins/keepkeys/.mcp.claude.json");
 const claudeMarketplace = parse(".claude-plugin/marketplace.json");
 const ompMarketplace = parse(".omp-plugin/marketplace.json");
 const grok = parse("plugins/keepkeys/.grok-plugin/plugin.json");
+const grokMcp = parse("plugins/keepkeys/.mcp.grok.json");
 const grokMarketplace = parse(".grok-plugin/marketplace.json");
 const gemini = parse("gemini-extension.json");
 const tools = parse("plugins/keepkeys/mcp/tools.json");
@@ -60,7 +61,12 @@ assert.equal(claudeMarketplace.plugins[0].category, "security");
 
 assert.equal(grok.name, "keepkeys");
 assert.equal(grok.skills, "./skills/");
-assert.equal(grok.mcpServers, "./.mcp.json");
+assert.equal(grok.mcpServers, "./.mcp.grok.json");
+assert.deepEqual(grokMcp.mcpServers.keepkeys, {
+  command: "node",
+  args: ["${GROK_PLUGIN_ROOT}/mcp/server.mjs", "--stdio"],
+  cwd: "${GROK_PLUGIN_ROOT}",
+});
 assert.equal(grokMarketplace.name, "barnlabs");
 assert.equal(grokMarketplace.plugins[0].name, "keepkeys");
 assert.equal(grokMarketplace.plugins[0].version, version);

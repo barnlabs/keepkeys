@@ -10,7 +10,7 @@ It does not mean every upstream directory has reviewed or listed KeepKeys.
 | Client | Package surface | Shared components | Verification gate |
 | --- | --- | --- | --- |
 | Codex | `.agents/plugins/marketplace.json` and `.codex-plugin/plugin.json` | MCP, skill, native helper | Codex manifest validation, installed-cache start, fresh-task `keepkeys_status` |
-| Grok Build | `.grok-plugin/marketplace.json` and `.grok-plugin/plugin.json` | MCP, skill, native helper | Grok manifest validation, exact-SHA subdirectory install, plugin inventory, MCP startup |
+| Grok Build | `.grok-plugin/marketplace.json`, `.grok-plugin/plugin.json`, and `${GROK_PLUGIN_ROOT}`-rooted MCP config | MCP, skill, native helper | Grok manifest validation, exact-SHA subdirectory install, plugin inventory, MCP startup |
 | Claude Code | full-SHA raw catalog and plugin manifest | MCP, skill, native helper | official marketplace/plugin validator plus catalog and source pins |
 | Oh My Pi | full-SHA raw `.omp-plugin` catalog | Claude-compatible MCP, skill, native helper | catalog equivalence, source pin, and documented plugin-root substitution contract |
 | Hermes | root `plugin.yaml` and `__init__.py` | shared JSON schemas, skill, native helper | Python registration/argument-vector tests; `hermes plugins list` when CLI is available |

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "keepkeys": {
+      "command": "node",
+      "args": [
+        "${GROK_PLUGIN_ROOT}/mcp/server.mjs",
+        "--stdio"
+      ],
+      "cwd": "${GROK_PLUGIN_ROOT}"
+    }
+  }
+}

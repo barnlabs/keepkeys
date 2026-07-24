@@ -36,6 +36,7 @@ for member in \
   "keepkeys/gemini-extension.json" \
   "keepkeys/plugin.yaml" \
   "keepkeys/plugins/keepkeys/.grok-plugin/plugin.json" \
+  "keepkeys/plugins/keepkeys/.mcp.grok.json" \
   "keepkeys/plugins/keepkeys/mcp/server.mjs" \
   "keepkeys/plugins/keepkeys/scripts/keepkeys"
 do

@@ -25,6 +25,12 @@ Codex, Grok Build, Claude Code, OMP, and Gemini manifests start
 definitions from `mcp/tools.json`. Each client receives the same six schemas and
 the same bundled behavioral skill.
 
+Client-specific MCP manifests root the same server at the directory token each
+host defines. Grok uses `${GROK_PLUGIN_ROOT}`, Claude and OMP use
+`${CLAUDE_PLUGIN_ROOT}`, Gemini uses `${extensionPath}`, and Codex resolves its
+local plugin root. This keeps installed plugins independent of the shell's
+current working directory.
+
 Hermes installs the repository root as a plugin. Its Python bridge loads the same
 `tools.json`, translates `inputSchema` to Hermes’ `parameters` field, and maps
 validated arguments directly to the same launcher. It does not read Keychain,
