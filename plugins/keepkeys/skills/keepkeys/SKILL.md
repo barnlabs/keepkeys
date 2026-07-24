@@ -1,11 +1,11 @@
 ---
-name: keep-keys
+name: keepkeys
 description: Store named secrets outside the conversation and use them through KeepKeys without returning plaintext to the agent. Use when a user asks to add, list, remove, or use a secret with KeepKeys.
 license: Apache-2.0
 compatibility: macOS 13 or newer with Node.js 18 or newer and Apple Command Line Tools.
 metadata:
   author: BarnLabs
-  version: "0.2.0"
+  version: "0.3.0"
 ---
 
 # KeepKeys
@@ -50,7 +50,7 @@ A skills-only distribution may omit local MCP configuration. On macOS, if the `k
 1. Resolve this installed skill's own directory. Use the first existing launcher
    from these two exact distribution-relative paths:
    - bundled plugin: `../../scripts/keepkeys`
-   - repository Agent Skill: `../../plugins/keep-keys/scripts/keepkeys`
+   - repository Agent Skill: `../../plugins/keepkeys/scripts/keepkeys`
    Do not search `PATH`, the home directory, or any other location for a
    `keepkeys` executable.
 2. Pass an argument array directly through the shell execution tool:

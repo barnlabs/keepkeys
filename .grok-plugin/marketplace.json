@@ -1,0 +1,30 @@
+{
+  "name": "barnlabs",
+  "description": "Open-source agent tools from BarnLabs.",
+  "owner": {
+    "name": "BarnLabs"
+  },
+  "plugins": [
+    {
+      "name": "keepkeys",
+      "description": "KeepKeys stores local macOS Keychain secrets outside chat and uses them only for commands the user reviews and approves.",
+      "category": "security",
+      "source": {
+        "type": "local",
+        "path": "./plugins/keepkeys"
+      },
+      "homepage": "https://github.com/barnlabs/keepkeys",
+      "version": "0.3.0",
+      "author": {
+        "name": "BarnLabs"
+      },
+      "keywords": [
+        "KeepKeys",
+        "agent secrets",
+        "macOS Keychain",
+        "MCP",
+        "credential security"
+      ]
+    }
+  ]
+}

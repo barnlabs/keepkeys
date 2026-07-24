@@ -2,6 +2,14 @@
 
 KeepKeys develops by proof, not by feature count.
 
+## 0.3 — KeepKeys identity and Grok Build
+
+- [x] unified `keepkeys` install slug with **KeepKeys** display branding
+- [x] native Grok Build plugin manifest and BarnLabs marketplace catalog
+- [x] exact-SHA Grok installation and inventory validation
+- [x] Keykeeper mascot, refreshed social preview, icon crops, and brand rules
+- [x] GitHub repository and search metadata aligned to KeepKeys
+
 ## 0.2 — multi-agent foundation
 
 - [x] Codex plugin and BarnLabs marketplace

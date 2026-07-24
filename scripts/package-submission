@@ -2,21 +2,21 @@
 set -eu
 
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-plugin="$root/plugins/keep-keys"
+plugin="$root/plugins/keepkeys"
 dist="$root/dist"
 build_root=$(/usr/bin/mktemp -d)
 trap '/bin/rm -rf "$build_root"' EXIT INT TERM
 
-mkdir -p "$build_root/keep-keys/.codex-plugin"
-cp "$plugin/.codex-plugin/plugin.json" "$build_root/keep-keys/.codex-plugin/plugin.json"
-cp -R "$plugin/assets" "$build_root/keep-keys/assets"
-cp -R "$plugin/skills" "$build_root/keep-keys/skills"
-cp -R "$plugin/scripts" "$build_root/keep-keys/scripts"
-cp "$root/LICENSE" "$build_root/keep-keys/LICENSE"
-cp "$root/TERMS.md" "$build_root/keep-keys/TERMS.md"
-cp "$root/docs/privacy-and-data-handling.md" "$build_root/keep-keys/PRIVACY.md"
+mkdir -p "$build_root/keepkeys/.codex-plugin"
+cp "$plugin/.codex-plugin/plugin.json" "$build_root/keepkeys/.codex-plugin/plugin.json"
+cp -R "$plugin/assets" "$build_root/keepkeys/assets"
+cp -R "$plugin/skills" "$build_root/keepkeys/skills"
+cp -R "$plugin/scripts" "$build_root/keepkeys/scripts"
+cp "$root/LICENSE" "$build_root/keepkeys/LICENSE"
+cp "$root/TERMS.md" "$build_root/keepkeys/TERMS.md"
+cp "$root/docs/privacy-and-data-handling.md" "$build_root/keepkeys/PRIVACY.md"
 
-node - "$build_root/keep-keys" <<'NODE'
+node - "$build_root/keepkeys" <<'NODE'
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -26,7 +26,7 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 delete manifest.mcpServers;
 fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
 
-assert.equal(manifest.name, "keep-keys");
+assert.equal(manifest.name, "keepkeys");
 assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
 assert.equal(manifest.skills, "./skills/");
 assert.equal(manifest.mcpServers, undefined);
@@ -36,7 +36,7 @@ for (const relative of [
   "assets/icon.png",
   "assets/logo.png",
   "assets/logo-dark.png",
-  "skills/keep-keys/SKILL.md",
+  "skills/keepkeys/SKILL.md",
   "scripts/keepkeys",
   "scripts/keepkeys.swift",
   "LICENSE",
@@ -47,7 +47,7 @@ for (const relative of [
 }
 NODE
 
-if find "$build_root/keep-keys" \( -name '.mcp.json' -o -path '*/mcp/*' \) -print | grep .
+if find "$build_root/keepkeys" \( -name '.mcp.json' -o -path '*/mcp/*' \) -print | grep .
 then
   printf '%s\n' "Skills-only submission unexpectedly contains MCP files." >&2
   exit 1
@@ -55,22 +55,22 @@ fi
 
 mkdir -p "$dist"
 version=$(node -e 'const fs=require("node:fs");const p=process.argv[1];process.stdout.write(JSON.parse(fs.readFileSync(p,"utf8")).version)' "$plugin/.codex-plugin/plugin.json")
-archive="$dist/keep-keys-skills-$version.zip"
+archive="$dist/keepkeys-skills-$version.zip"
 checksum="$archive.sha256"
 rm -f "$archive" "$checksum"
 (
   cd "$build_root"
-  /usr/bin/zip -X -q -r "$archive" keep-keys
+  /usr/bin/zip -X -q -r "$archive" keepkeys
 )
 
 for member in \
-  "keep-keys/.codex-plugin/plugin.json" \
-  "keep-keys/skills/keep-keys/SKILL.md" \
-  "keep-keys/scripts/keepkeys" \
-  "keep-keys/scripts/keepkeys.swift" \
-  "keep-keys/LICENSE" \
-  "keep-keys/PRIVACY.md" \
-  "keep-keys/TERMS.md"
+  "keepkeys/.codex-plugin/plugin.json" \
+  "keepkeys/skills/keepkeys/SKILL.md" \
+  "keepkeys/scripts/keepkeys" \
+  "keepkeys/scripts/keepkeys.swift" \
+  "keepkeys/LICENSE" \
+  "keepkeys/PRIVACY.md" \
+  "keepkeys/TERMS.md"
 do
   if ! /usr/bin/unzip -Z1 "$archive" | /usr/bin/grep -Fqx "$member"; then
     printf '%s\n' "Submission archive is missing $member." >&2
@@ -86,15 +86,15 @@ fi
 unpacked="$build_root/unpacked"
 mkdir -p "$unpacked"
 /usr/bin/unzip -q "$archive" -d "$unpacked"
-if [ ! -x "$unpacked/keep-keys/scripts/keepkeys" ]; then
+if [ ! -x "$unpacked/keepkeys/scripts/keepkeys" ]; then
   printf '%s\n' "Submission archive did not preserve the launcher executable bit." >&2
   exit 1
 fi
 
 KEEPKEYS_CACHE_DIR="$build_root/cache" \
-  "$unpacked/keep-keys/scripts/keepkeys" --build-only >/dev/null
+  "$unpacked/keepkeys/scripts/keepkeys" --build-only >/dev/null
 KEEPKEYS_CACHE_DIR="$build_root/cache" \
-  "$unpacked/keep-keys/scripts/keepkeys" --self-test >/dev/null
+  "$unpacked/keepkeys/scripts/keepkeys" --self-test >/dev/null
 
 (
   cd "$dist"

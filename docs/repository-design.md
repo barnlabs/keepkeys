@@ -15,7 +15,7 @@ repositories easy to evaluate quickly:
 
 ## Reference review
 
-The 0.2 repository pass reviewed current primary repositories and documentation:
+The 0.3 repository pass reviewed current primary repositories and documentation:
 
 - [1Password Shell Plugins](https://github.com/1Password/shell-plugins) for a
   focused security-tool promise, strong visual entry, action-oriented
@@ -26,6 +26,9 @@ The 0.2 repository pass reviewed current primary repositories and documentation:
   terminal-product README and official documentation handoff;
 - [Gemini CLI](https://github.com/google-gemini/gemini-cli) for CI/release
   signaling and extension documentation;
+- [Grok Build](https://github.com/xai-org/grok-build) and its official
+  marketplace for native plugin layout, exact-SHA installation, and
+  pre-install component inventory;
 - each client’s official plugin or extension specification for file placement
   and installation commands.
 
@@ -47,7 +50,9 @@ features.
 
 ## Brand constraint
 
-The visual system is deep pine, barn ember, and warm paper. The keyhole shield
-communicates guarded access without claiming perfect security. Copy uses “use,
-never retrieve” and names limitations near the promise. See the bundled
-[brand guidelines](../plugins/keep-keys/assets/brand-guidelines.md).
+The visual system is deep pine, barn ember, warm paper, and aged brass. The
+Keykeeper—a capable old man carrying a substantial ring of keys—is the primary
+character. He makes stewardship and user-controlled access more distinctive
+than a generic lock badge. Copy uses “use, never retrieve” and names limitations
+near the promise. See the bundled
+[brand guidelines](../plugins/keepkeys/assets/brand-guidelines.md).

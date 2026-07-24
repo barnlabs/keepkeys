@@ -10,19 +10,22 @@ const parse = (relative) =>
   JSON.parse(readFileSync(resolve(root, relative), "utf8"));
 const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 
-const codex = parse("plugins/keep-keys/.codex-plugin/plugin.json");
-const claude = parse("plugins/keep-keys/.claude-plugin/plugin.json");
-const claudeMcp = parse("plugins/keep-keys/.mcp.claude.json");
+const codex = parse("plugins/keepkeys/.codex-plugin/plugin.json");
+const claude = parse("plugins/keepkeys/.claude-plugin/plugin.json");
+const claudeMcp = parse("plugins/keepkeys/.mcp.claude.json");
 const claudeMarketplace = parse(".claude-plugin/marketplace.json");
 const ompMarketplace = parse(".omp-plugin/marketplace.json");
+const grok = parse("plugins/keepkeys/.grok-plugin/plugin.json");
+const grokMarketplace = parse(".grok-plugin/marketplace.json");
 const gemini = parse("gemini-extension.json");
-const tools = parse("plugins/keep-keys/mcp/tools.json");
+const tools = parse("plugins/keepkeys/mcp/tools.json");
 
 const version = codex.version;
 const releaseCommit = "243ffd36702d4961932538e55e7b01e95e372a84";
 const catalogCommit = "6fb515c5edb7065e90efb8ce653139544388da80";
-assert.equal(version, "0.2.0");
+assert.equal(version, "0.3.0");
 assert.equal(claude.version, version);
+assert.equal(grok.version, version);
 assert.equal(claudeMarketplace.version, version);
 assert.equal(
   claudeMarketplace.plugins[0].version,
@@ -35,7 +38,8 @@ assert.deepEqual(
   "OMP and Claude Code marketplaces must describe the same release",
 );
 
-assert.equal(claude.name, "keep-keys");
+assert.equal(claude.name, "keepkeys");
+assert.equal(claude.displayName, "KeepKeys");
 assert.equal(claude.skills, "./skills/");
 assert.equal(claude.mcpServers, "./.mcp.claude.json");
 assert.deepEqual(claudeMcp.mcpServers.keepkeys, {
@@ -44,39 +48,55 @@ assert.deepEqual(claudeMcp.mcpServers.keepkeys, {
   cwd: "${CLAUDE_PLUGIN_ROOT}",
 });
 assert.equal(claudeMarketplace.name, "barnlabs");
+assert.equal(claudeMarketplace.plugins[0].displayName, "KeepKeys");
 assert.deepEqual(claudeMarketplace.plugins[0].source, {
   source: "git-subdir",
-  url: "https://github.com/barnlabs/keep-keys.git",
-  path: "plugins/keep-keys",
+  url: "https://github.com/barnlabs/keepkeys.git",
+  path: "plugins/keepkeys",
   ref: "main",
   sha: releaseCommit,
 });
 assert.equal(claudeMarketplace.plugins[0].category, "security");
 
-assert.equal(gemini.name, "keep-keys");
+assert.equal(grok.name, "keepkeys");
+assert.equal(grok.skills, "./skills/");
+assert.equal(grok.mcpServers, "./.mcp.json");
+assert.equal(grokMarketplace.name, "barnlabs");
+assert.equal(grokMarketplace.plugins[0].name, "keepkeys");
+assert.equal(grokMarketplace.plugins[0].version, version);
+assert.deepEqual(grokMarketplace.plugins[0].source, {
+  type: "local",
+  path: "./plugins/keepkeys",
+});
+assert.ok(
+  grokMarketplace.plugins[0].description.startsWith("KeepKeys "),
+  "Grok marketplace copy must use the KeepKeys brand",
+);
+
+assert.equal(gemini.name, "keepkeys");
 assert.equal(gemini.version, version);
 assert.deepEqual(gemini.mcpServers.keepkeys, {
   command: "node",
   args: [
-    "${extensionPath}${/}plugins${/}keep-keys${/}mcp${/}server.mjs",
+    "${extensionPath}${/}plugins${/}keepkeys${/}mcp${/}server.mjs",
     "--stdio",
   ],
-  cwd: "${extensionPath}${/}plugins${/}keep-keys",
+  cwd: "${extensionPath}${/}plugins${/}keepkeys",
 });
 
 const pluginYaml = read("plugin.yaml");
-assert.match(pluginYaml, /^name: keep-keys$/m);
+assert.match(pluginYaml, /^name: keepkeys$/m);
 assert.match(pluginYaml, new RegExp(`^version: "${version.replaceAll(".", "\\.")}"$`, "m"));
 for (const tool of tools) {
   assert.match(pluginYaml, new RegExp(`^  - ${tool.name}$`, "m"));
 }
 
 assert.equal(
-  read("skills/keep-keys/SKILL.md"),
-  read("plugins/keep-keys/skills/keep-keys/SKILL.md"),
+  read("skills/keepkeys/SKILL.md"),
+  read("plugins/keepkeys/skills/keepkeys/SKILL.md"),
   "root Agent Skill and bundled plugin skill must stay identical",
 );
-assert.match(read("adapters/hermes/plugin.py"), /ctx\.register_skill\("keep-keys", _SKILL\)/);
+assert.match(read("adapters/hermes/plugin.py"), /ctx\.register_skill\("keepkeys", _SKILL\)/);
 assert.doesNotMatch(read("adapters/hermes/plugin.py"), /shell\s*=\s*True/);
 for (const document of ["README.md", "INSTALL.md"]) {
   assert.match(read(document), new RegExp(releaseCommit, "g"));
@@ -92,5 +112,5 @@ for (const tool of tools) {
 }
 
 process.stdout.write(
-  "KeepKeys Codex, Claude Code, Oh My Pi, Hermes, Gemini CLI, and Agent Skills adapters are structurally valid.\n",
+  "KeepKeys Codex, Grok Build, Claude Code, Oh My Pi, Hermes, Gemini CLI, and Agent Skills adapters are structurally valid.\n",
 );

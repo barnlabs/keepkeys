@@ -8,10 +8,10 @@ trap '/bin/rm -rf "$build_root"' EXIT INT TERM
 
 version=$(
   node -e 'const fs=require("node:fs");const p=process.argv[1];process.stdout.write(JSON.parse(fs.readFileSync(p,"utf8")).version)' \
-    "$root/plugins/keep-keys/.codex-plugin/plugin.json"
+    "$root/plugins/keepkeys/.codex-plugin/plugin.json"
 )
-package_root="$build_root/keep-keys"
-archive="$dist/keep-keys-$version-source.zip"
+package_root="$build_root/keepkeys"
+archive="$dist/keepkeys-$version-source.zip"
 checksum="$archive.sha256"
 
 /bin/mkdir -p "$package_root" "$dist"
@@ -25,17 +25,19 @@ checksum="$archive.sha256"
 /bin/rm -f "$archive" "$checksum"
 (
   cd "$build_root"
-  /usr/bin/zip -X -q -r "$archive" keep-keys
+  /usr/bin/zip -X -q -r "$archive" keepkeys
 )
 
 for member in \
-  "keep-keys/.agents/plugins/marketplace.json" \
-  "keep-keys/.claude-plugin/marketplace.json" \
-  "keep-keys/.omp-plugin/marketplace.json" \
-  "keep-keys/gemini-extension.json" \
-  "keep-keys/plugin.yaml" \
-  "keep-keys/plugins/keep-keys/mcp/server.mjs" \
-  "keep-keys/plugins/keep-keys/scripts/keepkeys"
+  "keepkeys/.agents/plugins/marketplace.json" \
+  "keepkeys/.grok-plugin/marketplace.json" \
+  "keepkeys/.claude-plugin/marketplace.json" \
+  "keepkeys/.omp-plugin/marketplace.json" \
+  "keepkeys/gemini-extension.json" \
+  "keepkeys/plugin.yaml" \
+  "keepkeys/plugins/keepkeys/.grok-plugin/plugin.json" \
+  "keepkeys/plugins/keepkeys/mcp/server.mjs" \
+  "keepkeys/plugins/keepkeys/scripts/keepkeys"
 do
   if ! /usr/bin/unzip -Z1 "$archive" | /usr/bin/grep -Fqx "$member"; then
     printf '%s\n' "Release archive is missing $member." >&2

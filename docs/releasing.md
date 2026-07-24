@@ -9,7 +9,7 @@ pin.
 1. Update all manifests, the shared skill metadata, server/helper version, and
    changelog.
 2. Recompute the Swift-source SHA-256 pinned in
-   `plugins/keep-keys/scripts/keepkeys`.
+   `plugins/keepkeys/scripts/keepkeys`.
 3. Run `./scripts/check`, `./scripts/test`, and `./scripts/doctor`.
 4. Run `./scripts/package-submission` and `./scripts/package-release`; verify
    both generated checksums.
@@ -35,4 +35,4 @@ launcher rebuilds the cache from the selected source; the user may remove the
 exact KeepKeys cache directory first if a rebuild itself is under test.
 
 Do not downgrade the Keychain record format without a tested migration. Version
-0.2 uses metadata record version `1`, unchanged from 0.1.
+0.3 uses metadata record version `1`, unchanged from 0.1.

@@ -6,10 +6,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { TOOLS } from "../plugins/keep-keys/mcp/server.mjs";
+import { TOOLS } from "../plugins/keepkeys/mcp/server.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const pluginRoot = resolve(root, "plugins", "keep-keys");
+const pluginRoot = resolve(root, "plugins", "keepkeys");
 const manifestPath = resolve(pluginRoot, ".codex-plugin", "plugin.json");
 const marketplacePath = resolve(root, ".agents", "plugins", "marketplace.json");
 const mcpPath = resolve(pluginRoot, ".mcp.json");
@@ -19,7 +19,7 @@ const manifest = parse(manifestPath);
 const marketplace = parse(marketplacePath);
 const mcp = parse(mcpPath);
 
-assert.equal(manifest.name, "keep-keys");
+assert.equal(manifest.name, "keepkeys");
 assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
 assert.equal(manifest.skills, "./skills/");
 assert.equal(manifest.mcpServers, "./.mcp.json");
@@ -39,10 +39,10 @@ for (const field of ["composerIcon", "logo", "logoDark"]) {
 }
 
 assert.equal(marketplace.name, "barnlabs");
-const entry = marketplace.plugins.find((plugin) => plugin.name === "keep-keys");
+const entry = marketplace.plugins.find((plugin) => plugin.name === "keepkeys");
 assert.ok(entry, "marketplace entry is missing");
 assert.equal(entry.source.source, "local");
-assert.equal(entry.source.path, "./plugins/keep-keys");
+assert.equal(entry.source.path, "./plugins/keepkeys");
 assert.equal(entry.policy.installation, "AVAILABLE");
 assert.equal(entry.policy.authentication, "ON_INSTALL");
 assert.equal(entry.category, "Productivity");
@@ -66,8 +66,8 @@ const storeTool = TOOLS.find((tool) => tool.name === "keepkeys_store");
 assert.ok(storeTool, "keepkeys_store is missing");
 assert.deepEqual(storeTool.inputSchema.required, ["name", "variable", "description"]);
 
-const skill = readFileSync(resolve(pluginRoot, "skills", "keep-keys", "SKILL.md"), "utf8");
-assert.match(skill, /^---\nname: keep-keys\n/m);
+const skill = readFileSync(resolve(pluginRoot, "skills", "keepkeys", "SKILL.md"), "utf8");
+assert.match(skill, /^---\nname: keepkeys\n/m);
 assert.match(skill, /Never ask the user to paste, type, dictate, attach, or expose a secret in chat/);
 
 const launcher = readFileSync(resolve(pluginRoot, "scripts", "keepkeys"), "utf8");

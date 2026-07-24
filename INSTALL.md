@@ -6,10 +6,10 @@
 - Node.js 18 or newer
 - Apple Command Line Tools (`xcode-select --install` if
   `xcrun --find swiftc` fails)
-- one supported agent client: Codex, Claude Code, Oh My Pi, Hermes, or Gemini
-  CLI
+- one supported agent client: Codex, Grok Build, Claude Code, Oh My Pi, Hermes,
+  or Gemini CLI
 
-KeepKeys 0.2 does not claim Windows, Linux, iPhone/iPad, browser-only, or remote
+KeepKeys 0.3 does not claim Windows, Linux, iPhone/iPad, browser-only, or remote
 Keychain support.
 
 ## Codex
@@ -17,27 +17,45 @@ Keychain support.
 Install the reviewed immutable source:
 
 ```sh
-codex plugin marketplace add barnlabs/keep-keys \
+codex plugin marketplace add barnlabs/keepkeys \
   --ref 243ffd36702d4961932538e55e7b01e95e372a84
-codex plugin add keep-keys@barnlabs
+codex plugin add keepkeys@barnlabs
 ```
 
 Restart Codex or begin a new task, then ask:
 
 > Check KeepKeys status.
 
+## Grok Build
+
+Grok accepts a plugin subdirectory pinned to an exact commit. Install the
+reviewed source directly:
+
+```sh
+grok plugin install \
+  'barnlabs/keepkeys@243ffd36702d4961932538e55e7b01e95e372a84#plugins/keepkeys' \
+  --trust
+grok plugin list
+grok plugin details keepkeys
+```
+
+The internal slug is `keepkeys` because Grok requires lowercase identifiers.
+The product and human-facing brand are **KeepKeys**. The repository also ships
+`.grok-plugin/marketplace.json` for Grok marketplace discovery, but the direct
+full-SHA install above is the recommended credential-sensitive route.
+
 ## Claude Code
 
 ```sh
 claude plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keep-keys/6fb515c5edb7065e90efb8ce653139544388da80/.claude-plugin/marketplace.json
-claude plugin install keep-keys@barnlabs
+  https://raw.githubusercontent.com/barnlabs/keepkeys/6fb515c5edb7065e90efb8ce653139544388da80/.claude-plugin/marketplace.json
+claude plugin install keepkeys@barnlabs
 ```
 
 Claude Code does not expose a raw-commit option for a Git marketplace checkout,
 so this command adds the catalog as a direct file from reviewed catalog commit
 `6fb515c5edb7065e90efb8ce653139544388da80`. That immutable catalog pins the
-actual `plugins/keep-keys` source with a `git-subdir` entry and functional SHA
+actual `plugins/keepkeys` source with a `git-subdir` entry and functional SHA
 `243ffd36702d4961932538e55e7b01e95e372a84`. A changed `main` catalog cannot
 alter either part of this installation. Verify with:
 
@@ -57,8 +75,8 @@ plugin source to reviewed commit
 
 ```sh
 omp plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keep-keys/6fb515c5edb7065e90efb8ce653139544388da80/.omp-plugin/marketplace.json
-omp plugin install keep-keys@barnlabs
+  https://raw.githubusercontent.com/barnlabs/keepkeys/6fb515c5edb7065e90efb8ce653139544388da80/.omp-plugin/marketplace.json
+omp plugin install keepkeys@barnlabs
 omp plugin list
 ```
 
@@ -71,10 +89,10 @@ The repository root is a Hermes plugin. The Python adapter registers the same
 six schemas and launches the same native helper without a shell.
 
 ```sh
-git clone https://github.com/barnlabs/keep-keys.git keep-keys-0.2.0
-git -C keep-keys-0.2.0 checkout --detach \
+git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.3.0
+git -C keepkeys-0.3.0 checkout --detach \
   243ffd36702d4961932538e55e7b01e95e372a84
-hermes plugins install "file://$(cd keep-keys-0.2.0 && pwd)" --enable
+hermes plugins install "file://$(cd keepkeys-0.3.0 && pwd)" --enable
 hermes plugins list
 ```
 
@@ -84,26 +102,26 @@ checkout above makes the installed source auditable and immutable. Hermes
 plugins are opt-in. If you installed without `--enable`, run:
 
 ```sh
-hermes plugins enable keep-keys
+hermes plugins enable keepkeys
 ```
 
 Restart Hermes after enabling it. The bundled skill appears as
-`keep-keys:keep-keys`.
+`keepkeys:keepkeys`.
 
 ## Gemini CLI
 
 ```sh
-gemini extensions install https://github.com/barnlabs/keep-keys \
+gemini extensions install https://github.com/barnlabs/keepkeys \
   --ref 243ffd36702d4961932538e55e7b01e95e372a84
 gemini extensions list
 ```
 
 Gemini loads the repository-root `gemini-extension.json`, the bundled MCP
-server, and the standard Agent Skill under `skills/keep-keys/`.
+server, and the standard Agent Skill under `skills/keepkeys/`.
 
 ## First use
 
-On the first tool call, `plugins/keep-keys/scripts/keepkeys` verifies the bundled
+On the first tool call, `plugins/keepkeys/scripts/keepkeys` verifies the bundled
 Swift source and compiles it into:
 
 ```text
@@ -125,8 +143,8 @@ it into the conversation.
 ## Verify a clone
 
 ```sh
-git clone https://github.com/barnlabs/keep-keys.git
-cd keep-keys
+git clone https://github.com/barnlabs/keepkeys.git
+cd keepkeys
 ./scripts/bootstrap
 ./scripts/check
 ./scripts/test
@@ -144,9 +162,10 @@ remove the item.
 
 | Client | Development install |
 | --- | --- |
-| Codex | `codex plugin marketplace add "$(pwd)"` then `codex plugin add keep-keys@barnlabs` |
-| Claude Code | `claude --plugin-dir "$PWD/plugins/keep-keys"` |
-| OMP | `omp plugin link "$PWD/plugins/keep-keys"` |
+| Codex | `codex plugin marketplace add "$(pwd)"` then `codex plugin add keepkeys@barnlabs` |
+| Grok Build | `grok plugin validate "$PWD/plugins/keepkeys"` |
+| Claude Code | `claude --plugin-dir "$PWD/plugins/keepkeys"` |
+| OMP | `omp plugin link "$PWD/plugins/keepkeys"` |
 | Gemini CLI | `gemini extensions link .` |
 | Hermes | `HERMES_ENABLE_PROJECT_PLUGINS=true hermes` with a trusted project copy, or install the repository normally |
 
@@ -160,27 +179,31 @@ Codex:
 
 ```sh
 codex plugin marketplace remove barnlabs
-codex plugin marketplace add barnlabs/keep-keys --ref NEW_REVIEWED_COMMIT_SHA
-codex plugin add keep-keys@barnlabs
+codex plugin marketplace add barnlabs/keepkeys --ref NEW_REVIEWED_COMMIT_SHA
+codex plugin add keepkeys@barnlabs
 ```
 
-Claude Code and OMP require a newly reviewed raw catalog URL for every KeepKeys
+Grok can repeat the direct full-SHA install after review. Claude Code and OMP
+require a newly reviewed raw catalog URL for every KeepKeys
 release; updating only `main` does not change the installed plugin. Remove the
 old BarnLabs marketplace, add the new full-SHA raw URL, and reinstall
-`keep-keys@barnlabs`. Gemini can pin the new commit directly. Hermes should
+`keepkeys@barnlabs`. Gemini can pin the new commit directly. Hermes should
 repeat the detached-checkout install with the new reviewed SHA.
 
 Client refresh commands:
 
 ```sh
+grok plugin uninstall keepkeys
+grok plugin install 'barnlabs/keepkeys@NEW_REVIEWED_COMMIT_SHA#plugins/keepkeys' --trust
+
 claude plugin marketplace remove barnlabs
 claude plugin marketplace add NEW_REVIEWED_RAW_CATALOG_URL
-claude plugin install keep-keys@barnlabs
+claude plugin install keepkeys@barnlabs
 omp plugin marketplace remove barnlabs
 omp plugin marketplace add NEW_REVIEWED_RAW_CATALOG_URL
-omp plugin install keep-keys@barnlabs
-hermes plugins update keep-keys
-gemini extensions update keep-keys
+omp plugin install keepkeys@barnlabs
+hermes plugins update keepkeys
+gemini extensions update keepkeys
 ```
 
 The launcher recompiles when the Swift source or launcher/build recipe changes.
@@ -197,18 +220,20 @@ named Keychain item through Security.framework.
 Then uninstall the integration:
 
 ```sh
-codex plugin remove keep-keys
+codex plugin remove keepkeys
 codex plugin marketplace remove barnlabs
 
-claude plugin uninstall keep-keys@barnlabs
+grok plugin uninstall keepkeys
+
+claude plugin uninstall keepkeys@barnlabs
 claude plugin marketplace remove barnlabs
 
-omp plugin uninstall keep-keys@barnlabs
+omp plugin uninstall keepkeys@barnlabs
 omp plugin marketplace remove barnlabs
 
-hermes plugins remove keep-keys
+hermes plugins remove keepkeys
 
-gemini extensions uninstall keep-keys
+gemini extensions uninstall keepkeys
 ```
 
 To remove only the compiled cache, review this exact path and then remove it:

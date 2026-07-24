@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 120" role="img" aria-labelledby="title">
+  <title id="title">KeepKeys</title>
+  <rect width="560" height="120" rx="24" fill="#FFF8EC"/>
+  <circle cx="63" cy="46" r="25" fill="none" stroke="#C79A45" stroke-width="8"/>
+  <g fill="#C79A45">
+    <circle cx="46" cy="65" r="7"/><path d="M42 70h8v30h-8zm8 18h12v7H50z"/>
+    <circle cx="64" cy="68" r="7"/><path d="M60 73h8v29h-8zm8 12h12v7H68z"/>
+    <circle cx="82" cy="65" r="7"/><path d="M78 70h8v30h-8zm-12 18h12v7H66z"/>
+  </g>
+  <text x="126" y="76" fill="#1F2D27" font-family="ui-rounded, Avenir Next, Arial, sans-serif" font-size="52" font-weight="700" letter-spacing="-2">KeepKeys</text>
+</svg>

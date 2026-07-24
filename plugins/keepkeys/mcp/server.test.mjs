@@ -84,7 +84,7 @@ test("MCP handler returns structured helper output", async () => {
   const calls = [];
   const handler = createRequestHandler(async (name, args) => {
     calls.push({ name, args });
-    return { status: "ok", platform: "macOS", version: "0.2.0" };
+    return { status: "ok", platform: "macOS", version: "0.3.0" };
   });
   const response = await handler({
     jsonrpc: "2.0",
@@ -96,7 +96,7 @@ test("MCP handler returns structured helper output", async () => {
   assert.deepEqual(response.result.structuredContent, {
     status: "ok",
     platform: "macOS",
-    version: "0.2.0",
+    version: "0.3.0",
   });
 });
 
@@ -128,7 +128,7 @@ test("stdio server starts when the plugin path contains a symlink", () => {
     assert.equal(result.status, 0, result.stderr);
     const response = JSON.parse(result.stdout.trim());
     assert.equal(response.result.serverInfo.name, "keepkeys");
-    assert.equal(response.result.serverInfo.version, "0.2.0");
+    assert.equal(response.result.serverInfo.version, "0.3.0");
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });
   }

@@ -2,7 +2,7 @@
 set -eu
 
 if [ "$(/usr/bin/uname -s)" != "Darwin" ]; then
-  printf '%s\n' '{"status":"error","message":"KeepKeys 0.2 supports macOS only."}'
+  printf '%s\n' '{"status":"error","message":"KeepKeys 0.3 supports macOS only."}'
   exit 1
 fi
 
@@ -12,7 +12,7 @@ launcher_file="$script_dir/keepkeys"
 cache_dir="${KEEPKEYS_CACHE_DIR:-${HOME}/Library/Caches/net.barnlabs.keepkeys}"
 binary="$cache_dir/keepkeys-helper"
 hash_file="$cache_dir/build-inputs.sha256"
-expected_source_hash="4f5fb5aa956dae96826c3cb6821d8a5ea52bb34475ec618a8cb7b91bcffa469c"
+expected_source_hash="2f8f5cc3ead8ad2244f7c9a892ff002726a0ef83c7e16dd6aeae270b5f0dd502"
 
 umask 077
 if [ -L "$cache_dir" ]; then

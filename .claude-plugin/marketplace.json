@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "barnlabs",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Open-source agent tools from BarnLabs.",
   "owner": {
     "name": "BarnLabs",
@@ -9,7 +9,8 @@
   },
   "plugins": [
     {
-      "name": "keep-keys",
+      "name": "keepkeys",
+      "displayName": "KeepKeys",
       "description": "Local macOS Keychain secrets for approval-gated agent commands, without plaintext retrieval.",
       "author": {
         "name": "BarnLabs",
@@ -17,14 +18,14 @@
       },
       "source": {
         "source": "git-subdir",
-        "url": "https://github.com/barnlabs/keep-keys.git",
-        "path": "plugins/keep-keys",
+        "url": "https://github.com/barnlabs/keepkeys.git",
+        "path": "plugins/keepkeys",
         "ref": "main",
         "sha": "243ffd36702d4961932538e55e7b01e95e372a84"
       },
       "category": "security",
-      "homepage": "https://github.com/barnlabs/keep-keys",
-      "repository": "https://github.com/barnlabs/keep-keys",
+      "homepage": "https://github.com/barnlabs/keepkeys",
+      "repository": "https://github.com/barnlabs/keepkeys",
       "license": "Apache-2.0",
       "keywords": [
         "secrets",

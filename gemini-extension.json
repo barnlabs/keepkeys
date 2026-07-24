@@ -1,15 +1,15 @@
 {
-  "name": "keep-keys",
-  "version": "0.2.0",
+  "name": "keepkeys",
+  "version": "0.3.0",
   "description": "Local macOS Keychain secrets for approval-gated agent commands, without plaintext retrieval.",
   "mcpServers": {
     "keepkeys": {
       "command": "node",
       "args": [
-        "${extensionPath}${/}plugins${/}keep-keys${/}mcp${/}server.mjs",
+        "${extensionPath}${/}plugins${/}keepkeys${/}mcp${/}server.mjs",
         "--stdio"
       ],
-      "cwd": "${extensionPath}${/}plugins${/}keep-keys"
+      "cwd": "${extensionPath}${/}plugins${/}keepkeys"
     }
   }
 }

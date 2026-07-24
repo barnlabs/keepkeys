@@ -4,7 +4,8 @@
 
 | Version | Status |
 | --- | --- |
-| `0.2.x` | Current source release; macOS 13+ |
+| `0.3.x` | Current source release; macOS 13+ |
+| `0.2.x` | Supported for critical security fixes |
 | `0.1.x` | Supported for critical security fixes |
 | `< 0.1` | Unsupported scaffold |
 

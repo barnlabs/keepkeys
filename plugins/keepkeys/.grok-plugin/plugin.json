@@ -1,0 +1,21 @@
+{
+  "name": "keepkeys",
+  "version": "0.3.0",
+  "description": "KeepKeys stores local secrets outside chat and lets Grok use them through approval-gated commands.",
+  "author": {
+    "name": "BarnLabs",
+    "url": "https://github.com/barnlabs"
+  },
+  "homepage": "https://github.com/barnlabs/keepkeys",
+  "repository": "https://github.com/barnlabs/keepkeys",
+  "license": "Apache-2.0",
+  "keywords": [
+    "KeepKeys",
+    "secrets",
+    "keychain",
+    "agents",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}

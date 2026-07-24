@@ -1,14 +1,14 @@
 {
-  "name": "keep-keys",
+  "name": "keepkeys",
   "displayName": "KeepKeys",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Store local secrets outside chat and let your agent use them through approval-gated commands.",
   "author": {
     "name": "BarnLabs",
     "url": "https://github.com/barnlabs"
   },
-  "homepage": "https://github.com/barnlabs/keep-keys",
-  "repository": "https://github.com/barnlabs/keep-keys",
+  "homepage": "https://github.com/barnlabs/keepkeys",
+  "repository": "https://github.com/barnlabs/keepkeys",
   "license": "Apache-2.0",
   "keywords": [
     "secrets",

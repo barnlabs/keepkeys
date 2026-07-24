@@ -10,18 +10,19 @@ It does not mean every upstream directory has reviewed or listed KeepKeys.
 | Client | Package surface | Shared components | Verification gate |
 | --- | --- | --- | --- |
 | Codex | `.agents/plugins/marketplace.json` and `.codex-plugin/plugin.json` | MCP, skill, native helper | Codex manifest validation, installed-cache start, fresh-task `keepkeys_status` |
+| Grok Build | `.grok-plugin/marketplace.json` and `.grok-plugin/plugin.json` | MCP, skill, native helper | Grok manifest validation, exact-SHA subdirectory install, plugin inventory, MCP startup |
 | Claude Code | full-SHA raw catalog and plugin manifest | MCP, skill, native helper | official marketplace/plugin validator plus catalog and source pins |
 | Oh My Pi | full-SHA raw `.omp-plugin` catalog | Claude-compatible MCP, skill, native helper | catalog equivalence, source pin, and documented plugin-root substitution contract |
 | Hermes | root `plugin.yaml` and `__init__.py` | shared JSON schemas, skill, native helper | Python registration/argument-vector tests; `hermes plugins list` when CLI is available |
 | Gemini CLI | root `gemini-extension.json` | MCP, root Agent Skill, native helper | extension manifest/link validation with the installed Gemini CLI |
-| Agent Skills clients | `skills/keep-keys/SKILL.md` | behavioral boundary; launcher fallback where supported | byte-identical skill copies and Agent Skills frontmatter checks |
+| Agent Skills clients | `skills/keepkeys/SKILL.md` | behavioral boundary; launcher fallback where supported | byte-identical skill copies and Agent Skills frontmatter checks |
 
 The current machine’s checked client versions and runtime smoke evidence belong
 in release notes or CI logs, not in this durable document.
 
 ## Platform
 
-KeepKeys 0.2.0 supports macOS 13 or newer on Apple silicon and Intel Macs. The
+KeepKeys 0.3.0 supports macOS 13 or newer on Apple silicon and Intel Macs. The
 native helper depends on AppKit, Security.framework, and CryptoKit. Node.js 18+
 and Apple Command Line Tools are required.
 
@@ -52,6 +53,7 @@ Official public catalogs have separate human and policy review. Repository
 publication alone does not establish:
 
 - OpenAI/Codex directory approval;
+- xAI Grok Build marketplace inclusion;
 - Anthropic marketplace inclusion;
 - OMP community promotion;
 - Hermes community promotion; or
@@ -62,10 +64,10 @@ listing as “official” only after the owning platform confirms it.
 
 ## Source trust
 
-Codex and Gemini CLI accept the reviewed functional commit directly. Claude Code
-and OMP install an immutable raw catalog by its full commit SHA; that catalog
-pins the plugin subdirectory to the reviewed functional SHA. Hermes’ native
-installer follows a branch, so the supported KeepKeys route first checks out the
-functional commit in detached mode and installs from that local Git checkout.
-The convenient mutable `owner/repo` route is not the documented credential-use
-path.
+Codex, Grok Build, and Gemini CLI accept the reviewed functional commit
+directly. Claude Code and OMP install an immutable raw catalog by its full commit
+SHA; that catalog pins the plugin subdirectory to the reviewed functional SHA.
+Hermes’ native installer follows a branch, so the supported KeepKeys route first
+checks out the functional commit in detached mode and installs from that local
+Git checkout. The convenient mutable `owner/repo` route is not the documented
+credential-use path.

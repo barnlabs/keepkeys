@@ -10,10 +10,10 @@ import subprocess
 from typing import Any
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-_PLUGIN_ROOT = _REPOSITORY_ROOT / "plugins" / "keep-keys"
+_PLUGIN_ROOT = _REPOSITORY_ROOT / "plugins" / "keepkeys"
 _LAUNCHER = _PLUGIN_ROOT / "scripts" / "keepkeys"
 _TOOL_SPEC = _PLUGIN_ROOT / "mcp" / "tools.json"
-_SKILL = _PLUGIN_ROOT / "skills" / "keep-keys" / "SKILL.md"
+_SKILL = _PLUGIN_ROOT / "skills" / "keepkeys" / "SKILL.md"
 _MAX_OUTPUT_BYTES = 2 * 1024 * 1024
 _DEFAULT_TIMEOUT_SECONDS = 15 * 60
 
@@ -149,4 +149,4 @@ def register(ctx: Any) -> None:
             handler=_handler_for(tool["name"]),
             description=tool["description"],
         )
-    ctx.register_skill("keep-keys", _SKILL)
+    ctx.register_skill("keepkeys", _SKILL)

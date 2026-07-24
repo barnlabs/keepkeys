@@ -22,19 +22,19 @@ KeepKeys lets macOS Codex users store named developer secrets outside the conver
 
 ## Website
 
-https://github.com/barnlabs/keep-keys
+https://github.com/barnlabs/keepkeys
 
 ## Support
 
-https://github.com/barnlabs/keep-keys/issues
+https://github.com/barnlabs/keepkeys/issues
 
 ## Privacy
 
-https://github.com/barnlabs/keep-keys/blob/main/docs/privacy-and-data-handling.md
+https://github.com/barnlabs/keepkeys/blob/main/docs/privacy-and-data-handling.md
 
 ## Terms
 
-https://github.com/barnlabs/keep-keys/blob/main/TERMS.md
+https://github.com/barnlabs/keepkeys/blob/main/TERMS.md
 
 ## Availability
 

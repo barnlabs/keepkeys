@@ -5,10 +5,10 @@
   },
   "plugins": [
     {
-      "name": "keep-keys",
+      "name": "keepkeys",
       "source": {
         "source": "local",
-        "path": "./plugins/keep-keys"
+        "path": "./plugins/keepkeys"
       },
       "policy": {
         "installation": "AVAILABLE",

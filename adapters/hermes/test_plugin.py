@@ -36,7 +36,7 @@ class HermesAdapterTests(unittest.TestCase):
                 "keepkeys_doctor",
             ],
         )
-        self.assertEqual(ctx.skills[0][0], "keep-keys")
+        self.assertEqual(ctx.skills[0][0], "keepkeys")
         for tool in ctx.tools:
             properties = tool["schema"]["parameters"]["properties"]
             self.assertNotIn("secret", properties)
@@ -93,12 +93,12 @@ class HermesAdapterTests(unittest.TestCase):
         with patch.object(
             plugin,
             "_run_helper",
-            return_value={"status": "ok", "version": "0.2.0"},
+            return_value={"status": "ok", "version": "0.3.0"},
         ):
             result = plugin._handler_for("keepkeys_status")({})
         self.assertEqual(
             json.loads(result),
-            {"status": "ok", "version": "0.2.0"},
+            {"status": "ok", "version": "0.3.0"},
         )
 
 

@@ -5,7 +5,7 @@
 BarnLabs is the project owner and release authority for KeepKeys.
 
 - Organization: [github.com/barnlabs](https://github.com/barnlabs)
-- Repository: [barnlabs/keep-keys](https://github.com/barnlabs/keep-keys)
+- Repository: [barnlabs/keepkeys](https://github.com/barnlabs/keepkeys)
 - Security reports: GitHub **Security → Report a vulnerability**
 - General support: [GitHub Discussions or issues](.github/SUPPORT.md)
 

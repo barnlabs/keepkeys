@@ -88,7 +88,7 @@ launcher digest reduces—but does not eliminate—installed-source tampering.
 - secret confinement after delivery to an approved process;
 - encoded/fragmented/steganographic output detection;
 - remote, shared, synchronized, backup, recovery, or team-vault storage;
-- Windows, Linux, iOS, or web support in version 0.2;
+- Windows, Linux, iOS, or web support in version 0.3;
 - absolute security claims.
 
 ## Required regression invariants

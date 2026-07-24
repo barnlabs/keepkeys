@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="plugins/keep-keys/assets/hero.svg" width="100%" alt="KeepKeys — local secrets for Codex, Claude Code, Oh My Pi, Hermes, and Gemini CLI" />
+  <img src="plugins/keepkeys/assets/social-preview.png" width="100%" alt="KeepKeys — the BarnLabs keykeeper holding a ring of keys beside the words Use secrets. Never reveal them." />
 </p>
 
 <p align="center">
@@ -7,11 +7,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/barnlabs/keep-keys/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/barnlabs/keep-keys/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/barnlabs/keepkeys/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/barnlabs/keepkeys/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="LICENSE"><img alt="Apache-2.0 license" src="https://img.shields.io/badge/license-Apache--2.0-41544C.svg" /></a>
   <a href="SECURITY.md"><img alt="Security policy" src="https://img.shields.io/badge/security-policy-D96C4D.svg" /></a>
   <img alt="macOS 13 or newer" src="https://img.shields.io/badge/macOS-13%2B-1F2D27.svg" />
-  <img alt="KeepKeys 0.2.0" src="https://img.shields.io/badge/version-0.2.0-D96C4D.svg" />
+  <img alt="KeepKeys 0.3.0" src="https://img.shields.io/badge/version-0.3.0-D96C4D.svg" />
 </p>
 
 KeepKeys is the small, open-source secrets plugin for credentials you want a
@@ -23,19 +23,20 @@ There is no `get`, `show`, `copy`, reveal, or export tool. Friendly names,
 environment-variable names, and descriptions are available for future tasks;
 the plaintext value is not.
 
-## One core, five native integrations
+## One core, six native integrations
 
 | Client | Native package surface | Install |
 | --- | --- | --- |
-| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keep-keys --ref 243ffd36702d4961932538e55e7b01e95e372a84`<br>`codex plugin add keep-keys@barnlabs` |
-| **Claude Code** | Claude plugin + source-pinned marketplace | `claude plugin marketplace add https://raw.githubusercontent.com/barnlabs/keep-keys/6fb515c5edb7065e90efb8ce653139544388da80/.claude-plugin/marketplace.json`<br>`claude plugin install keep-keys@barnlabs` |
-| **Oh My Pi** | OMP/Claude-compatible, source-pinned marketplace | `omp plugin marketplace add https://raw.githubusercontent.com/barnlabs/keep-keys/6fb515c5edb7065e90efb8ce653139544388da80/.omp-plugin/marketplace.json`<br>`omp plugin install keep-keys@barnlabs` |
+| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref 243ffd36702d4961932538e55e7b01e95e372a84`<br>`codex plugin add keepkeys@barnlabs` |
+| **Grok Build** | Native Grok plugin + BarnLabs catalog | `grok plugin install 'barnlabs/keepkeys@243ffd36702d4961932538e55e7b01e95e372a84#plugins/keepkeys' --trust` |
+| **Claude Code** | Claude plugin + source-pinned marketplace | `claude plugin marketplace add https://raw.githubusercontent.com/barnlabs/keepkeys/6fb515c5edb7065e90efb8ce653139544388da80/.claude-plugin/marketplace.json`<br>`claude plugin install keepkeys@barnlabs` |
+| **Oh My Pi** | OMP/Claude-compatible, source-pinned marketplace | `omp plugin marketplace add https://raw.githubusercontent.com/barnlabs/keepkeys/6fb515c5edb7065e90efb8ce653139544388da80/.omp-plugin/marketplace.json`<br>`omp plugin install keepkeys@barnlabs` |
 | **Hermes** | Repository-root Hermes plugin | [Install from the reviewed checkout](INSTALL.md#hermes) |
-| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keep-keys --ref 243ffd36702d4961932538e55e7b01e95e372a84` |
+| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref 243ffd36702d4961932538e55e7b01e95e372a84` |
 
-All five integrations ship the same tool names and the same native core. The
-repository also exposes a standard `skills/keep-keys/SKILL.md` for compatible
-[Agent Skills](https://agentskills.io) clients. KeepKeys 0.2.0 is intentionally
+All six integrations ship the same tool names and the same native core. The
+repository also exposes a standard `skills/keepkeys/SKILL.md` for compatible
+[Agent Skills](https://agentskills.io) clients. KeepKeys 0.3.0 is intentionally
 **macOS-only**; it requires macOS 13+, Node.js 18+, and Apple Command Line
 Tools.
 
@@ -104,9 +105,9 @@ needs it.
 ## Architecture
 
 ```text
-Codex · Claude Code · Oh My Pi · Gemini CLI     Hermes
-                 │ MCP                           │ thin Python bridge
-                 └──────────────┬────────────────┘
+Codex · Grok Build · Claude Code · OMP · Gemini CLI     Hermes
+                       │ MCP                              │ thin Python bridge
+                       └──────────────┬───────────────────┘
                                 ▼
                    shared schema + fixed argv
                                 ▼
@@ -151,7 +152,7 @@ KeepKeys has no package dependencies and no application scaffold.
 - [Governance](GOVERNANCE.md)
 - [Roadmap](ROADMAP.md)
 - [Changelog](CHANGELOG.md)
-- [Brand assets](plugins/keep-keys/assets/brand-guidelines.md)
+- [Brand assets](plugins/keepkeys/assets/brand-guidelines.md)
 
 KeepKeys is an Apache-2.0 [BarnLabs](https://github.com/barnlabs) open-source
 initiative. Repository publication does not imply listing or approval in any

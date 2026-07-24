@@ -3,7 +3,7 @@
 KeepKeys is one native secrets core with thin client adapters:
 
 ```text
-Codex / Claude Code / Oh My Pi / Gemini CLI
+Codex / Grok Build / Claude Code / Oh My Pi / Gemini CLI
   │  MCP over stdio
   ├───────────────┐
   │               │
@@ -20,8 +20,8 @@ Native helper (Swift/AppKit/Security.framework)
 
 ## Adapter layer
 
-Codex, Claude Code, OMP, and Gemini manifests start
-`plugins/keep-keys/mcp/server.mjs`. The MCP server loads the canonical tool
+Codex, Grok Build, Claude Code, OMP, and Gemini manifests start
+`plugins/keepkeys/mcp/server.mjs`. The MCP server loads the canonical tool
 definitions from `mcp/tools.json`. Each client receives the same six schemas and
 the same bundled behavioral skill.
 
@@ -44,9 +44,9 @@ route.
 
 ## Native layer
 
-`plugins/keep-keys/scripts/keepkeys` first verifies `keepkeys.swift` against the SHA-256 digest pinned in the launcher, then compiles it into a private user cache on first use or when either the Swift source or launcher/build recipe changes. The Swift helper uses AppKit for local prompts, Security.framework for Keychain, CryptoKit for executable fingerprints, and Foundation `Process` for direct execution.
+`plugins/keepkeys/scripts/keepkeys` first verifies `keepkeys.swift` against the SHA-256 digest pinned in the launcher, then compiles it into a private user cache on first use or when either the Swift source or launcher/build recipe changes. The Swift helper uses AppKit for local prompts, Security.framework for Keychain, CryptoKit for executable fingerprints, and Foundation `Process` for direct execution.
 
-The plugin is macOS-only in 0.2. This is deliberate: a credential plugin should
+The plugin is macOS-only in 0.3. This is deliberate: a credential plugin should
 not claim a platform until its native storage, prompts, build, and failure
 behavior can be verified on that platform.
 

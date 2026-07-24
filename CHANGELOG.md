@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 — 2026-07-24
+
+- Standardized the product as **KeepKeys** with `keepkeys` as the lowercase
+  internal slug required by plugin hosts.
+- Added a native Grok Build plugin manifest, BarnLabs Grok marketplace catalog,
+  exact-SHA install guidance, and local Grok validation.
+- Replaced the generic lock branding with the original Keykeeper character: a
+  capable old steward carrying a visible ring of keys.
+- Refreshed the README hero, plugin icons, social preview, brand guidelines,
+  client matrix, architecture, packaging, and GitHub search metadata.
+- Preserved the same six tools, native Keychain core, no-plaintext boundary,
+  direct execution path, and logical Keychain deletion behavior.
+
 ## 0.2.0 — 2026-07-24
 
 - Expanded KeepKeys from a Codex-only package to native plugin/extension surfaces for Claude Code, Oh My Pi, Hermes, and Gemini CLI.
