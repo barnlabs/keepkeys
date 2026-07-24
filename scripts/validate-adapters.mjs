@@ -19,8 +19,8 @@ const gemini = parse("gemini-extension.json");
 const tools = parse("plugins/keep-keys/mcp/tools.json");
 
 const version = codex.version;
-const releaseCommit = "3bb6e306edc73270e96e25429ddf07861ad99ee3";
-const catalogCommit = "9713ee0bde0f29e1cc20a05094971ea34629678d";
+const releaseCommit = "243ffd36702d4961932538e55e7b01e95e372a84";
+const catalogCommit = "6fb515c5edb7065e90efb8ce653139544388da80";
 assert.equal(version, "0.2.0");
 assert.equal(claude.version, version);
 assert.equal(claudeMarketplace.version, version);

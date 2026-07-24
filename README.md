@@ -27,11 +27,11 @@ the plaintext value is not.
 
 | Client | Native package surface | Install |
 | --- | --- | --- |
-| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keep-keys --ref 3bb6e306edc73270e96e25429ddf07861ad99ee3`<br>`codex plugin add keep-keys@barnlabs` |
-| **Claude Code** | Claude plugin + source-pinned marketplace | `claude plugin marketplace add https://raw.githubusercontent.com/barnlabs/keep-keys/9713ee0bde0f29e1cc20a05094971ea34629678d/.claude-plugin/marketplace.json`<br>`claude plugin install keep-keys@barnlabs` |
-| **Oh My Pi** | OMP/Claude-compatible, source-pinned marketplace | `omp plugin marketplace add https://raw.githubusercontent.com/barnlabs/keep-keys/9713ee0bde0f29e1cc20a05094971ea34629678d/.omp-plugin/marketplace.json`<br>`omp plugin install keep-keys@barnlabs` |
+| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keep-keys --ref 243ffd36702d4961932538e55e7b01e95e372a84`<br>`codex plugin add keep-keys@barnlabs` |
+| **Claude Code** | Claude plugin + source-pinned marketplace | `claude plugin marketplace add https://raw.githubusercontent.com/barnlabs/keep-keys/6fb515c5edb7065e90efb8ce653139544388da80/.claude-plugin/marketplace.json`<br>`claude plugin install keep-keys@barnlabs` |
+| **Oh My Pi** | OMP/Claude-compatible, source-pinned marketplace | `omp plugin marketplace add https://raw.githubusercontent.com/barnlabs/keep-keys/6fb515c5edb7065e90efb8ce653139544388da80/.omp-plugin/marketplace.json`<br>`omp plugin install keep-keys@barnlabs` |
 | **Hermes** | Repository-root Hermes plugin | [Install from the reviewed checkout](INSTALL.md#hermes) |
-| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keep-keys --ref 3bb6e306edc73270e96e25429ddf07861ad99ee3` |
+| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keep-keys --ref 243ffd36702d4961932538e55e7b01e95e372a84` |
 
 All five integrations ship the same tool names and the same native core. The
 repository also exposes a standard `skills/keep-keys/SKILL.md` for compatible
@@ -40,7 +40,7 @@ repository also exposes a standard `skills/keep-keys/SKILL.md` for compatible
 Tools.
 
 The Claude and OMP commands pin the catalog itself to reviewed commit
-`9713ee0bde0f29e1cc20a05094971ea34629678d`; that catalog pins its plugin source
+`6fb515c5edb7065e90efb8ce653139544388da80`; that catalog pins its plugin source
 to the functional commit above. See [INSTALL.md](INSTALL.md) for client-specific
 setup, immutable Hermes installation, verification, upgrades, and removal.
 

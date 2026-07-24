@@ -18,7 +18,7 @@ Install the reviewed immutable source:
 
 ```sh
 codex plugin marketplace add barnlabs/keep-keys \
-  --ref 3bb6e306edc73270e96e25429ddf07861ad99ee3
+  --ref 243ffd36702d4961932538e55e7b01e95e372a84
 codex plugin add keep-keys@barnlabs
 ```
 
@@ -30,15 +30,15 @@ Restart Codex or begin a new task, then ask:
 
 ```sh
 claude plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keep-keys/9713ee0bde0f29e1cc20a05094971ea34629678d/.claude-plugin/marketplace.json
+  https://raw.githubusercontent.com/barnlabs/keep-keys/6fb515c5edb7065e90efb8ce653139544388da80/.claude-plugin/marketplace.json
 claude plugin install keep-keys@barnlabs
 ```
 
 Claude Code does not expose a raw-commit option for a Git marketplace checkout,
 so this command adds the catalog as a direct file from reviewed catalog commit
-`9713ee0bde0f29e1cc20a05094971ea34629678d`. That immutable catalog pins the
+`6fb515c5edb7065e90efb8ce653139544388da80`. That immutable catalog pins the
 actual `plugins/keep-keys` source with a `git-subdir` entry and functional SHA
-`3bb6e306edc73270e96e25429ddf07861ad99ee3`. A changed `main` catalog cannot
+`243ffd36702d4961932538e55e7b01e95e372a84`. A changed `main` catalog cannot
 alter either part of this installation. Verify with:
 
 ```sh
@@ -53,11 +53,11 @@ Start a new Claude Code session after installation.
 OMP reads the native `.omp-plugin/marketplace.json` catalog and uses the same
 self-contained Claude-compatible plugin bundle. Its catalog entry pins the
 plugin source to reviewed commit
-`3bb6e306edc73270e96e25429ddf07861ad99ee3`:
+`243ffd36702d4961932538e55e7b01e95e372a84`:
 
 ```sh
 omp plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keep-keys/9713ee0bde0f29e1cc20a05094971ea34629678d/.omp-plugin/marketplace.json
+  https://raw.githubusercontent.com/barnlabs/keep-keys/6fb515c5edb7065e90efb8ce653139544388da80/.omp-plugin/marketplace.json
 omp plugin install keep-keys@barnlabs
 omp plugin list
 ```
@@ -73,7 +73,7 @@ six schemas and launches the same native helper without a shell.
 ```sh
 git clone https://github.com/barnlabs/keep-keys.git keep-keys-0.2.0
 git -C keep-keys-0.2.0 checkout --detach \
-  3bb6e306edc73270e96e25429ddf07861ad99ee3
+  243ffd36702d4961932538e55e7b01e95e372a84
 hermes plugins install "file://$(cd keep-keys-0.2.0 && pwd)" --enable
 hermes plugins list
 ```
@@ -94,7 +94,7 @@ Restart Hermes after enabling it. The bundled skill appears as
 
 ```sh
 gemini extensions install https://github.com/barnlabs/keep-keys \
-  --ref 3bb6e306edc73270e96e25429ddf07861ad99ee3
+  --ref 243ffd36702d4961932538e55e7b01e95e372a84
 gemini extensions list
 ```
 
