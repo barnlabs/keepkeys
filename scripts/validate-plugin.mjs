@@ -48,6 +48,7 @@ assert.equal(entry.policy.authentication, "ON_INSTALL");
 assert.equal(entry.category, "Productivity");
 
 assert.equal(mcp.mcpServers.keepkeys.command, "node");
+assert.equal(mcp.mcpServers.keepkeys.cwd, ".");
 assert.deepEqual(mcp.mcpServers.keepkeys.args, ["./mcp/server.mjs", "--stdio"]);
 
 for (const tool of TOOLS) {

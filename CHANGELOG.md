@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.1.0 — Unreleased
+## 0.1.1 — 2026-07-24
+
+- Fixed the plugin MCP launch directory so a newly started Codex task loads the six `keepkeys_*` tools from the installed plugin instead of requiring the skills-only fallback.
+
+## 0.1.0 — 2026-07-24
 
 - Added the BarnLabs KeepKeys Codex plugin and repository marketplace.
 - Added native macOS secure entry, overwrite, removal, and per-command approval.

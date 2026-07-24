@@ -2,6 +2,7 @@
   "mcpServers": {
     "keepkeys": {
       "command": "node",
+      "cwd": ".",
       "args": [
         "./mcp/server.mjs",
         "--stdio"

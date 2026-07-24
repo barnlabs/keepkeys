@@ -1,6 +1,6 @@
 {
   "name": "keep-keys",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Store local secrets outside chat and let Codex use them through approval-gated commands.",
   "author": {
     "name": "BarnLabs",

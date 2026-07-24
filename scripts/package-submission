@@ -54,7 +54,8 @@ then
 fi
 
 mkdir -p "$dist"
-archive="$dist/keep-keys-skills-0.1.0.zip"
+version=$(node -e 'const fs=require("node:fs");const p=process.argv[1];process.stdout.write(JSON.parse(fs.readFileSync(p,"utf8")).version)' "$plugin/.codex-plugin/plugin.json")
+archive="$dist/keep-keys-skills-$version.zip"
 checksum="$archive.sha256"
 rm -f "$archive" "$checksum"
 (
