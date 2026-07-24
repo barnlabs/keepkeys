@@ -27,11 +27,11 @@ the plaintext value is not.
 
 | Client | Native package surface | Install |
 | --- | --- | --- |
-| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keep-keys --ref REVIEWED_COMMIT_SHA`<br>`codex plugin add keep-keys@barnlabs` |
-| **Claude Code** | Claude plugin + marketplace | `claude plugin marketplace add barnlabs/keep-keys`<br>`claude plugin install keep-keys@barnlabs` |
-| **Oh My Pi** | OMP/Claude-compatible marketplace | `omp plugin marketplace add barnlabs/keep-keys`<br>`omp plugin install keep-keys@barnlabs` |
-| **Hermes** | Repository-root Hermes plugin | `hermes plugins install barnlabs/keep-keys --enable` |
-| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keep-keys --ref REVIEWED_COMMIT_SHA` |
+| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keep-keys --ref 3bb6e306edc73270e96e25429ddf07861ad99ee3`<br>`codex plugin add keep-keys@barnlabs` |
+| **Claude Code** | Claude plugin + source-pinned marketplace | `claude plugin marketplace add barnlabs/keep-keys`<br>`claude plugin install keep-keys@barnlabs` |
+| **Oh My Pi** | OMP/Claude-compatible, source-pinned marketplace | `omp plugin marketplace add barnlabs/keep-keys`<br>`omp plugin install keep-keys@barnlabs` |
+| **Hermes** | Repository-root Hermes plugin | [Install from the reviewed checkout](INSTALL.md#hermes) |
+| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keep-keys --ref 3bb6e306edc73270e96e25429ddf07861ad99ee3` |
 
 All five integrations ship the same tool names and the same native core. The
 repository also exposes a standard `skills/keep-keys/SKILL.md` for compatible
@@ -39,9 +39,9 @@ repository also exposes a standard `skills/keep-keys/SKILL.md` for compatible
 **macOS-only**; it requires macOS 13+, Node.js 18+, and Apple Command Line
 Tools.
 
-The immutable commit placeholders above are replaced with the reviewed release
-commit after every security-sensitive release. See [INSTALL.md](INSTALL.md) for
-client-specific setup, verification, upgrades, and removal.
+The Claude and OMP catalogs pin their plugin source to that same reviewed full
+commit SHA. See [INSTALL.md](INSTALL.md) for client-specific setup, immutable
+Hermes installation, verification, upgrades, and removal.
 
 ## The promise—and its edge
 

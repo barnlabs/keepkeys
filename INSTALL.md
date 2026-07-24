@@ -17,7 +17,8 @@ Keychain support.
 Install the reviewed immutable source:
 
 ```sh
-codex plugin marketplace add barnlabs/keep-keys --ref REVIEWED_COMMIT_SHA
+codex plugin marketplace add barnlabs/keep-keys \
+  --ref 3bb6e306edc73270e96e25429ddf07861ad99ee3
 codex plugin add keep-keys@barnlabs
 ```
 
@@ -32,8 +33,12 @@ claude plugin marketplace add barnlabs/keep-keys
 claude plugin install keep-keys@barnlabs
 ```
 
-For an immutable marketplace checkout, append the reviewed Git reference
-supported by your Claude Code version when adding the marketplace. Verify with:
+Claude Code does not expose a raw-commit option for marketplace checkout. The
+BarnLabs catalog therefore pins the actual `plugins/keep-keys` source with a
+`git-subdir` entry and the reviewed full SHA
+`3bb6e306edc73270e96e25429ddf07861ad99ee3`. A changed `main` catalog cannot
+silently substitute different 0.2.0 plugin code without also changing that
+visible pin. Verify with:
 
 ```sh
 claude plugin validate .
@@ -45,7 +50,9 @@ Start a new Claude Code session after installation.
 ## Oh My Pi
 
 OMP reads the native `.omp-plugin/marketplace.json` catalog and uses the same
-self-contained Claude-compatible plugin bundle:
+self-contained Claude-compatible plugin bundle. Its catalog entry pins the
+plugin source to reviewed commit
+`3bb6e306edc73270e96e25429ddf07861ad99ee3`:
 
 ```sh
 omp plugin marketplace add barnlabs/keep-keys
@@ -59,14 +66,20 @@ Start a new OMP session. The plugin uses OMP’s documented
 ## Hermes
 
 The repository root is a Hermes plugin. The Python adapter registers the same
-six schemas and launches the same native helper without a shell:
+six schemas and launches the same native helper without a shell.
 
 ```sh
-hermes plugins install barnlabs/keep-keys --enable
+git clone https://github.com/barnlabs/keep-keys.git keep-keys-0.2.0
+git -C keep-keys-0.2.0 checkout --detach \
+  3bb6e306edc73270e96e25429ddf07861ad99ee3
+hermes plugins install "file://$(cd keep-keys-0.2.0 && pwd)" --enable
 hermes plugins list
 ```
 
-Hermes plugins are opt-in. If you installed without `--enable`, run:
+Hermes’ one-line `owner/repo` installer follows the repository’s mutable default
+branch, so KeepKeys does not recommend that route for credentials. The detached
+checkout above makes the installed source auditable and immutable. Hermes
+plugins are opt-in. If you installed without `--enable`, run:
 
 ```sh
 hermes plugins enable keep-keys
@@ -79,7 +92,7 @@ Restart Hermes after enabling it. The bundled skill appears as
 
 ```sh
 gemini extensions install https://github.com/barnlabs/keep-keys \
-  --ref REVIEWED_COMMIT_SHA
+  --ref 3bb6e306edc73270e96e25429ddf07861ad99ee3
 gemini extensions list
 ```
 
@@ -130,8 +143,8 @@ remove the item.
 | Client | Development install |
 | --- | --- |
 | Codex | `codex plugin marketplace add "$(pwd)"` then `codex plugin add keep-keys@barnlabs` |
-| Claude Code | `claude plugin marketplace add "$(pwd)"` then `claude plugin install keep-keys@barnlabs` |
-| OMP | `omp plugin marketplace add "$(pwd)"` then `omp plugin install keep-keys@barnlabs` |
+| Claude Code | `claude --plugin-dir "$PWD/plugins/keep-keys"` |
+| OMP | `omp plugin link "$PWD/plugins/keep-keys"` |
 | Gemini CLI | `gemini extensions link .` |
 | Hermes | `HERMES_ENABLE_PROJECT_PLUGINS=true hermes` with a trusted project copy, or install the repository normally |
 
@@ -149,7 +162,12 @@ codex plugin marketplace add barnlabs/keep-keys --ref NEW_REVIEWED_COMMIT_SHA
 codex plugin add keep-keys@barnlabs
 ```
 
-Other clients:
+Claude Code and OMP require a new reviewed catalog source SHA for every KeepKeys
+release; updating only `main` does not change the installed plugin. Gemini can
+pin the new commit directly. Hermes should repeat the detached-checkout install
+with the new reviewed SHA.
+
+Client refresh commands:
 
 ```sh
 claude plugin marketplace update barnlabs

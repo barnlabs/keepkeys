@@ -19,6 +19,7 @@ const gemini = parse("gemini-extension.json");
 const tools = parse("plugins/keep-keys/mcp/tools.json");
 
 const version = codex.version;
+const releaseCommit = "3bb6e306edc73270e96e25429ddf07861ad99ee3";
 assert.equal(version, "0.2.0");
 assert.equal(claude.version, version);
 assert.equal(claudeMarketplace.version, version);
@@ -42,7 +43,13 @@ assert.deepEqual(claudeMcp.mcpServers.keepkeys, {
   cwd: "${CLAUDE_PLUGIN_ROOT}",
 });
 assert.equal(claudeMarketplace.name, "barnlabs");
-assert.equal(claudeMarketplace.plugins[0].source, "./plugins/keep-keys");
+assert.deepEqual(claudeMarketplace.plugins[0].source, {
+  source: "git-subdir",
+  url: "https://github.com/barnlabs/keep-keys.git",
+  path: "plugins/keep-keys",
+  ref: "main",
+  sha: releaseCommit,
+});
 assert.equal(claudeMarketplace.plugins[0].category, "security");
 
 assert.equal(gemini.name, "keep-keys");
