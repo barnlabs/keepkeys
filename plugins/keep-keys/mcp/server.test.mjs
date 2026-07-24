@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   TOOLS,
@@ -93,4 +98,38 @@ test("MCP handler returns structured helper output", async () => {
     platform: "macOS",
     version: "0.2.0",
   });
+});
+
+test("stdio server starts when the plugin path contains a symlink", () => {
+  const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  const temporaryRoot = mkdtempSync(join(tmpdir(), "keepkeys-mcp-"));
+  const alias = join(temporaryRoot, "plugin");
+  try {
+    symlinkSync(pluginRoot, alias, "dir");
+    const request = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "keepkeys-test", version: "1" },
+      },
+    };
+    const result = spawnSync(
+      process.execPath,
+      [join(alias, "mcp", "server.mjs"), "--stdio"],
+      {
+        input: `${JSON.stringify(request)}\n`,
+        encoding: "utf8",
+        timeout: 5_000,
+      },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const response = JSON.parse(result.stdout.trim());
+    assert.equal(response.result.serverInfo.name, "keepkeys");
+    assert.equal(response.result.serverInfo.version, "0.2.0");
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
 });

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { createInterface } from "node:readline";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const PROTOCOL_VERSION = "2025-06-18";
 const MAX_HELPER_OUTPUT = 2 * 1024 * 1024;
@@ -294,10 +294,17 @@ async function main() {
   }
 }
 
-if (
-  process.argv[1] &&
-  pathToFileURL(resolve(process.argv[1])).href === import.meta.url
-) {
+let isMainModule = false;
+if (process.argv[1]) {
+  try {
+    isMainModule =
+      realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    isMainModule = false;
+  }
+}
+
+if (isMainModule) {
   main().catch((error) => {
     process.stderr.write(`KeepKeys MCP server failed: ${error.message}\n`);
     process.exitCode = 1;
