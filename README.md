@@ -32,11 +32,11 @@ KeepKeys does not:
 KeepKeys 0.1 supports Codex on macOS 13 or newer. It needs Node.js 18+ and Apple Command Line Tools so the installed plugin can compile its small native helper locally.
 
 ```sh
-codex plugin marketplace add barnlabs/keep-keys --ref a6055594caa58261cbde00a168e090f96e89f960
+codex plugin marketplace add barnlabs/keep-keys --ref c3125215ad70921faff8bbc5d49e7251ddba0a72
 codex plugin add keep-keys@barnlabs
 ```
 
-The full commit SHA intentionally pins the reviewed 0.1.0 source instead of following a mutable branch. KeepKeys also verifies the native Swift source against a SHA-256 digest pinned in its launcher before local compilation.
+The full commit SHA intentionally pins the reviewed 0.1.1 source instead of following a mutable branch. KeepKeys also verifies the native Swift source against a SHA-256 digest pinned in its launcher before local compilation.
 
 Restart Codex or begin a new task after installation. Then ask:
 
