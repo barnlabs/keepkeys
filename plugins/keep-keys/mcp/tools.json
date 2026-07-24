@@ -1,0 +1,172 @@
+[
+  {
+    "name": "keepkeys_store",
+    "title": "Store a secret in KeepKeys",
+    "description": "Open the native KeepKeys window to collect a secret outside chat and store it in macOS Keychain. This tool never accepts or returns the secret value.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Suggested friendly name, such as github-release.",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "variable": {
+          "type": "string",
+          "description": "Suggested uppercase environment-variable name, such as GITHUB_TOKEN.",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "description": {
+          "type": "string",
+          "description": "One-line description of what the secret is for, such as publishing approved releases.",
+          "minLength": 1,
+          "maxLength": 240
+        }
+      },
+      "required": [
+        "name",
+        "variable",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "openWorldHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false
+    }
+  },
+  {
+    "name": "keepkeys_list",
+    "title": "List KeepKeys names",
+    "description": "List friendly names, variable names, and descriptions stored by KeepKeys. Secret values are never returned.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true
+    }
+  },
+  {
+    "name": "keepkeys_remove",
+    "title": "Remove a KeepKeys secret",
+    "description": "Open a native confirmation window and delete one named KeepKeys credential after user approval.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Exact friendly name to remove.",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "openWorldHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true
+    }
+  },
+  {
+    "name": "keepkeys_run",
+    "title": "Run an approved command with a KeepKeys secret",
+    "description": "Show a native confirmation for an exact direct executable, then inject the named secret into that one child process. The secret is never returned to the agent.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Friendly name of the stored secret.",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "purpose": {
+          "type": "string",
+          "description": "Plain-language reason the command needs the secret.",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "program": {
+          "type": "string",
+          "description": "Absolute path to a direct executable. Shell commands are rejected.",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "arguments": {
+          "type": "array",
+          "description": "Fixed argument list passed directly to the executable.",
+          "items": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "maxItems": 64,
+          "default": []
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Optional absolute working-directory path.",
+          "minLength": 1,
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "name",
+        "purpose",
+        "program"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "openWorldHint": true,
+      "destructiveHint": true,
+      "idempotentHint": false
+    }
+  },
+  {
+    "name": "keepkeys_status",
+    "title": "Check KeepKeys availability",
+    "description": "Check the local helper version and platform without reading or changing credentials.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true
+    }
+  },
+  {
+    "name": "keepkeys_doctor",
+    "title": "Verify KeepKeys Keychain access",
+    "description": "Perform a temporary macOS Keychain write/read/delete round trip using a generated test value. No user credential is read.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "openWorldHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false
+    }
+  }
+]

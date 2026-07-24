@@ -4,13 +4,13 @@ KeepKeys has no account, analytics, telemetry, cloud vault, advertising identifi
 
 ## Data inventory
 
-| Data | Location | Returned to Codex? | Retention |
+| Data | Location | Returned to the agent? | Retention |
 | --- | --- | --- | --- |
 | Secret value | macOS Keychain; transient process memory during store/use | No | Until the user removes the Keychain item |
 | Environment-variable name | Encoded in the Keychain item's metadata | Yes, for store/list and in the approval window | Until removal/replacement |
 | Description | Encoded in the Keychain item's metadata | Yes, for store/list and in the approval window | Until removal/replacement |
 | Friendly name | Keychain account attribute | Yes, for store/list/use/remove | Until removal |
-| Command purpose/path/arguments/cwd/hash | Native approval UI and transient process memory | Supplied by Codex before approval | Not persisted by KeepKeys |
+| Command purpose/path/arguments/cwd/hash | Native approval UI and transient process memory | Supplied by the agent before approval | Not persisted by KeepKeys |
 | Child stdout/stderr | Transient bounded buffers | Yes, after redaction | Not persisted by KeepKeys |
 | Compiled helper and build-input hash | User-owned cache | Version/status only | Until cache removal or rebuild |
 
@@ -24,7 +24,7 @@ The helper writes one JSON result to standard output and errors as bounded messa
 
 ## Metadata visibility
 
-The active Codex task can call `keepkeys_list` to receive friendly names,
+The active agent task can call `keepkeys_list` to receive friendly names,
 environment-variable names, and descriptions without a native confirmation.
 This is intentional so future tasks can select the correct credential easily.
 The plugin skill limits listing to an explicit user request or metadata needed

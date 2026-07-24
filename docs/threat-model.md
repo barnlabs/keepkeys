@@ -2,7 +2,9 @@
 
 ## Security objective
 
-KeepKeys lets Codex use a user-selected local secret without placing the plaintext value in the model prompt, MCP arguments, MCP result, plugin metadata, repository, persistent environment, or shell command.
+KeepKeys lets a supported local agent use a user-selected secret without placing
+the plaintext value in the model prompt, adapter arguments/results, plugin
+metadata, repository, persistent environment, or shell command.
 
 ## Assets
 
@@ -16,13 +18,13 @@ KeepKeys lets Codex use a user-selected local secret without placing the plainte
 
 | Boundary | Control |
 | --- | --- |
-| Conversation → plugin | Tool schemas contain no plaintext-secret field. The skill forbids asking for or reconstructing a value. |
-| Plugin → native helper | The MCP server spawns a fixed plugin-relative launcher with an argument array, no shell, and a minimal environment. The launcher re-executes the helper with only system `PATH` and the current home directory. |
-| Native entry → Keychain | Codex supplies name, variable, and description; `NSSecureTextField` collects only the value. Security.framework stores one non-synchronizing, device-local generic-password item. |
+| Conversation → adapter | The shared tool schemas contain no plaintext-secret field. The skill forbids asking for or reconstructing a value. |
+| Adapter → native helper | MCP or the Hermes bridge spawns a fixed repository-relative launcher with an argument array, no shell, and a minimal environment. The launcher re-executes the helper with only system `PATH` and the current home directory. |
+| Native entry → Keychain | The agent supplies name, variable, and description; `NSSecureTextField` collects only the value. Security.framework stores one non-synchronizing, device-local generic-password item. |
 | Keychain → command | The native helper reads the record only after preparing a concrete request and the user approves it once. |
 | Request → executable | Absolute path, resolved symlinks, executable check, fixed arguments, working directory, and SHA-256 are shown. The hash is checked again immediately before launch. |
 | Parent → child | The environment is cleared, then one stored variable is added. `Process` invokes the executable directly; common shells and environment-dump programs are rejected. |
-| Child output → Codex | Output is bounded and exact/common encodings of the secret are redacted before JSON reaches the MCP server. If either stream exceeds its bound, that entire stream is replaced by a fixed omission marker. |
+| Child output → agent | Output is bounded and exact/common encodings of the secret are redacted before JSON reaches an adapter. If either stream exceeds its bound, that entire stream is replaced by a fixed omission marker. |
 | Plugin source → compiled helper | The launcher fails closed unless the Swift source matches its pinned SHA-256 digest. A user-owned non-symlink cache compiles that source; a hash of the source plus launcher/build recipe triggers rebuilds. |
 
 ## Adversaries and abuse cases
@@ -37,7 +39,7 @@ There is no retrieval tool. Store accepts only name, variable, and description m
 without a second native prompt so a future authorized task can find the correct
 credential. The skill permits listing only on an explicit request or when
 necessary for the current task. Users should keep descriptions minimal because
-the active Codex task can read this metadata.
+the active agent task can read this metadata.
 
 ### Agent attempts `/usr/bin/env`, a shell, or misleading command
 
@@ -65,11 +67,20 @@ The launcher rejects a symlink cache root, checks current-user ownership, uses m
 
 ### Tool timeout
 
-The MCP server launches the helper in a dedicated process group. If the 15-minute
-local approval/command limit expires or helper output violates the server bound,
-the server sends `SIGKILL` to that group before returning an error. A target that
-deliberately creates a new session or process group can escape group cleanup and is
-treated as an untrusted approved-target behavior.
+The MCP server and Hermes bridge launch the helper in a dedicated process group.
+If the 15-minute local approval/command limit expires or helper output violates
+the adapter bound, the adapter sends `SIGKILL` to that group before returning an
+error. A target that deliberately creates a new session or process group can
+escape group cleanup and is treated as an untrusted approved-target behavior.
+
+### Client adapter changes semantics
+
+Client packages are deliberately declarative or thin. The canonical JSON schema
+is shared by MCP and Hermes; validation requires identical skills for root and
+bundled distributions. A compromised client or modified installed plugin can
+still misdescribe tool intent, change source, or bypass the skill. The native
+store/run/remove windows remain the final user gate, and source pinning plus the
+launcher digest reduces—but does not eliminate—installed-source tampering.
 
 ## Explicit non-goals
 
@@ -77,14 +88,14 @@ treated as an untrusted approved-target behavior.
 - secret confinement after delivery to an approved process;
 - encoded/fragmented/steganographic output detection;
 - remote, shared, synchronized, backup, recovery, or team-vault storage;
-- Windows, Linux, iOS, or web support in version 0.1;
+- Windows, Linux, iOS, or web support in version 0.2;
 - absolute security claims.
 
 ## Required regression invariants
 
-1. No MCP input schema accepts `secret`, `value`, or equivalent plaintext.
+1. No adapter input schema accepts `secret`, `value`, or equivalent plaintext.
 2. No tool or CLI action retrieves a plaintext value for the model.
-3. Codex can pre-fill metadata, but secret entry occurs in native UI and Keychain only.
+3. An agent can pre-fill metadata, but secret entry occurs in native UI and Keychain only.
 4. Run requires one native approval and direct absolute executable invocation.
 5. The child starts from an empty environment plus one stored variable.
 6. Cancellation performs no store, delete, or launch.

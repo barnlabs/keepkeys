@@ -3,7 +3,7 @@ import CryptoKit
 import Foundation
 import Security
 
-private let keepKeysVersion = "0.1.1"
+private let keepKeysVersion = "0.2.0"
 private let keychainService = "net.barnlabs.keepkeys"
 private let maximumSecretBytes = 2_048
 private let maximumCapturedBytes = 1_048_576
@@ -356,7 +356,7 @@ private func storeInteractively(
             systemSymbolName: "key.fill",
             accessibilityDescription: "KeepKeys"
         )
-        alert.messageText = "Store a secret for Codex"
+        alert.messageText = "Store a secret for your agent"
         alert.informativeText =
             "The value stays in this Mac's Keychain. It is not returned to the conversation."
         alert.accessoryView = container

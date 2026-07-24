@@ -1,7 +1,7 @@
 {
   "name": "keep-keys",
-  "version": "0.1.1",
-  "description": "Store local secrets outside chat and let Codex use them through approval-gated commands.",
+  "version": "0.2.0",
+  "description": "Store local secrets outside chat and let your agent use them through approval-gated commands.",
   "author": {
     "name": "BarnLabs",
     "url": "https://github.com/barnlabs"
@@ -12,15 +12,16 @@
   "keywords": [
     "secrets",
     "keychain",
-    "codex",
+    "agents",
+    "mcp",
     "developer-tools"
   ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "KeepKeys",
-    "shortDescription": "Local secrets for approved Codex commands",
-    "longDescription": "KeepKeys opens a native secure-entry prompt, stores named secrets in macOS Keychain, and lets Codex use them only through commands you review and approve. Secret values are never returned to the model.",
+    "shortDescription": "Local secrets for approved agent commands",
+    "longDescription": "KeepKeys opens a native secure-entry prompt, stores named secrets in macOS Keychain, and lets your agent use them only through commands you review and approve. Secret values are never returned to the model.",
     "developerName": "BarnLabs",
     "category": "Productivity",
     "capabilities": [

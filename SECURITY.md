@@ -4,7 +4,8 @@
 
 | Version | Status |
 | --- | --- |
-| `0.1.x` | Source preview; macOS 13+ |
+| `0.2.x` | Current source release; macOS 13+ |
+| `0.1.x` | Supported for critical security fixes |
 | `< 0.1` | Unsupported scaffold |
 
 KeepKeys is security-sensitive software. No version is described as unbreakable or as protection against a compromised user session, administrator, debugger, malicious approved executable, or physical compromise.
@@ -18,7 +19,7 @@ Never include a real API key, password, token, private key, seed phrase, custome
 Please include:
 
 - affected version and commit;
-- macOS and Codex versions;
+- macOS and agent-client versions;
 - preconditions and realistic impact;
 - minimal reproduction using synthetic data;
 - evidence of whether the value reached chat, tool input/output, logs, files, another process, or the network;
@@ -32,7 +33,7 @@ Good-faith, non-destructive research against your own local clone and synthetic 
 
 ## Release gates
 
-Changes to Keychain queries, native dialogs, MCP schemas, command construction, environment handling, output capture/redaction, cache compilation, marketplace wiring, or permissions require:
+Changes to Keychain queries, native dialogs, shared tool schemas, client adapters, command construction, environment handling, output capture/redaction, cache compilation, marketplace wiring, or permissions require:
 
 1. a threat-model update;
 2. deterministic regression coverage;

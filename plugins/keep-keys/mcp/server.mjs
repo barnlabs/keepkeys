@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { createInterface } from "node:readline";
 import { dirname, resolve } from "node:path";
@@ -11,152 +12,9 @@ const MAX_HELPER_OUTPUT = 2 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
 const activeProcessGroups = new Set();
 
-const stringProperty = (description, maxLength = 4096) => ({
-  type: "string",
-  description,
-  minLength: 1,
-  maxLength,
-});
-
-export const TOOLS = [
-  {
-    name: "keepkeys_store",
-    title: "Store a secret in KeepKeys",
-    description:
-      "Open the native KeepKeys window to collect a secret outside chat and store it in macOS Keychain. This tool never accepts or returns the secret value.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        name: stringProperty("Suggested friendly name, such as github-release.", 128),
-        variable: stringProperty(
-          "Suggested uppercase environment-variable name, such as GITHUB_TOKEN.",
-          128,
-        ),
-        description: stringProperty(
-          "One-line description of what the secret is for, such as publishing approved releases.",
-          240,
-        ),
-      },
-      required: ["name", "variable", "description"],
-      additionalProperties: false,
-    },
-    annotations: {
-      readOnlyHint: false,
-      openWorldHint: false,
-      destructiveHint: false,
-      idempotentHint: false,
-    },
-  },
-  {
-    name: "keepkeys_list",
-    title: "List KeepKeys names",
-    description:
-      "List friendly names, variable names, and descriptions stored by KeepKeys. Secret values are never returned.",
-    inputSchema: {
-      type: "object",
-      properties: {},
-      additionalProperties: false,
-    },
-    annotations: {
-      readOnlyHint: true,
-      openWorldHint: false,
-      destructiveHint: false,
-      idempotentHint: true,
-    },
-  },
-  {
-    name: "keepkeys_remove",
-    title: "Remove a KeepKeys secret",
-    description:
-      "Open a native confirmation window and delete one named KeepKeys credential after user approval.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        name: stringProperty("Exact friendly name to remove.", 128),
-      },
-      required: ["name"],
-      additionalProperties: false,
-    },
-    annotations: {
-      readOnlyHint: false,
-      openWorldHint: false,
-      destructiveHint: true,
-      idempotentHint: true,
-    },
-  },
-  {
-    name: "keepkeys_run",
-    title: "Run an approved command with a KeepKeys secret",
-    description:
-      "Show a native confirmation for an exact direct executable, then inject the named secret into that one child process. The secret is never returned to Codex.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        name: stringProperty("Friendly name of the stored secret.", 128),
-        purpose: stringProperty("Plain-language reason the command needs the secret.", 240),
-        program: stringProperty("Absolute path to a direct executable. Shell commands are rejected."),
-        arguments: {
-          type: "array",
-          description: "Fixed argument list passed directly to the executable.",
-          items: {
-            type: "string",
-            maxLength: 4096,
-          },
-          maxItems: 64,
-          default: [],
-        },
-        cwd: {
-          type: "string",
-          description: "Optional absolute working-directory path.",
-          minLength: 1,
-          maxLength: 4096,
-        },
-      },
-      required: ["name", "purpose", "program"],
-      additionalProperties: false,
-    },
-    annotations: {
-      readOnlyHint: false,
-      openWorldHint: true,
-      destructiveHint: true,
-      idempotentHint: false,
-    },
-  },
-  {
-    name: "keepkeys_status",
-    title: "Check KeepKeys availability",
-    description:
-      "Check the local helper version and platform without reading or changing credentials.",
-    inputSchema: {
-      type: "object",
-      properties: {},
-      additionalProperties: false,
-    },
-    annotations: {
-      readOnlyHint: true,
-      openWorldHint: false,
-      destructiveHint: false,
-      idempotentHint: true,
-    },
-  },
-  {
-    name: "keepkeys_doctor",
-    title: "Verify KeepKeys Keychain access",
-    description:
-      "Perform a temporary macOS Keychain write/read/delete round trip using a generated test value. No user credential is read.",
-    inputSchema: {
-      type: "object",
-      properties: {},
-      additionalProperties: false,
-    },
-    annotations: {
-      readOnlyHint: false,
-      openWorldHint: false,
-      destructiveHint: false,
-      idempotentHint: false,
-    },
-  },
-];
+export const TOOLS = Object.freeze(
+  JSON.parse(readFileSync(new URL("./tools.json", import.meta.url), "utf8")),
+);
 
 function assertObject(value) {
   if (value === undefined) return {};
@@ -349,7 +207,7 @@ export function createRequestHandler(helperRunner = runHelper) {
               ? params.protocolVersion
               : PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: "keepkeys", version: "0.1.1" },
+          serverInfo: { name: "keepkeys", version: "0.2.0" },
           instructions:
             "KeepKeys stores values outside chat and never exposes plaintext secrets. Use keepkeys_run only for direct commands the user intends to approve.",
         },

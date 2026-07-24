@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Support and usage questions
+    url: https://github.com/barnlabs/keep-keys/blob/main/.github/SUPPORT.md
+    about: Choose the right public or private support channel.
   - name: Private security report
     url: https://github.com/barnlabs/keep-keys/security/advisories/new
     about: Report vulnerabilities privately and use only synthetic data.

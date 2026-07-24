@@ -79,7 +79,7 @@ test("MCP handler returns structured helper output", async () => {
   const calls = [];
   const handler = createRequestHandler(async (name, args) => {
     calls.push({ name, args });
-    return { status: "ok", platform: "macOS", version: "0.1.1" };
+    return { status: "ok", platform: "macOS", version: "0.2.0" };
   });
   const response = await handler({
     jsonrpc: "2.0",
@@ -91,6 +91,6 @@ test("MCP handler returns structured helper output", async () => {
   assert.deepEqual(response.result.structuredContent, {
     status: "ok",
     platform: "macOS",
-    version: "0.1.1",
+    version: "0.2.0",
   });
 });

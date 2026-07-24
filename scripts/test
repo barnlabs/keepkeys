@@ -5,6 +5,7 @@ root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
 node --test plugins/keep-keys/mcp/server.test.mjs
+python3 -m unittest adapters.hermes.test_plugin
 
 test_root=$(/usr/bin/mktemp -d)
 trap '/bin/rm -rf "$test_root"' EXIT INT TERM

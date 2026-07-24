@@ -5,14 +5,17 @@ root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
 node scripts/validate-plugin.mjs
+node scripts/validate-adapters.mjs
 node --check plugins/keep-keys/mcp/server.mjs
 node --check plugins/keep-keys/mcp/server.test.mjs
+python3 -m py_compile __init__.py adapters/hermes/plugin.py adapters/hermes/test_plugin.py
 sh -n plugins/keep-keys/scripts/keepkeys
 sh -n scripts/bootstrap
 sh -n scripts/check
 sh -n scripts/test
 sh -n scripts/doctor
 sh -n scripts/package-submission
+sh -n scripts/package-release
 
 check_root=$(/usr/bin/mktemp -d)
 trap '/bin/rm -rf "$check_root"' EXIT INT TERM

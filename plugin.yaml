@@ -1,0 +1,11 @@
+name: keep-keys
+version: "0.2.0"
+description: Local macOS Keychain secrets for approval-gated agent commands, without plaintext retrieval.
+author: BarnLabs
+provides_tools:
+  - keepkeys_store
+  - keepkeys_list
+  - keepkeys_remove
+  - keepkeys_run
+  - keepkeys_status
+  - keepkeys_doctor

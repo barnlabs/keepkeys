@@ -13,7 +13,7 @@ if [ "$node_major" -lt 18 ]; then
 fi
 
 if [ "$(uname -s)" != "Darwin" ]; then
-  printf '%s\n' "KeepKeys 0.1 development requires macOS." >&2
+  printf '%s\n' "KeepKeys 0.2 development requires macOS." >&2
   exit 1
 fi
 

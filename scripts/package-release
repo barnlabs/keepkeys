@@ -1,0 +1,54 @@
+#!/bin/sh
+set -eu
+
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+dist="$root/dist"
+build_root=$(/usr/bin/mktemp -d)
+trap '/bin/rm -rf "$build_root"' EXIT INT TERM
+
+version=$(
+  node -e 'const fs=require("node:fs");const p=process.argv[1];process.stdout.write(JSON.parse(fs.readFileSync(p,"utf8")).version)' \
+    "$root/plugins/keep-keys/.codex-plugin/plugin.json"
+)
+package_root="$build_root/keep-keys"
+archive="$dist/keep-keys-$version-source.zip"
+checksum="$archive.sha256"
+
+/bin/mkdir -p "$package_root" "$dist"
+/usr/bin/rsync -a \
+  --exclude '.git' \
+  --exclude 'dist' \
+  --exclude '__pycache__' \
+  --exclude '*.pyc' \
+  "$root/" "$package_root/"
+
+/bin/rm -f "$archive" "$checksum"
+(
+  cd "$build_root"
+  /usr/bin/zip -X -q -r "$archive" keep-keys
+)
+
+for member in \
+  "keep-keys/.agents/plugins/marketplace.json" \
+  "keep-keys/.claude-plugin/marketplace.json" \
+  "keep-keys/.omp-plugin/marketplace.json" \
+  "keep-keys/gemini-extension.json" \
+  "keep-keys/plugin.yaml" \
+  "keep-keys/plugins/keep-keys/mcp/server.mjs" \
+  "keep-keys/plugins/keep-keys/scripts/keepkeys"
+do
+  if ! /usr/bin/unzip -Z1 "$archive" | /usr/bin/grep -Fqx "$member"; then
+    printf '%s\n' "Release archive is missing $member." >&2
+    exit 1
+  fi
+done
+
+(
+  cd "$dist"
+  /usr/bin/shasum -a 256 "$(/usr/bin/basename "$archive")" \
+    > "$(/usr/bin/basename "$checksum")"
+  /usr/bin/shasum -a 256 -c "$(/usr/bin/basename "$checksum")" >/dev/null
+)
+
+printf '%s\n' "$archive"
+printf '%s\n' "$checksum"
