@@ -27,12 +27,12 @@ the plaintext value is not.
 
 | Client | Native package surface | Install |
 | --- | --- | --- |
-| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref 243ffd36702d4961932538e55e7b01e95e372a84`<br>`codex plugin add keepkeys@barnlabs` |
-| **Grok Build** | Native Grok plugin + BarnLabs catalog | `grok plugin install 'barnlabs/keepkeys@243ffd36702d4961932538e55e7b01e95e372a84#plugins/keepkeys' --trust` |
-| **Claude Code** | Claude plugin + source-pinned marketplace | `claude plugin marketplace add https://raw.githubusercontent.com/barnlabs/keepkeys/6fb515c5edb7065e90efb8ce653139544388da80/.claude-plugin/marketplace.json`<br>`claude plugin install keepkeys@barnlabs` |
-| **Oh My Pi** | OMP/Claude-compatible, source-pinned marketplace | `omp plugin marketplace add https://raw.githubusercontent.com/barnlabs/keepkeys/6fb515c5edb7065e90efb8ce653139544388da80/.omp-plugin/marketplace.json`<br>`omp plugin install keepkeys@barnlabs` |
+| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref e96bb02bdd6979c349e78b7d6346a39a4c23984c`<br>`codex plugin add keepkeys@barnlabs` |
+| **Grok Build** | Native Grok plugin + BarnLabs catalog | `grok plugin install 'barnlabs/keepkeys@e96bb02bdd6979c349e78b7d6346a39a4c23984c#plugins/keepkeys' --trust` |
+| **Claude Code** | Claude plugin + source-pinned marketplace | `claude plugin marketplace add https://raw.githubusercontent.com/barnlabs/keepkeys/2cbf89c6c5776255ec0fa60f629c645d7d63a20f/.claude-plugin/marketplace.json`<br>`claude plugin install keepkeys@barnlabs` |
+| **Oh My Pi** | OMP/Claude-compatible, source-pinned marketplace | `omp plugin marketplace add https://raw.githubusercontent.com/barnlabs/keepkeys/2cbf89c6c5776255ec0fa60f629c645d7d63a20f/.omp-plugin/marketplace.json`<br>`omp plugin install keepkeys@barnlabs` |
 | **Hermes** | Repository-root Hermes plugin | [Install from the reviewed checkout](INSTALL.md#hermes) |
-| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref 243ffd36702d4961932538e55e7b01e95e372a84` |
+| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref e96bb02bdd6979c349e78b7d6346a39a4c23984c` |
 
 All six integrations ship the same tool names and the same native core. The
 repository also exposes a standard `skills/keepkeys/SKILL.md` for compatible
@@ -41,7 +41,7 @@ repository also exposes a standard `skills/keepkeys/SKILL.md` for compatible
 Tools.
 
 The Claude and OMP commands pin the catalog itself to reviewed commit
-`6fb515c5edb7065e90efb8ce653139544388da80`; that catalog pins its plugin source
+`2cbf89c6c5776255ec0fa60f629c645d7d63a20f`; that catalog pins its plugin source
 to the functional commit above. See [INSTALL.md](INSTALL.md) for client-specific
 setup, immutable Hermes installation, verification, upgrades, and removal.
 
