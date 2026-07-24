@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+command -v node >/dev/null 2>&1 || {
+  printf '%s\n' "Node.js 18 or newer is required." >&2
+  exit 1
+}
+
+node_major=$(node -p 'Number(process.versions.node.split(".")[0])')
+if [ "$node_major" -lt 18 ]; then
+  printf '%s\n' "Node.js 18 or newer is required." >&2
+  exit 1
+fi
+
+if [ "$(uname -s)" != "Darwin" ]; then
+  printf '%s\n' "KeepKeys 0.1 development requires macOS." >&2
+  exit 1
+fi
+
+/usr/bin/xcrun --find swiftc >/dev/null
+
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+"$root/plugins/keep-keys/scripts/keepkeys" --build-only

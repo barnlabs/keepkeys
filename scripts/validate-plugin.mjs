@@ -1,0 +1,82 @@
+#!/usr/bin/env node
+
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { TOOLS } from "../plugins/keep-keys/mcp/server.mjs";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const pluginRoot = resolve(root, "plugins", "keep-keys");
+const manifestPath = resolve(pluginRoot, ".codex-plugin", "plugin.json");
+const marketplacePath = resolve(root, ".agents", "plugins", "marketplace.json");
+const mcpPath = resolve(pluginRoot, ".mcp.json");
+
+const parse = (path) => JSON.parse(readFileSync(path, "utf8"));
+const manifest = parse(manifestPath);
+const marketplace = parse(marketplacePath);
+const mcp = parse(mcpPath);
+
+assert.equal(manifest.name, "keep-keys");
+assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
+assert.equal(manifest.skills, "./skills/");
+assert.equal(manifest.mcpServers, "./.mcp.json");
+assert.equal(manifest.author.name, "BarnLabs");
+assert.equal(manifest.license, "Apache-2.0");
+assert.ok(Array.isArray(manifest.interface.defaultPrompt));
+assert.ok(manifest.interface.defaultPrompt.length <= 3);
+
+for (const prompt of manifest.interface.defaultPrompt) {
+  assert.ok(prompt.length <= 128, "default prompts must be at most 128 characters");
+}
+
+for (const field of ["composerIcon", "logo", "logoDark"]) {
+  const relative = manifest.interface[field];
+  assert.ok(relative.startsWith("./assets/"), `${field} must stay inside plugin assets`);
+  assert.ok(existsSync(resolve(pluginRoot, relative)), `${field} file is missing`);
+}
+
+assert.equal(marketplace.name, "barnlabs");
+const entry = marketplace.plugins.find((plugin) => plugin.name === "keep-keys");
+assert.ok(entry, "marketplace entry is missing");
+assert.equal(entry.source.source, "local");
+assert.equal(entry.source.path, "./plugins/keep-keys");
+assert.equal(entry.policy.installation, "AVAILABLE");
+assert.equal(entry.policy.authentication, "ON_INSTALL");
+assert.equal(entry.category, "Productivity");
+
+assert.equal(mcp.mcpServers.keepkeys.command, "node");
+assert.deepEqual(mcp.mcpServers.keepkeys.args, ["./mcp/server.mjs", "--stdio"]);
+
+for (const tool of TOOLS) {
+  assert.match(tool.name, /^keepkeys_[a-z_]+$/);
+  assert.equal(tool.inputSchema.additionalProperties, false);
+  assert.equal(typeof tool.annotations.readOnlyHint, "boolean");
+  assert.equal(typeof tool.annotations.openWorldHint, "boolean");
+  assert.equal(typeof tool.annotations.destructiveHint, "boolean");
+  const properties = Object.keys(tool.inputSchema.properties);
+  assert.equal(properties.includes("secret"), false, `${tool.name} accepts a secret`);
+  assert.equal(properties.includes("value"), false, `${tool.name} accepts a value`);
+}
+
+const storeTool = TOOLS.find((tool) => tool.name === "keepkeys_store");
+assert.ok(storeTool, "keepkeys_store is missing");
+assert.deepEqual(storeTool.inputSchema.required, ["name", "variable", "description"]);
+
+const skill = readFileSync(resolve(pluginRoot, "skills", "keep-keys", "SKILL.md"), "utf8");
+assert.match(skill, /^---\nname: keep-keys\n/m);
+assert.match(skill, /Never ask the user to paste, type, dictate, attach, or expose a secret in chat/);
+
+const launcher = readFileSync(resolve(pluginRoot, "scripts", "keepkeys"), "utf8");
+const source = readFileSync(resolve(pluginRoot, "scripts", "keepkeys.swift"));
+const expectedSourceHash = launcher.match(/^expected_source_hash="([a-f0-9]{64})"$/m)?.[1];
+assert.ok(expectedSourceHash, "launcher source-integrity digest is missing");
+assert.equal(createHash("sha256").update(source).digest("hex"), expectedSourceHash);
+
+const testCases = readFileSync(resolve(root, "submission", "test-cases.md"), "utf8");
+assert.equal((testCases.match(/^## Positive /gm) ?? []).length, 5);
+assert.equal((testCases.match(/^## Negative /gm) ?? []).length, 3);
+
+process.stdout.write("KeepKeys plugin structure and security invariants are valid.\n");

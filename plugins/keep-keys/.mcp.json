@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "keepkeys": {
+      "command": "node",
+      "args": [
+        "./mcp/server.mjs",
+        "--stdio"
+      ]
+    }
+  }
+}

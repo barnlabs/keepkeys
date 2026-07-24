@@ -1,0 +1,106 @@
+#!/bin/sh
+set -eu
+
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+plugin="$root/plugins/keep-keys"
+dist="$root/dist"
+build_root=$(/usr/bin/mktemp -d)
+trap '/bin/rm -rf "$build_root"' EXIT INT TERM
+
+mkdir -p "$build_root/keep-keys/.codex-plugin"
+cp "$plugin/.codex-plugin/plugin.json" "$build_root/keep-keys/.codex-plugin/plugin.json"
+cp -R "$plugin/assets" "$build_root/keep-keys/assets"
+cp -R "$plugin/skills" "$build_root/keep-keys/skills"
+cp -R "$plugin/scripts" "$build_root/keep-keys/scripts"
+cp "$root/LICENSE" "$build_root/keep-keys/LICENSE"
+cp "$root/TERMS.md" "$build_root/keep-keys/TERMS.md"
+cp "$root/docs/privacy-and-data-handling.md" "$build_root/keep-keys/PRIVACY.md"
+
+node - "$build_root/keep-keys" <<'NODE'
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const root = process.argv[2];
+const manifestPath = path.join(root, ".codex-plugin", "plugin.json");
+const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+delete manifest.mcpServers;
+fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
+
+assert.equal(manifest.name, "keep-keys");
+assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
+assert.equal(manifest.skills, "./skills/");
+assert.equal(manifest.mcpServers, undefined);
+assert.equal(manifest.author.name, "BarnLabs");
+assert.equal(manifest.license, "Apache-2.0");
+for (const relative of [
+  "assets/icon.png",
+  "assets/logo.png",
+  "assets/logo-dark.png",
+  "skills/keep-keys/SKILL.md",
+  "scripts/keepkeys",
+  "scripts/keepkeys.swift",
+  "LICENSE",
+  "PRIVACY.md",
+  "TERMS.md",
+]) {
+  assert.ok(fs.existsSync(path.join(root, relative)), `${relative} is missing`);
+}
+NODE
+
+if find "$build_root/keep-keys" \( -name '.mcp.json' -o -path '*/mcp/*' \) -print | grep .
+then
+  printf '%s\n' "Skills-only submission unexpectedly contains MCP files." >&2
+  exit 1
+fi
+
+mkdir -p "$dist"
+archive="$dist/keep-keys-skills-0.1.0.zip"
+checksum="$archive.sha256"
+rm -f "$archive" "$checksum"
+(
+  cd "$build_root"
+  /usr/bin/zip -X -q -r "$archive" keep-keys
+)
+
+for member in \
+  "keep-keys/.codex-plugin/plugin.json" \
+  "keep-keys/skills/keep-keys/SKILL.md" \
+  "keep-keys/scripts/keepkeys" \
+  "keep-keys/scripts/keepkeys.swift" \
+  "keep-keys/LICENSE" \
+  "keep-keys/PRIVACY.md" \
+  "keep-keys/TERMS.md"
+do
+  if ! /usr/bin/unzip -Z1 "$archive" | /usr/bin/grep -Fqx "$member"; then
+    printf '%s\n' "Submission archive is missing $member." >&2
+    exit 1
+  fi
+done
+
+if /usr/bin/unzip -Z1 "$archive" | /usr/bin/grep -E '(^|/)(\.mcp\.json|mcp/)'; then
+  printf '%s\n' "Submission archive unexpectedly contains MCP files." >&2
+  exit 1
+fi
+
+unpacked="$build_root/unpacked"
+mkdir -p "$unpacked"
+/usr/bin/unzip -q "$archive" -d "$unpacked"
+if [ ! -x "$unpacked/keep-keys/scripts/keepkeys" ]; then
+  printf '%s\n' "Submission archive did not preserve the launcher executable bit." >&2
+  exit 1
+fi
+
+KEEPKEYS_CACHE_DIR="$build_root/cache" \
+  "$unpacked/keep-keys/scripts/keepkeys" --build-only >/dev/null
+KEEPKEYS_CACHE_DIR="$build_root/cache" \
+  "$unpacked/keep-keys/scripts/keepkeys" --self-test >/dev/null
+
+(
+  cd "$dist"
+  /usr/bin/shasum -a 256 "$(/usr/bin/basename "$archive")" \
+    > "$(/usr/bin/basename "$checksum")"
+  /usr/bin/shasum -a 256 -c "$(/usr/bin/basename "$checksum")" >/dev/null
+)
+
+printf '%s\n' "$archive"
+printf '%s\n' "$checksum"

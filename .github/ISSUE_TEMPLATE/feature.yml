@@ -1,0 +1,25 @@
+name: Feature proposal
+description: Propose the smallest capability that solves a real KeepKeys workflow.
+title: "[Proposal] "
+labels: ["proposal"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: Describe the task KeepKeys cannot currently complete.
+    validations:
+      required: true
+  - type: textarea
+    id: boundary
+    attributes:
+      label: Security-boundary effect
+      description: Explain what new data, process, permission, or trust boundary this would add.
+    validations:
+      required: true
+  - type: textarea
+    id: minimal
+    attributes:
+      label: Smallest complete solution
+    validations:
+      required: true

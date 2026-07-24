@@ -1,0 +1,89 @@
+#!/bin/sh
+set -eu
+
+if [ "$(/usr/bin/uname -s)" != "Darwin" ]; then
+  printf '%s\n' '{"status":"error","message":"KeepKeys 0.1 supports macOS only."}'
+  exit 1
+fi
+
+script_dir=$(CDPATH='' cd -- "$(/usr/bin/dirname -- "$0")" && pwd)
+source_file="$script_dir/keepkeys.swift"
+launcher_file="$script_dir/keepkeys"
+cache_dir="${KEEPKEYS_CACHE_DIR:-${HOME}/Library/Caches/net.barnlabs.keepkeys}"
+binary="$cache_dir/keepkeys-helper"
+hash_file="$cache_dir/build-inputs.sha256"
+expected_source_hash="b978d4f59f6ffde1fa4d40ca954f91c58988a1e4c65755853a64ef926c79cebe"
+
+umask 077
+if [ -L "$cache_dir" ]; then
+  printf '%s\n' '{"status":"error","message":"KeepKeys cache directory must not be a symbolic link."}'
+  exit 1
+fi
+/bin/mkdir -p "$cache_dir"
+/bin/chmod 700 "$cache_dir"
+
+if [ -L "$launcher_file" ] || [ -L "$source_file" ] || [ -L "$binary" ] || [ -L "$hash_file" ]; then
+  printf '%s\n' '{"status":"error","message":"KeepKeys source and cache files must not be symbolic links."}'
+  exit 1
+fi
+
+current_uid=$(/usr/bin/id -u)
+cache_uid=$(/usr/bin/stat -f '%u' "$cache_dir")
+if [ "$cache_uid" != "$current_uid" ]; then
+  printf '%s\n' '{"status":"error","message":"KeepKeys cache directory is not owned by the current user."}'
+  exit 1
+fi
+
+source_hash=$(/usr/bin/shasum -a 256 "$source_file" | /usr/bin/awk '{print $1}')
+if [ "$source_hash" != "$expected_source_hash" ]; then
+  printf '%s\n' '{"status":"error","message":"KeepKeys helper source failed its pinned SHA-256 integrity check."}'
+  exit 1
+fi
+
+build_hash=$(
+  {
+    printf '%s\n' "$source_hash"
+    /usr/bin/shasum -a 256 "$launcher_file" | /usr/bin/awk '{print $1}'
+  } | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}'
+)
+installed_hash=""
+if [ -f "$hash_file" ]; then
+  IFS= read -r installed_hash < "$hash_file" || true
+fi
+
+if [ ! -x "$binary" ] || [ "$build_hash" != "$installed_hash" ]; then
+  swiftc_path=$(/usr/bin/xcrun --find swiftc 2>/dev/null || true)
+  if [ -z "$swiftc_path" ]; then
+    printf '%s\n' '{"status":"error","message":"KeepKeys needs Apple Command Line Tools. Run xcode-select --install, then try again."}'
+    exit 1
+  fi
+  sdk_path=$(/usr/bin/xcrun --sdk macosx --show-sdk-path)
+  architecture=$(/usr/bin/uname -m)
+  case "$architecture" in
+    arm64|x86_64) ;;
+    *)
+      printf '%s\n' '{"status":"error","message":"KeepKeys does not recognize this Mac architecture."}'
+      exit 1
+      ;;
+  esac
+  build_dir=$(/usr/bin/mktemp -d "$cache_dir/.build.XXXXXX")
+  trap '/bin/rm -rf "$build_dir"' EXIT INT TERM
+  /usr/bin/env -i HOME="$HOME" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+    "$swiftc_path" -O -whole-module-optimization -warnings-as-errors \
+    -sdk "$sdk_path" -target "${architecture}-apple-macosx13.0" \
+    "$source_file" -o "$build_dir/keepkeys-helper"
+  /bin/chmod 700 "$build_dir/keepkeys-helper"
+  /bin/mv -f "$build_dir/keepkeys-helper" "$binary"
+  printf '%s\n' "$build_hash" > "$hash_file"
+  /bin/chmod 600 "$hash_file"
+  trap - EXIT INT TERM
+  /bin/rm -rf "$build_dir"
+fi
+
+if [ "${1:-}" = "--build-only" ]; then
+  printf '%s\n' '{"status":"ok","message":"KeepKeys helper is ready."}'
+  exit 0
+fi
+
+exec /usr/bin/env -i HOME="$HOME" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+  "$binary" "$@"

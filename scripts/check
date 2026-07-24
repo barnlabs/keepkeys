@@ -1,0 +1,34 @@
+#!/bin/sh
+set -eu
+
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$root"
+
+node scripts/validate-plugin.mjs
+node --check plugins/keep-keys/mcp/server.mjs
+node --check plugins/keep-keys/mcp/server.test.mjs
+sh -n plugins/keep-keys/scripts/keepkeys
+sh -n scripts/bootstrap
+sh -n scripts/check
+sh -n scripts/test
+sh -n scripts/doctor
+sh -n scripts/package-submission
+
+check_root=$(/usr/bin/mktemp -d)
+trap '/bin/rm -rf "$check_root"' EXIT INT TERM
+KEEPKEYS_CACHE_DIR="$check_root/cache" \
+  plugins/keep-keys/scripts/keepkeys --build-only >/dev/null
+
+if find . -type f \
+  ! -path './.git/*' \
+  ! -path './dist/*' \
+  ! -path './submission/test-cases.md' \
+  ! -name '*.png' \
+  -print0 \
+  | xargs -0 grep -nE '(BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,})'
+then
+  printf '%s\n' "Potential credential material found." >&2
+  exit 1
+fi
+
+printf '%s\n' "KeepKeys checks passed."
