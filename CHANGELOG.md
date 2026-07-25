@@ -8,6 +8,10 @@
   code-review contracts, including a bounded adversarial repair loop.
 - Added a full MCP stdio transcript regression and local documentation-link
   validation.
+- Rejects every undeclared MCP or Hermes argument before native-helper launch
+  and fixes the Linux dispatcher to the trusted system Python path.
+- Added a primary-source host-contract ledger, including an immutable OMP
+  marketplace specification snapshot and explicit proof boundaries.
 - Reworked the Windows scoped-process self-test to use a fixed compiled probe,
   keeping the test independent of Node.js and shell environment behavior.
 - Added a single required CI release gate and expanded packages to carry the

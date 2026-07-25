@@ -139,7 +139,7 @@ export function helperInvocation(
       "XDG_SESSION_TYPE",
     ]);
     return {
-      command: environment.KEEPKEYS_PYTHON ?? "python3",
+      command: "/usr/bin/python3",
       args: [
         helper,
         ...helperArguments,

@@ -24,6 +24,15 @@ function assertObject(value) {
   return value;
 }
 
+function assertExactKeys(toolName, args) {
+  const tool = TOOLS.find((candidate) => candidate.name === toolName);
+  if (!tool) throw new Error(`Unknown KeepKeys tool: ${toolName}`);
+  const allowed = new Set(Object.keys(tool.inputSchema.properties));
+  if (Object.keys(args).some((key) => !allowed.has(key))) {
+    throw new Error("Tool arguments contain an unsupported field.");
+  }
+}
+
 function readOptionalString(args, key, maxLength) {
   const value = args[key];
   if (value === undefined) return undefined;
@@ -41,6 +50,7 @@ function readRequiredString(args, key, maxLength) {
 
 export function helperArguments(toolName, rawArguments) {
   const args = assertObject(rawArguments);
+  assertExactKeys(toolName, args);
   switch (toolName) {
     case "keepkeys_store": {
       return [
@@ -212,7 +222,9 @@ export function createRequestHandler(helperRunner = runHelper) {
       if (typeof name !== "string") {
         throw Object.assign(new Error("Tool name is required."), { code: -32602 });
       }
-      const result = await helperRunner(name, params?.arguments ?? {});
+      const argumentsValue = assertObject(params?.arguments);
+      assertExactKeys(name, argumentsValue);
+      const result = await helperRunner(name, argumentsValue);
       return {
         jsonrpc: "2.0",
         id,

@@ -49,6 +49,26 @@ assert.deepEqual(
   claudeMarketplace,
   "OMP and Claude Code marketplaces must describe the same release",
 );
+const installGuide = read("INSTALL.md");
+for (const command of [
+  "omp plugin marketplace add",
+  "omp plugin install keepkeys@barnlabs",
+  "omp plugin list",
+]) {
+  assert.match(
+    installGuide,
+    new RegExp(command.replaceAll(" ", "\\s+")),
+    `OMP install guide is missing ${command}`,
+  );
+}
+const hostEvidence = read("docs/host-contract-evidence.md");
+assert.match(
+  hostEvidence,
+  /15184332b8dbb58e8fb66e874fe1ed27134f880e/,
+  "OMP compatibility must cite the immutable reviewed specification",
+);
+assert.match(hostEvidence, /git-subdir/);
+assert.match(hostEvidence, /source: "git-subdir"/);
 
 assert.equal(claude.name, "keepkeys");
 assert.equal(claude.displayName, "KeepKeys");

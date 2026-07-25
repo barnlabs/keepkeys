@@ -20,6 +20,7 @@ const documents = [
   "SECURITY.md",
   "docs/architecture.md",
   "docs/compatibility.md",
+  "docs/host-contract-evidence.md",
   "docs/privacy-and-data-handling.md",
   "docs/releasing.md",
   "docs/repository-design.md",

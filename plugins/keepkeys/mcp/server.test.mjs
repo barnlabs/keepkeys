@@ -84,6 +84,53 @@ test("run rejects malformed argument arrays", () => {
   );
 });
 
+test("runtime validation rejects every undeclared field before helper dispatch", async () => {
+  for (const [toolName, argumentsValue] of [
+    ["keepkeys_store", {
+      name: "demo",
+      variable: "DEMO_TOKEN",
+      description: "Synthetic test metadata",
+      secret: "synthetic-only-not-a-credential",
+    }],
+    ["keepkeys_store", {
+      name: "demo",
+      variable: "DEMO_TOKEN",
+      description: "Synthetic test metadata",
+      value: "synthetic-only-not-a-credential",
+    }],
+    ["keepkeys_run", {
+      name: "demo",
+      purpose: "Synthetic test",
+      program: "/usr/bin/true",
+      alias: { nested: "unsupported" },
+    }],
+    ["keepkeys_status", { unexpected: true }],
+  ]) {
+    assert.throws(
+      () => helperArguments(toolName, argumentsValue),
+      /^Error: Tool arguments contain an unsupported field\.$/,
+    );
+  }
+  let called = false;
+  const handler = createRequestHandler(async () => {
+    called = true;
+    return {};
+  });
+  await assert.rejects(
+    handler({
+      jsonrpc: "2.0",
+      id: 10,
+      method: "tools/call",
+      params: {
+        name: "keepkeys_status",
+        arguments: { secret: "synthetic-only-not-a-credential" },
+      },
+    }),
+    /unsupported field/,
+  );
+  assert.equal(called, false);
+});
+
 test("MCP handler returns structured helper output", async () => {
   const calls = [];
   const handler = createRequestHandler(async (name, args) => {
@@ -136,10 +183,11 @@ test("platform dispatch keeps one argv contract across macOS, Windows, and Linux
     environment: {
       DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/1000/bus",
       DISPLAY: ":0",
+      KEEPKEYS_PYTHON: "/tmp/untrusted-python",
     },
     home: "/home/example",
   });
-  assert.equal(linux.command, "python3");
+  assert.equal(linux.command, "/usr/bin/python3");
   assert.match(linux.args[0], /keepkeys\.linux\.py$/);
   assert.equal(linux.args[1], "status");
   assert.equal(
@@ -181,6 +229,15 @@ test("stdio server handles a complete protocol transcript through a symlinked pl
       { jsonrpc: "2.0", method: "notifications/initialized" },
       { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} },
       { jsonrpc: "2.0", id: 3, method: "missing/method", params: {} },
+      {
+        jsonrpc: "2.0",
+        id: 4,
+        method: "tools/call",
+        params: {
+          name: "keepkeys_status",
+          arguments: { secret: "synthetic-only-not-a-credential" },
+        },
+      },
       { malformed: "request without an id is a notification" },
     ];
     const result = spawnSync(
@@ -195,7 +252,7 @@ test("stdio server handles a complete protocol transcript through a symlinked pl
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stderr, "");
     const responses = result.stdout.trim().split("\n").map(JSON.parse);
-    assert.equal(responses.length, 3, "notifications must not produce responses");
+    assert.equal(responses.length, 4, "notifications must not produce responses");
     assert.equal(responses[0].result.serverInfo.name, "keepkeys");
     assert.equal(responses[0].result.serverInfo.version, "0.4.1");
     assert.deepEqual(responses[1].result.tools, TOOLS);
@@ -203,6 +260,14 @@ test("stdio server handles a complete protocol transcript through a symlinked pl
       jsonrpc: "2.0",
       id: 3,
       error: { code: -32601, message: "Method not found: missing/method" },
+    });
+    assert.deepEqual(responses[3], {
+      jsonrpc: "2.0",
+      id: 4,
+      error: {
+        code: -32000,
+        message: "Tool arguments contain an unsupported field.",
+      },
     });
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });

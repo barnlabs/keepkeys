@@ -89,6 +89,55 @@ class HermesAdapterTests(unittest.TestCase):
             ],
         )
 
+    def test_runtime_rejects_undeclared_fields_before_helper_dispatch(self) -> None:
+        cases = [
+            (
+                "keepkeys_store",
+                {
+                    "name": "demo",
+                    "variable": "DEMO_TOKEN",
+                    "description": "Synthetic test metadata",
+                    "secret": "synthetic-only-not-a-credential",
+                },
+            ),
+            (
+                "keepkeys_store",
+                {
+                    "name": "demo",
+                    "variable": "DEMO_TOKEN",
+                    "description": "Synthetic test metadata",
+                    "value": "synthetic-only-not-a-credential",
+                },
+            ),
+            (
+                "keepkeys_run",
+                {
+                    "name": "demo",
+                    "purpose": "Synthetic test",
+                    "program": "/usr/bin/true",
+                    "alias": {"nested": "unsupported"},
+                },
+            ),
+            ("keepkeys_status", {"unexpected": True}),
+        ]
+        for tool_name, args in cases:
+            with self.subTest(tool_name=tool_name, args=sorted(args)):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    r"^Tool arguments contain an unsupported field\.$",
+                ):
+                    plugin._helper_arguments(tool_name, args)
+
+        with patch.object(plugin.subprocess, "Popen") as popen:
+            result = plugin._handler_for("keepkeys_status")(
+                {"secret": "synthetic-only-not-a-credential"}
+            )
+        popen.assert_not_called()
+        self.assertEqual(
+            json.loads(result),
+            {"error": "Tool arguments contain an unsupported field."},
+        )
+
     def test_handler_returns_json_without_helper_exception_details(self) -> None:
         with patch.object(
             plugin,

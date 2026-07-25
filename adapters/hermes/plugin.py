@@ -14,6 +14,10 @@ from typing import Any
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 _PLUGIN_ROOT = _REPOSITORY_ROOT / "plugins" / "keepkeys"
 _TOOL_SPEC = _PLUGIN_ROOT / "mcp" / "tools.json"
+_TOOLS = json.loads(_TOOL_SPEC.read_text(encoding="utf-8"))
+_ALLOWED_ARGUMENTS = {
+    tool["name"]: frozenset(tool["inputSchema"]["properties"]) for tool in _TOOLS
+}
 _SKILL = _PLUGIN_ROOT / "skills" / "keepkeys" / "SKILL.md"
 _MAX_OUTPUT_BYTES = 2 * 1024 * 1024
 _DEFAULT_TIMEOUT_SECONDS = 15 * 60
@@ -39,6 +43,11 @@ def _helper_arguments(tool_name: str, raw_args: Any) -> list[str]:
     if not isinstance(raw_args, dict):
         raise ValueError("Tool arguments must be an object.")
     args: dict[str, Any] = raw_args
+    allowed = _ALLOWED_ARGUMENTS.get(tool_name)
+    if allowed is None:
+        raise ValueError(f"Unknown KeepKeys tool: {tool_name}")
+    if any(key not in allowed for key in args):
+        raise ValueError("Tool arguments contain an unsupported field.")
 
     if tool_name == "keepkeys_store":
         return [
@@ -234,8 +243,7 @@ def _handler_for(tool_name: str):
 
 def register(ctx: Any) -> None:
     """Register the shared KeepKeys schemas and native-helper bridge with Hermes."""
-    tools = json.loads(_TOOL_SPEC.read_text(encoding="utf-8"))
-    for tool in tools:
+    for tool in _TOOLS:
         schema = {
             "name": tool["name"],
             "description": tool["description"],
