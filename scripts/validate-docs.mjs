@@ -27,6 +27,11 @@ const documents = [
   "docs/threat-model.md",
   "docs/updating.md",
   "plugins/keepkeys/assets/brand-guidelines.md",
+  "submission/README.md",
+  "submission/codex-market-guide.md",
+  "submission/listing.md",
+  "submission/release-notes.md",
+  "submission/test-cases.md",
 ];
 
 const findings = [];

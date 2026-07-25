@@ -1,6 +1,10 @@
 # KeepKeys public submission
 
-This directory contains draft listing copy, release notes, and the required five positive plus three negative evaluation cases for an OpenAI public plugin submission.
+This directory contains the BarnLabs publisher handoff, reviewed listing copy,
+release notes, and the required five positive plus three negative evaluation
+cases for an OpenAI public plugin submission.
+
+Start with [codex-market-guide.md](codex-market-guide.md).
 
 ## Distribution boundary
 
@@ -13,6 +17,6 @@ This directory contains draft listing copy, release notes, and the required five
 
 Checked July 24, 2026:
 
-- [Build plugins](https://learn.chatgpt.com/docs/build-plugins)
-- [Submit plugins](https://learn.chatgpt.com/docs/submit-plugins)
+- [Build plugins](https://developers.openai.com/plugins/build/plugins)
+- [Submit plugins](https://developers.openai.com/plugins/deploy/submission)
 - [Plugin submission portal](https://platform.openai.com/plugins)
