@@ -61,10 +61,10 @@ checkout:
 
 ```text
 functional plugin commit
-defa874c1a586ffa0f5dd9b94bfffd20b329a79d
+a2be1ab2183cd332d1ca0c6a3eccf85b5bece6d2
 
 Claude/OMP catalog commit
-c0b0c1ec724732790eb8c73cfbbaa5b893a5f274
+c4665aaf428165209863040fda33787814c7aa96
 ```
 
 The catalog commit pins its plugin source to the functional commit. Review both
@@ -74,7 +74,7 @@ before installation.
 
 ```sh
 codex plugin marketplace add barnlabs/keepkeys \
-  --ref defa874c1a586ffa0f5dd9b94bfffd20b329a79d
+  --ref a2be1ab2183cd332d1ca0c6a3eccf85b5bece6d2
 codex plugin add keepkeys@barnlabs
 ```
 
@@ -89,7 +89,7 @@ plugin hosts.
 
 ```sh
 grok plugin install \
-  'barnlabs/keepkeys@defa874c1a586ffa0f5dd9b94bfffd20b329a79d#plugins/keepkeys' \
+  'barnlabs/keepkeys@a2be1ab2183cd332d1ca0c6a3eccf85b5bece6d2#plugins/keepkeys' \
   --trust
 grok plugin list
 grok plugin details keepkeys
@@ -102,20 +102,20 @@ The exact-SHA subdirectory install is the credential-sensitive route.
 
 ```sh
 claude plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keepkeys/c0b0c1ec724732790eb8c73cfbbaa5b893a5f274/.claude-plugin/marketplace.json
+  https://raw.githubusercontent.com/barnlabs/keepkeys/c4665aaf428165209863040fda33787814c7aa96/.claude-plugin/marketplace.json
 claude plugin install keepkeys@barnlabs
 claude plugin list
 ```
 
 Claude Code does not expose a raw commit option for a Git marketplace checkout.
 The immutable raw catalog above pins `plugins/keepkeys` to functional commit
-`defa874c1a586ffa0f5dd9b94bfffd20b329a79d`. Start a new Claude Code session.
+`a2be1ab2183cd332d1ca0c6a3eccf85b5bece6d2`. Start a new Claude Code session.
 
 ## Oh My Pi
 
 ```sh
 omp plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keepkeys/c0b0c1ec724732790eb8c73cfbbaa5b893a5f274/.omp-plugin/marketplace.json
+  https://raw.githubusercontent.com/barnlabs/keepkeys/c4665aaf428165209863040fda33787814c7aa96/.omp-plugin/marketplace.json
 omp plugin install keepkeys@barnlabs
 omp plugin list
 ```
@@ -128,19 +128,19 @@ bundled MCP server. Start a new OMP session.
 Hermes installs the repository root. Use a detached reviewed checkout:
 
 ```sh
-git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.4.0
-git -C keepkeys-0.4.0 checkout --detach \
-  defa874c1a586ffa0f5dd9b94bfffd20b329a79d
-hermes plugins install "file://$(cd keepkeys-0.4.0 && pwd)" --enable
+git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.4.1
+git -C keepkeys-0.4.1 checkout --detach \
+  a2be1ab2183cd332d1ca0c6a3eccf85b5bece6d2
+hermes plugins install "file://$(cd keepkeys-0.4.1 && pwd)" --enable
 hermes plugins list
 ```
 
 On Windows PowerShell:
 
 ```powershell
-git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.4.0
-git -C keepkeys-0.4.0 checkout --detach defa874c1a586ffa0f5dd9b94bfffd20b329a79d
-$path = (Resolve-Path .\keepkeys-0.4.0).Path
+git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.4.1
+git -C keepkeys-0.4.1 checkout --detach a2be1ab2183cd332d1ca0c6a3eccf85b5bece6d2
+$path = (Resolve-Path .\keepkeys-0.4.1).Path
 hermes plugins install "file://$path" --enable
 hermes plugins list
 ```
@@ -152,7 +152,7 @@ Hermes plugins are opt-in. If installed without `--enable`, run
 
 ```sh
 gemini extensions install https://github.com/barnlabs/keepkeys \
-  --ref defa874c1a586ffa0f5dd9b94bfffd20b329a79d
+  --ref a2be1ab2183cd332d1ca0c6a3eccf85b5bece6d2
 gemini extensions list
 ```
 
@@ -210,7 +210,7 @@ macOS or Linux:
 ```sh
 git clone https://github.com/barnlabs/keepkeys.git
 cd keepkeys
-git checkout --detach defa874c1a586ffa0f5dd9b94bfffd20b329a79d
+git checkout --detach a2be1ab2183cd332d1ca0c6a3eccf85b5bece6d2
 ./scripts/bootstrap
 ./scripts/check
 ./scripts/test
@@ -222,7 +222,7 @@ Windows:
 ```powershell
 git clone https://github.com/barnlabs/keepkeys.git
 Set-Location keepkeys
-git checkout --detach defa874c1a586ffa0f5dd9b94bfffd20b329a79d
+git checkout --detach a2be1ab2183cd332d1ca0c6a3eccf85b5bece6d2
 .\scripts\bootstrap.ps1
 .\scripts\check.ps1
 .\scripts\test.ps1
@@ -260,6 +260,16 @@ path.
 Review the changelog, threat model, new functional commit, and new catalog
 commit before changing a credential-sensitive installation. Do not substitute
 `main` for `NEW_REVIEWED_COMMIT_SHA`.
+
+From a reviewed checkout, discover the current stable immutable commits without
+installing anything:
+
+```sh
+./scripts/check-update
+```
+
+On Windows use `.\scripts\check-update.ps1`. The checker is explicit-only and
+read-only; details and rollback steps are in [docs/updating.md](docs/updating.md).
 
 Codex:
 

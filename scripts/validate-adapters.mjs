@@ -20,11 +20,22 @@ const grokMcp = parse("plugins/keepkeys/.mcp.grok.json");
 const grokMarketplace = parse(".grok-plugin/marketplace.json");
 const gemini = parse("gemini-extension.json");
 const tools = parse("plugins/keepkeys/mcp/tools.json");
+const update = parse("update.json");
 
 const version = codex.version;
-const releaseCommit = "defa874c1a586ffa0f5dd9b94bfffd20b329a79d";
-const catalogCommit = "c0b0c1ec724732790eb8c73cfbbaa5b893a5f274";
-assert.equal(version, "0.4.0");
+const releaseCommit = "a2be1ab2183cd332d1ca0c6a3eccf85b5bece6d2";
+const catalogCommit = "c4665aaf428165209863040fda33787814c7aa96";
+assert.equal(version, "0.4.1");
+assert.deepEqual(update, {
+  schemaVersion: 1,
+  product: "KeepKeys",
+  channel: "stable",
+  version,
+  sourceCommit: releaseCommit,
+  catalogCommit,
+  installGuide: "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
+  releaseNotes: "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md",
+});
 assert.equal(claude.version, version);
 assert.equal(grok.version, version);
 assert.equal(claudeMarketplace.version, version);

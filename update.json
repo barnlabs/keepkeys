@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "product": "KeepKeys",
+  "channel": "stable",
+  "version": "0.4.1",
+  "sourceCommit": "a2be1ab2183cd332d1ca0c6a3eccf85b5bece6d2",
+  "catalogCommit": "c4665aaf428165209863040fda33787814c7aa96",
+  "installGuide": "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
+  "releaseNotes": "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md"
+}

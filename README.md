@@ -13,7 +13,7 @@
   <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-1F2D27.svg" />
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-1F2D27.svg" />
   <img alt="desktop Linux" src="https://img.shields.io/badge/Linux-desktop-1F2D27.svg" />
-  <img alt="KeepKeys 0.4.0" src="https://img.shields.io/badge/version-0.4.0-D96C4D.svg" />
+  <img alt="KeepKeys 0.4.1" src="https://img.shields.io/badge/version-0.4.1-D96C4D.svg" />
 </p>
 
 KeepKeys is the open-source, local secret-use broker for coding agents. It
@@ -68,12 +68,12 @@ It never falls back to a plaintext keyring, terminal password prompt, or file.
 
 | Client | Package surface | Immutable install |
 | --- | --- | --- |
-| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref defa874c1a586ffa0f5dd9b94bfffd20b329a79d`<br>`codex plugin add keepkeys@barnlabs` |
-| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'barnlabs/keepkeys@defa874c1a586ffa0f5dd9b94bfffd20b329a79d#plugins/keepkeys' --trust` |
+| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref a2be1ab2183cd332d1ca0c6a3eccf85b5bece6d2`<br>`codex plugin add keepkeys@barnlabs` |
+| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'barnlabs/keepkeys@a2be1ab2183cd332d1ca0c6a3eccf85b5bece6d2#plugins/keepkeys' --trust` |
 | **Claude Code** | Claude plugin + pinned catalog | see [Install](INSTALL.md#claude-code) |
 | **Oh My Pi** | OMP/Claude-compatible pinned catalog | see [Install](INSTALL.md#oh-my-pi) |
 | **Hermes** | repository-root Hermes plugin | see [Install](INSTALL.md#hermes) |
-| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref defa874c1a586ffa0f5dd9b94bfffd20b329a79d` |
+| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref a2be1ab2183cd332d1ca0c6a3eccf85b5bece6d2` |
 | **Agent Skills clients** | standard `skills/keepkeys/SKILL.md` | reviewed checkout or skills-only archive |
 
 All integrations expose the same six tools and dispatch to the same
@@ -87,8 +87,8 @@ platform-native boundary:
 - `keepkeys_doctor`
 
 Claude Code and Oh My Pi use the immutable catalog at commit
-`c0b0c1ec724732790eb8c73cfbbaa5b893a5f274`; that catalog pins the functional
-plugin source at `defa874c1a586ffa0f5dd9b94bfffd20b329a79d`. See
+`c4665aaf428165209863040fda33787814c7aa96`; that catalog pins the functional
+plugin source at `a2be1ab2183cd332d1ca0c6a3eccf85b5bece6d2`. See
 [INSTALL.md](INSTALL.md) for copy-paste commands and platform prerequisites.
 
 ## What the user experiences
@@ -171,13 +171,28 @@ Swift helper with Apple Command Line Tools; Windows uses built-in Windows
 PowerShell/.NET; Linux uses Python's standard library plus the desktop's
 Secret Service tools and Tk.
 
+Check the stable channel only when you choose:
+
+```sh
+./scripts/check-update
+```
+
+The checker reports the stable version and immutable source/catalog commits. It
+does not install code, touch the native vault, or run in the background. See
+[Updating KeepKeys](docs/updating.md).
+
 ## Project documents
 
 - [Install, verify, upgrade, and remove](INSTALL.md)
+- [Product and interface design](DESIGN.md)
+- [Production acceptance checklist](CHECKLIST.md)
+- [Independent code review](CODE_REVIEW.md)
 - [Architecture](docs/architecture.md)
 - [Compatibility matrix](docs/compatibility.md)
 - [Threat model](docs/threat-model.md)
 - [Privacy and data handling](docs/privacy-and-data-handling.md)
+- [Deliberate updates](docs/updating.md)
+- [Release runbook](docs/releasing.md)
 - [Security reporting](SECURITY.md)
 - [Roadmap](ROADMAP.md)
 - [Contributing](CONTRIBUTING.md)

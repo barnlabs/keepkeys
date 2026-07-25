@@ -47,7 +47,8 @@ for member in \
   "keepkeys/CHECKLIST.md" \
   "keepkeys/CODE_REVIEW.md" \
   "keepkeys/DESIGN.md" \
-  "keepkeys/docs/updating.md"
+  "keepkeys/docs/updating.md" \
+  "keepkeys/update.json"
 do
   if ! /usr/bin/unzip -Z1 "$archive" | /usr/bin/grep -Fqx "$member"; then
     printf '%s\n' "Release archive is missing $member." >&2
