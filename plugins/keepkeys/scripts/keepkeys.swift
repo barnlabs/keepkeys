@@ -533,15 +533,15 @@ private func storeInteractively(
     }
 
     activateApplication()
-    let container = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 250))
+    let container = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 300))
     container.addSubview(
-        makeLabel("AGENT-PREPARED CREDENTIAL", frame: NSRect(x: 0, y: 226, width: 500, height: 18))
+        makeLabel("AGENT-PREPARED CREDENTIAL", frame: NSRect(x: 0, y: 276, width: 500, height: 18))
     )
     let summary = NSTextField(
         wrappingLabelWithString:
             "\(name)  →  \(variable)\n\(provider)\n\(description)"
     )
-    summary.frame = NSRect(x: 0, y: 154, width: 500, height: 65)
+    summary.frame = NSRect(x: 0, y: 204, width: 500, height: 65)
     summary.font = NSFont.systemFont(ofSize: 13, weight: .medium)
     summary.textColor = .labelColor
     summary.isSelectable = true
@@ -549,17 +549,25 @@ private func storeInteractively(
     container.addSubview(summary)
 
     container.addSubview(
-        makeLabel("OFFICIAL DOCUMENTATION", frame: NSRect(x: 0, y: 127, width: 500, height: 18))
+        makeLabel("OFFICIAL DOCUMENTATION", frame: NSRect(x: 0, y: 177, width: 500, height: 18))
     )
-    let links = NSTextField(
-        wrappingLabelWithString: documentationURLs.map { "• \($0)" }.joined(separator: "\n")
-    )
-    links.frame = NSRect(x: 0, y: 61, width: 500, height: 62)
+    let links = NSTextView(frame: NSRect(x: 0, y: 0, width: 496, height: 82))
+    links.string = documentationURLs.map { "• \($0)" }.joined(separator: "\n")
+    links.isEditable = false
+    links.isSelectable = true
+    links.drawsBackground = false
     links.font = NSFont.monospacedSystemFont(ofSize: 10, weight: .regular)
     links.textColor = .linkColor
-    links.isSelectable = true
+    links.textContainerInset = NSSize(width: 8, height: 6)
     links.setAccessibilityLabel("Official documentation links")
-    container.addSubview(links)
+
+    let documentationScroll = NSScrollView(
+        frame: NSRect(x: 0, y: 78, width: 500, height: 94)
+    )
+    documentationScroll.documentView = links
+    documentationScroll.hasVerticalScroller = true
+    documentationScroll.borderType = .bezelBorder
+    container.addSubview(documentationScroll)
 
     let clipboardNotice = NSTextField(
         wrappingLabelWithString:
@@ -735,6 +743,8 @@ private func approveRun(_ request: RunRequest, metadata: EntryMetadata) -> Bool 
     } else {
         entrypointDetails = ""
     }
+    let provider = metadata.provider ?? "(legacy record)"
+    let documentationURLs = metadata.documentationURLs ?? []
     let details = """
     Risk
     \(request.risk.title)
@@ -749,6 +759,12 @@ private func approveRun(_ request: RunRequest, metadata: EntryMetadata) -> Bool 
 
     Description
     \(metadata.description)
+
+    Provider
+    \(provider)
+
+    Official documentation
+    \(documentationURLs.isEmpty ? "(legacy record)" : documentationURLs.joined(separator: "\n"))
 
     Executable
     \(request.program.path)

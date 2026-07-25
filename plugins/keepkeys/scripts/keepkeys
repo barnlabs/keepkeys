@@ -12,7 +12,7 @@ launcher_file="$script_dir/keepkeys"
 cache_dir="${KEEPKEYS_CACHE_DIR:-${HOME}/Library/Caches/net.barnlabs.keepkeys}"
 binary="$cache_dir/keepkeys-helper"
 hash_file="$cache_dir/build-inputs.sha256"
-expected_source_hash="994ea11afda34206f196bf7a8db966621cac03d48dedad60a73e91257c814777"
+expected_source_hash="f8e7ad9c4ec56aeda6957a013f1baf350a194ff178a9de2b06be75052851b809"
 
 umask 077
 if [ -L "$cache_dir" ]; then

@@ -31,6 +31,18 @@ class LinuxBackendTests(unittest.TestCase):
         self.assertEqual(keepkeys_linux.decode_label(label), metadata)
         self.assertNotIn("synthetic-secret-value", label)
 
+    def test_legacy_metadata_can_be_restored_without_upgrading_its_label(self) -> None:
+        metadata = keepkeys_linux.Metadata(
+            name="legacy-key",
+            variable="LEGACY_TOKEN",
+            description="Existing version-one record",
+        )
+        with patch.object(keepkeys_linux, "run_secret_tool") as secret_tool:
+            keepkeys_linux.store_metadata(metadata, allow_legacy=True)
+        stored_label = secret_tool.call_args.kwargs["secret_input"]
+        self.assertTrue(stored_label.startswith(keepkeys_linux.LABEL_PREFIX_V1))
+        self.assertEqual(keepkeys_linux.decode_label(stored_label), metadata)
+
     def test_search_parses_only_valid_keepkeys_labels(self) -> None:
         valid = keepkeys_linux.Metadata(
             name="demo",
@@ -104,6 +116,17 @@ class LinuxBackendTests(unittest.TestCase):
                     documentation_urls=("http://docs.example.com/api",),
                 )
             )
+
+    def test_store_dialog_has_no_window_wide_return_clipboard_trigger(self) -> None:
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        self.assertNotIn(
+            'window.bind("<Return>", lambda _event: submit())',
+            source,
+        )
+        self.assertIn(
+            'store_button.bind("<Return>", lambda _event: store_button.invoke())',
+            source,
+        )
 
     def test_truncated_stream_is_omitted_in_full(self) -> None:
         capture = keepkeys_linux.Capture()

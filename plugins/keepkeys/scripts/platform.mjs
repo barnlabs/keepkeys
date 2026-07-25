@@ -7,9 +7,9 @@ import { fileURLToPath } from "node:url";
 
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const WINDOWS_HELPER_SHA256 =
-  "821762ffaeb72b3a32f66695d6f3996342a2863f4e91ceaeb4937bdcb8e62129";
+  "982d72c9e67f5fefbaa124a1b94413ff8484a7ee1a43a1c5e56b05b312cdcfcc";
 const LINUX_HELPER_SHA256 =
-  "ddf304248de7b7d7fd8da0c6360d554be3db8135136d3b5a92b143eba540ef88";
+  "14e90be94b799662910d9245eafd54e43b897c409781585152a641bb46ae0646";
 
 function copyPresent(target, source, names) {
   for (const name of names) {

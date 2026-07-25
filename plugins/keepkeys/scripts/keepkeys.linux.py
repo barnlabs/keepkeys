@@ -225,7 +225,20 @@ def validate_metadata(metadata: Metadata, *, allow_legacy: bool = False) -> None
         )
 
 
-def encode_label(metadata: Metadata) -> str:
+def encode_label(metadata: Metadata, *, legacy: bool = False) -> str:
+    validate_metadata(metadata, allow_legacy=legacy)
+    if legacy:
+        payload = json.dumps(
+            {
+                "name": metadata.name,
+                "variable": metadata.variable,
+                "description": metadata.description,
+            },
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+        encoded = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+        return LABEL_PREFIX_V1 + encoded
     payload = json.dumps(
         {
             "name": metadata.name,
@@ -397,8 +410,8 @@ def store_value(name: str, secret: str) -> None:
     )
 
 
-def store_metadata(metadata: Metadata) -> None:
-    validate_metadata(metadata)
+def store_metadata(metadata: Metadata, *, allow_legacy: bool = False) -> None:
+    validate_metadata(metadata, allow_legacy=allow_legacy)
     run_secret_tool(
         [
             "store",
@@ -408,7 +421,7 @@ def store_metadata(metadata: Metadata) -> None:
             "name",
             metadata.name,
         ],
-        secret_input=encode_label(metadata),
+        secret_input=encode_label(metadata, legacy=allow_legacy),
     )
 
 
@@ -637,7 +650,7 @@ class BrandedUI:
             padx=18,
             pady=9,
         ).pack(side="right")
-        self.tk.Button(
+        store_button = self.tk.Button(
             buttons,
             text="Paste & Store",
             command=submit,
@@ -648,9 +661,12 @@ class BrandedUI:
             relief="flat",
             padx=18,
             pady=9,
-        ).pack(side="right", padx=(0, 10))
+            default="active",
+        )
+        store_button.pack(side="right", padx=(0, 10))
         window.bind("<Escape>", lambda _event: cancel())
-        window.bind("<Return>", lambda _event: submit())
+        store_button.bind("<Return>", lambda _event: store_button.invoke())
+        store_button.focus_set()
         window.grab_set()
         self.root.wait_window(window)
         self.root.destroy()
@@ -727,6 +743,13 @@ class BrandedUI:
             ("Purpose", request.purpose),
             ("Secret", f"{request.name} → {metadata.variable}"),
             ("Description", metadata.description),
+            ("Provider", metadata.provider or "(legacy record)"),
+            (
+                "Official documentation",
+                "\n".join(metadata.documentation_urls)
+                if metadata.documentation_urls
+                else "(legacy record)",
+            ),
             ("Executable", str(request.program)),
             ("SHA-256", request.fingerprint),
             (
@@ -1046,7 +1069,13 @@ def action_store(arguments: list[str]) -> dict[str, Any]:
             if previous_metadata is None:
                 clear_item(METADATA_SERVICE, final_metadata.name)
             else:
-                store_metadata(previous_metadata)
+                store_metadata(
+                    previous_metadata,
+                    allow_legacy=(
+                        not previous_metadata.provider
+                        and not previous_metadata.documentation_urls
+                    ),
+                )
         except KeepKeysError as rollback_error:
             raise KeepKeysError(
                 f"Secret Service failed during storage and rollback. Remove "

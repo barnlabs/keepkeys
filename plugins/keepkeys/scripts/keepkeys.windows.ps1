@@ -628,12 +628,15 @@ function Show-KeepKeysStoreDialog {
     $state = @{ Result = $null }
     $cancel.Add_Click({ $window.DialogResult = $false })
     $store.Add_Click({
+        $clipboardAccepted = $false
+        $candidateSecret = ""
         try {
             if (-not [Windows.Clipboard]::ContainsText()) {
                 throw "No usable key was found on the clipboard."
             }
             $candidateSecret = [Windows.Clipboard]::GetText()
             Assert-KeepKeysSecret $candidateSecret
+            $clipboardAccepted = $true
             if ($null -ne [BarnLabs.KeepKeys.CredentialVault]::Read(
                 $Script:MetadataPrefix + $Name,
                 $false
@@ -659,7 +662,12 @@ function Show-KeepKeysStoreDialog {
             $candidateSecret = ""
             $window.DialogResult = $true
         } catch {
-            $errorLabel.Text = "No usable key was found on the clipboard. Copy the complete key, then press Paste & Store again."
+            $candidateSecret = ""
+            if ($clipboardAccepted) {
+                $errorLabel.Text = "Windows Credential Manager could not be accessed. $($_.Exception.Message)"
+            } else {
+                $errorLabel.Text = "No usable key was found on the clipboard. Copy the complete key, then press Paste & Store again."
+            }
         }
     })
     $window.Add_ContentRendered({ [void]$store.Focus() })
@@ -847,6 +855,8 @@ function Show-KeepKeysApprovalDialog {
         "PURPOSE", $Request.Purpose, "",
         "SECRET", "$($Request.Name) -> $($Credential.UserName)", "",
         "DESCRIPTION", $Credential.Comment, "",
+        "PROVIDER", $(if ([String]::IsNullOrEmpty($Credential.Provider)) { "(legacy record)" } else { $Credential.Provider }), "",
+        "OFFICIAL DOCUMENTATION", $(if ($Credential.DocumentationUrls.Count -eq 0) { "(legacy record)" } else { $Credential.DocumentationUrls -join "`r`n" }), "",
         "EXECUTABLE", $Request.Program, "",
         "SHA-256", $Request.Fingerprint, ""
     )
@@ -875,6 +885,84 @@ function Show-KeepKeysApprovalDialog {
     return $window.ShowDialog() -eq $true
 }
 
+function ConvertTo-KeepKeysMetadataBytes {
+    param([string]$Provider, [string[]]$DocumentationUrls)
+    $json = @{
+        version = 2
+        provider = $Provider
+        documentationUrls = $DocumentationUrls
+    } | ConvertTo-Json -Compress -Depth 4
+    return [Text.Encoding]::UTF8.GetBytes($json)
+}
+
+function ConvertFrom-KeepKeysMetadataCredential {
+    param([string]$Name, $Credential)
+    if ($null -eq $Credential) { return $null }
+    if (-not (Test-KeepKeysName $Name) -or
+        -not (Test-KeepKeysVariable $Credential.UserName) -or
+        -not (Test-KeepKeysVisibleLine $Credential.Comment)) {
+        throw "The stored KeepKeys metadata is invalid."
+    }
+    $provider = ""
+    $documentationUrls = [string[]]@()
+    try {
+        if ($null -ne $Credential.Secret -and $Credential.Secret.Length -gt 0) {
+            $metadataJson = [Text.Encoding]::UTF8.GetString($Credential.Secret)
+            $metadata = $metadataJson | ConvertFrom-Json
+            if ($metadata.version -ne 2) {
+                throw "The stored KeepKeys metadata version is unsupported."
+            }
+            $provider = [string]$metadata.provider
+            $documentationUrls = [string[]]$metadata.documentationUrls
+            Assert-KeepKeysMetadata $Name $Credential.UserName `
+                $Credential.Comment $provider $documentationUrls
+        }
+    } finally {
+        if ($null -ne $Credential.Secret) {
+            [Array]::Clear($Credential.Secret, 0, $Credential.Secret.Length)
+        }
+    }
+    return [pscustomobject]@{
+        TargetName = $Credential.TargetName
+        UserName = $Credential.UserName
+        Comment = $Credential.Comment
+        Provider = $provider
+        DocumentationUrls = $documentationUrls
+    }
+}
+
+function Read-KeepKeysMetadata {
+    param([string]$Name)
+    $credential = [BarnLabs.KeepKeys.CredentialVault]::Read(
+        $Script:MetadataPrefix + $Name,
+        $true
+    )
+    return ConvertFrom-KeepKeysMetadataCredential $Name $credential
+}
+
+function Test-KeepKeysStringArrayEqual {
+    param([string[]]$First, [string[]]$Second)
+    if ($First.Count -ne $Second.Count) { return $false }
+    for ($index = 0; $index -lt $First.Count; $index += 1) {
+        if ($First[$index] -cne $Second[$index]) { return $false }
+    }
+    return $true
+}
+
+function Test-KeepKeysMetadataEqual {
+    param($First, $Second)
+    return (
+        $null -ne $First -and
+        $null -ne $Second -and
+        $First.UserName -ceq $Second.UserName -and
+        $First.Comment -ceq $Second.Comment -and
+        $First.Provider -ceq $Second.Provider -and
+        (Test-KeepKeysStringArrayEqual `
+            ([string[]]$First.DocumentationUrls) `
+            ([string[]]$Second.DocumentationUrls))
+    )
+}
+
 function Get-KeepKeysCredentials {
     $items = [BarnLabs.KeepKeys.CredentialVault]::Enumerate($Script:MetadataPrefix + "*")
     $results = [Collections.Generic.List[object]]::new()
@@ -884,50 +972,18 @@ function Get-KeepKeysCredentials {
             [StringComparison]::Ordinal
         )) { continue }
         $name = $item.TargetName.Substring($Script:MetadataPrefix.Length)
-        if (-not (Test-KeepKeysName $name) -or
-            -not (Test-KeepKeysVariable $item.UserName) -or
-            -not (Test-KeepKeysVisibleLine $item.Comment)) { continue }
-        $provider = ""
-        $documentationUrls = [string[]]@()
-        $credential = [BarnLabs.KeepKeys.CredentialVault]::Read($item.TargetName, $true)
         try {
-            if ($null -ne $credential.Secret -and $credential.Secret.Length -gt 0) {
-                $metadataJson = [Text.Encoding]::UTF8.GetString($credential.Secret)
-                $metadata = $metadataJson | ConvertFrom-Json
-                if ($metadata.version -ne 2) { continue }
-                $provider = [string]$metadata.provider
-                $documentationUrls = [string[]]$metadata.documentationUrls
-                Assert-KeepKeysMetadata $name $item.UserName $item.Comment `
-                    $provider $documentationUrls
-            }
+            $metadata = Read-KeepKeysMetadata $name
         } catch {
             continue
-        } finally {
-            if ($null -ne $credential.Secret) {
-                [Array]::Clear($credential.Secret, 0, $credential.Secret.Length)
-            }
         }
-        $results.Add([pscustomobject]@{
-            TargetName = $item.TargetName
-            UserName = $item.UserName
-            Comment = $item.Comment
-            Provider = $provider
-            DocumentationUrls = $documentationUrls
-        })
+        if ($null -ne $metadata) {
+            $results.Add($metadata)
+        }
     }
     return @($results | Sort-Object {
         $_.TargetName.Substring($Script:MetadataPrefix.Length)
     })
-}
-
-function ConvertTo-KeepKeysMetadataBytes {
-    param([string]$Provider, [string[]]$DocumentationUrls)
-    $json = @{
-        version = 2
-        provider = $Provider
-        documentationUrls = $DocumentationUrls
-    } | ConvertTo-Json -Compress -Depth 4
-    return [Text.Encoding]::UTF8.GetBytes($json)
 }
 
 function Get-KeepKeysRedactionPatterns {
@@ -1020,20 +1076,41 @@ function Invoke-KeepKeysDoctor {
             $firstBytes
         )
         [Array]::Clear($firstBytes, 0, $firstBytes.Length)
-        [BarnLabs.KeepKeys.CredentialVault]::Write(
-            $metadataTarget,
-            "KEEPKEYS_DOCTOR",
-            "Temporary KeepKeys Credential Manager verification",
-            [byte[]]::new(0)
-        )
+        $firstMetadataBytes = ConvertTo-KeepKeysMetadataBytes `
+            "KeepKeys Doctor" `
+            ([string[]]@("https://github.com/barnlabs/keepkeys"))
+        try {
+            [BarnLabs.KeepKeys.CredentialVault]::Write(
+                $metadataTarget,
+                "KEEPKEYS_DOCTOR",
+                "Temporary KeepKeys Credential Manager verification",
+                $firstMetadataBytes
+            )
+        } finally {
+            [Array]::Clear(
+                $firstMetadataBytes,
+                0,
+                $firstMetadataBytes.Length
+            )
+        }
         $firstRead = [BarnLabs.KeepKeys.CredentialVault]::Read($secretTarget, $true)
-        $firstMetadata = [BarnLabs.KeepKeys.CredentialVault]::Read($metadataTarget, $false)
+        $firstMetadata = Read-KeepKeysMetadata $name
+        $firstListed = @(
+            Get-KeepKeysCredentials | Where-Object {
+                $_.TargetName -ceq $metadataTarget
+            }
+        )
         $firstValue = [Text.Encoding]::UTF8.GetString($firstRead.Secret)
         [Array]::Clear($firstRead.Secret, 0, $firstRead.Secret.Length)
         $firstMatches = (
             $firstValue -ceq $first -and
             $firstMetadata.UserName -ceq "KEEPKEYS_DOCTOR" -and
-            $firstMetadata.Comment -ceq "Temporary KeepKeys Credential Manager verification"
+            $firstMetadata.Comment -ceq "Temporary KeepKeys Credential Manager verification" -and
+            $firstMetadata.Provider -ceq "KeepKeys Doctor" -and
+            $firstMetadata.DocumentationUrls.Count -eq 1 -and
+            $firstMetadata.DocumentationUrls[0] -ceq "https://github.com/barnlabs/keepkeys" -and
+            $firstListed.Count -eq 1 -and
+            (Test-KeepKeysMetadataEqual $firstMetadata $firstListed[0])
         )
         $firstValue = ""
         $secondBytes = [Text.Encoding]::UTF8.GetBytes($second)
@@ -1044,20 +1121,37 @@ function Invoke-KeepKeysDoctor {
             $secondBytes
         )
         [Array]::Clear($secondBytes, 0, $secondBytes.Length)
-        [BarnLabs.KeepKeys.CredentialVault]::Write(
-            $metadataTarget,
-            "KEEPKEYS_DOCTOR_UPDATED",
-            "Updated temporary KeepKeys verification",
-            [byte[]]::new(0)
-        )
+        $secondMetadataBytes = ConvertTo-KeepKeysMetadataBytes `
+            "BarnLabs" `
+            ([string[]]@(
+                "https://github.com/barnlabs/keepkeys",
+                "https://github.com/barnlabs/keepkeys/blob/main/README.md"
+            ))
+        try {
+            [BarnLabs.KeepKeys.CredentialVault]::Write(
+                $metadataTarget,
+                "KEEPKEYS_DOCTOR_UPDATED",
+                "Updated temporary KeepKeys verification",
+                $secondMetadataBytes
+            )
+        } finally {
+            [Array]::Clear(
+                $secondMetadataBytes,
+                0,
+                $secondMetadataBytes.Length
+            )
+        }
         $secondRead = [BarnLabs.KeepKeys.CredentialVault]::Read($secretTarget, $true)
-        $secondMetadata = [BarnLabs.KeepKeys.CredentialVault]::Read($metadataTarget, $false)
+        $secondMetadata = Read-KeepKeysMetadata $name
         $secondValue = [Text.Encoding]::UTF8.GetString($secondRead.Secret)
         [Array]::Clear($secondRead.Secret, 0, $secondRead.Secret.Length)
         $secondMatches = (
             $secondValue -ceq $second -and
             $secondMetadata.UserName -ceq "KEEPKEYS_DOCTOR_UPDATED" -and
-            $secondMetadata.Comment -ceq "Updated temporary KeepKeys verification"
+            $secondMetadata.Comment -ceq "Updated temporary KeepKeys verification" -and
+            $secondMetadata.Provider -ceq "BarnLabs" -and
+            $secondMetadata.DocumentationUrls.Count -eq 2 -and
+            $secondMetadata.DocumentationUrls[1] -ceq "https://github.com/barnlabs/keepkeys/blob/main/README.md"
         )
         $secondValue = ""
     } finally {
@@ -1112,6 +1206,29 @@ function Invoke-KeepKeysSelfTest {
         }
     } finally {
         [Array]::Clear($metadataBytes, 0, $metadataBytes.Length)
+    }
+    $decodedBytes = ConvertTo-KeepKeysMetadataBytes "Example" `
+        ([string[]]@("https://docs.example.com/api"))
+    $decodedMetadata = ConvertFrom-KeepKeysMetadataCredential "new-key" `
+        ([pscustomobject]@{
+            TargetName = $Script:MetadataPrefix + "new-key"
+            UserName = "SECRET_KEY"
+            Comment = "Credential for future approved agent commands"
+            Secret = $decodedBytes
+        })
+    if ($decodedMetadata.Provider -cne "Example" -or
+        $decodedMetadata.DocumentationUrls.Count -ne 1 -or
+        $decodedMetadata.DocumentationUrls[0] -cne "https://docs.example.com/api") {
+        throw "Metadata parsing self-test failed."
+    }
+    $changedMetadata = [pscustomobject]@{
+        UserName = $decodedMetadata.UserName
+        Comment = $decodedMetadata.Comment
+        Provider = $decodedMetadata.Provider
+        DocumentationUrls = [string[]]@("https://docs.example.com/changed")
+    }
+    if (Test-KeepKeysMetadataEqual $decodedMetadata $changedMetadata) {
+        throw "Metadata recheck self-test failed."
     }
     $marker = "synthetic-test-secret"
     $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($marker))
@@ -1340,10 +1457,7 @@ try {
                 (Get-KeepKeysOption $options "--cwd")
             $metadataTarget = $Script:MetadataPrefix + $request.Name
             $secretTarget = $Script:SecretPrefix + $request.Name
-            $metadata = [BarnLabs.KeepKeys.CredentialVault]::Read(
-                $metadataTarget,
-                $false
-            )
+            $metadata = Read-KeepKeysMetadata $request.Name
             if ($null -eq $metadata) {
                 throw "No KeepKeys secret is stored as '$($request.Name)'."
             }
@@ -1351,19 +1465,16 @@ try {
                 $result = @{ status = "cancelled"; message = "Command use was cancelled." }
                 break
             }
+            $refreshedMetadata = Read-KeepKeysMetadata $request.Name
+            if (-not (Test-KeepKeysMetadataEqual $metadata $refreshedMetadata)) {
+                throw "The secret metadata changed after approval. KeepKeys refused to run."
+            }
             $record = [BarnLabs.KeepKeys.CredentialVault]::Read(
                 $secretTarget,
                 $true
             )
-            $refreshedMetadata = [BarnLabs.KeepKeys.CredentialVault]::Read(
-                $metadataTarget,
-                $false
-            )
-            if ($null -eq $record -or
-                $null -eq $refreshedMetadata -or
-                $refreshedMetadata.UserName -cne $metadata.UserName -or
-                $refreshedMetadata.Comment -cne $metadata.Comment) {
-                throw "The secret metadata changed after approval. KeepKeys refused to run."
+            if ($null -eq $record) {
+                throw "No KeepKeys secret is stored as '$($request.Name)'."
             }
             $secret = [Text.Encoding]::UTF8.GetString($record.Secret)
             [Array]::Clear($record.Secret, 0, $record.Secret.Length)
