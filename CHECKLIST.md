@@ -77,10 +77,16 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd`
 - Reviewed documentation candidate:
   `eb1fbb2853d090ebbc5693a5034e63c18321705d`
-- Public CI run:
+- Stable promotion commit:
+  `1b823ffbeb91fab761a81ef4e35e2db2bb632552`
+- Candidate public CI run:
   [30148884739](https://github.com/barnlabs/keepkeys/actions/runs/30148884739)
   — macOS, Windows, and Linux Node 18/22; all three native-vault doctors;
   reproducible packages; and `Release gate` passed.
+- Stable-promotion public CI run:
+  [30149156624](https://github.com/barnlabs/keepkeys/actions/runs/30149156624)
+  — the same 11 proof jobs passed on the exact promotion commit, including the
+  strict rejection of stale 0.4.1 update metadata.
 - Independent reviewer verdict: `PASS` after reopening the focused repair;
   no actionable defect. The reviewer verified the exact `F → C → docs` chain,
   public CI, adapter UTF-8 parity, Windows case-sensitive URL handling,
