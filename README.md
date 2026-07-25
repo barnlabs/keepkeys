@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="plugins/keepkeys/assets/social-preview.png" width="100%" alt="KeepKeys — the BarnLabs keykeeper holding a ring of keys beside the words Use secrets. Never reveal them." />
+  <img src="plugins/keepkeys/assets/social-preview.png" width="100%" alt="KeepKeys — the BarnLabs Keykeeper holding a ring of keys beside the words Use secrets. Never reveal them." />
 </p>
 
 <p align="center">
@@ -7,153 +7,189 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/barnlabs/keepkeys/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/barnlabs/keepkeys/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/barnlabs/keepkeys/actions/workflows/ci.yml"><img alt="macOS, Windows, and Linux CI" src="https://github.com/barnlabs/keepkeys/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="LICENSE"><img alt="Apache-2.0 license" src="https://img.shields.io/badge/license-Apache--2.0-41544C.svg" /></a>
   <a href="SECURITY.md"><img alt="Security policy" src="https://img.shields.io/badge/security-policy-D96C4D.svg" /></a>
-  <img alt="macOS 13 or newer" src="https://img.shields.io/badge/macOS-13%2B-1F2D27.svg" />
-  <img alt="KeepKeys 0.3.0" src="https://img.shields.io/badge/version-0.3.0-D96C4D.svg" />
+  <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-1F2D27.svg" />
+  <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-1F2D27.svg" />
+  <img alt="desktop Linux" src="https://img.shields.io/badge/Linux-desktop-1F2D27.svg" />
+  <img alt="KeepKeys 0.4.0" src="https://img.shields.io/badge/version-0.4.0-D96C4D.svg" />
 </p>
 
-KeepKeys is the small, open-source secrets plugin for credentials you want a
-local coding agent to use. It opens a native secure-entry window, stores the
-value in macOS Keychain, and gives the agent one narrow capability: run a
-specific command with one named secret after you approve the exact request.
+KeepKeys is the open-source, local secret-use broker for coding agents. It
+opens a native secure-entry window, stores the value in the operating system's
+credential vault, and gives the agent one narrow capability: run a specific
+command with one named secret after you review the exact request.
 
 There is no `get`, `show`, `copy`, reveal, or export tool. Friendly names,
-environment-variable names, and descriptions are available for future tasks;
-the plaintext value is not.
+environment-variable names, and descriptions remain reusable for future tasks;
+the plaintext value does not.
 
-## One core, six native integrations
+## Why KeepKeys exists
 
-| Client | Native package surface | Install |
+An `.env` file gives every process that can read the file a reusable credential.
+A general password-manager CLI commonly has a reveal path. A cloud agent vault
+adds an account, network boundary, and service operator.
+
+KeepKeys is deliberately narrower:
+
+| Property | KeepKeys |
+| --- | --- |
+| At-rest storage | macOS Keychain, Windows Credential Manager, or Linux Secret Service |
+| Secret entry | Native password field, never chat or terminal |
+| Agent API | Store metadata, list metadata, remove, and approval-gated Run |
+| Plaintext retrieval | No tool or helper action |
+| Authorization | One native **Allow once** decision per command |
+| Process scope | Empty child environment plus one approved variable |
+| Executable identity | Canonical path and SHA-256, rechecked after approval |
+| Interpreter identity | Detected script entrypoint gets a second SHA-256 |
+| Output | Concurrent 1 MiB bounds and common-representation redaction |
+| Service model | Local, offline, no KeepKeys account, cloud, daemon, or telemetry |
+
+The distinction is simple: KeepKeys gives an agent use of a credential, not
+possession of it.
+
+## Native on all three desktop platforms
+
+| Operating system | Secure store | Native human gate |
 | --- | --- | --- |
-| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref a619a3ad843e5e6a58c8c3308e1e11014b80ade6`<br>`codex plugin add keepkeys@barnlabs` |
-| **Grok Build** | Native Grok plugin + BarnLabs catalog | `grok plugin install 'barnlabs/keepkeys@a619a3ad843e5e6a58c8c3308e1e11014b80ade6#plugins/keepkeys' --trust` |
-| **Claude Code** | Claude plugin + source-pinned marketplace | `claude plugin marketplace add https://raw.githubusercontent.com/barnlabs/keepkeys/71e0779de73765d541578100f2bf906dc7cfa588/.claude-plugin/marketplace.json`<br>`claude plugin install keepkeys@barnlabs` |
-| **Oh My Pi** | OMP/Claude-compatible, source-pinned marketplace | `omp plugin marketplace add https://raw.githubusercontent.com/barnlabs/keepkeys/71e0779de73765d541578100f2bf906dc7cfa588/.omp-plugin/marketplace.json`<br>`omp plugin install keepkeys@barnlabs` |
-| **Hermes** | Repository-root Hermes plugin | [Install from the reviewed checkout](INSTALL.md#hermes) |
-| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref a619a3ad843e5e6a58c8c3308e1e11014b80ade6` |
+| **macOS 13+** | Security.framework Keychain; device-only and non-synchronizing | AppKit secure text, replacement, removal, and command approval |
+| **Windows 10/11** | paired metadata/value records in Windows Credential Manager | branded WPF `PasswordBox`, replacement, removal, and command approval |
+| **desktop Linux** | paired metadata/value items in freedesktop Secret Service | branded Tk password, replacement, removal, and command approval |
 
-All six integrations ship the same tool names and the same native core. The
-repository also exposes a standard `skills/keepkeys/SKILL.md` for compatible
-[Agent Skills](https://agentskills.io) clients. KeepKeys 0.3.0 is intentionally
-**macOS-only**; it requires macOS 13+, Node.js 18+, and Apple Command Line
-Tools.
+Listing and the approval screen read only metadata. The protected value is
+loaded after **Allow once**, metadata is checked again, and executable hashes
+are rechecked immediately before launch.
 
-The Claude and OMP commands pin the catalog itself to reviewed commit
-`71e0779de73765d541578100f2bf906dc7cfa588`; that catalog pins its plugin source
-to the functional commit above. See [INSTALL.md](INSTALL.md) for client-specific
-setup, immutable Hermes installation, verification, upgrades, and removal.
+Linux fails closed without a compatible Secret Service and graphical session.
+It never falls back to a plaintext keyring, terminal password prompt, or file.
 
-## The promise—and its edge
+## One core contract, seven integrations
+
+| Client | Package surface | Immutable install |
+| --- | --- | --- |
+| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref 0e6453c4e57925a62edded30b43fbc85861e9497`<br>`codex plugin add keepkeys@barnlabs` |
+| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'barnlabs/keepkeys@0e6453c4e57925a62edded30b43fbc85861e9497#plugins/keepkeys' --trust` |
+| **Claude Code** | Claude plugin + pinned catalog | see [Install](INSTALL.md#claude-code) |
+| **Oh My Pi** | OMP/Claude-compatible pinned catalog | see [Install](INSTALL.md#oh-my-pi) |
+| **Hermes** | repository-root Hermes plugin | see [Install](INSTALL.md#hermes) |
+| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref 0e6453c4e57925a62edded30b43fbc85861e9497` |
+| **Agent Skills clients** | standard `skills/keepkeys/SKILL.md` | reviewed checkout or skills-only archive |
+
+All integrations expose the same six tools and dispatch to the same
+platform-native boundary:
+
+- `keepkeys_store`
+- `keepkeys_list`
+- `keepkeys_remove`
+- `keepkeys_run`
+- `keepkeys_status`
+- `keepkeys_doctor`
+
+Claude Code and Oh My Pi use the immutable catalog at commit
+`8b80475f636582abe8e758dbc449abdc6ddd3789`; that catalog pins the functional
+plugin source at `0e6453c4e57925a62edded30b43fbc85861e9497`. See
+[INSTALL.md](INSTALL.md) for copy-paste commands and platform prerequisites.
+
+## What the user experiences
+
+Store:
+
+1. The agent supplies a friendly name such as `github-release`, a variable such
+   as `GITHUB_TOKEN`, and a useful one-line description.
+2. KeepKeys pre-fills all three.
+3. The user types only the key into the branded native password field.
+4. The operating system vault stores it.
+
+Run:
+
+1. The agent proposes an absolute executable, fixed argument list, purpose, and
+   optional working directory.
+2. KeepKeys displays the risk class, stored metadata, executable path, SHA-256,
+   arguments, directory, environment scope, and detected script fingerprint.
+3. The user chooses **Allow once** or **Cancel**.
+4. Only after approval does KeepKeys load the value and run the direct child.
+
+Remove always opens a native destructive-action confirmation and deletes the
+complete named record. Uninstalling a client does not silently delete
+credentials.
+
+## The security promise—and its edge
 
 KeepKeys does:
 
-- pre-fill a friendly name, environment-variable name, and description so the
-  user only types the key into the native secure field;
-- store the value and metadata together as one non-synchronizing, device-local
-  Keychain item;
-- list names, variable names, and descriptions without reading values into the
-  agent;
-- show the executable, arguments, purpose, directory, variable name, and
-  executable SHA-256 fingerprint before every use;
-- clear the child environment, add the one approved variable, and execute the
-  program directly without a shell;
-- redact the exact value plus common base64, hexadecimal, URL-encoded, and
-  JSON-escaped forms from bounded output;
-- delete the complete named Keychain item—value and metadata—after a native
-  confirmation.
+- keep plaintext out of model prompts, tool inputs/results, plugin metadata,
+  argv, persistent environment, clipboard automation, and plaintext files;
+- pin native helper sources and fail closed on integrity mismatch;
+- block common shells, environment dumpers, and Windows dynamic script hosts;
+- classify common network clients and interpreters visibly;
+- compare metadata and executable identity again after approval;
+- bound both output streams and omit a whole stream after overflow;
+- run native-vault doctor tests with generated temporary values only.
 
 KeepKeys does not:
 
-- reveal plaintext secrets to a model or offer a retrieval API;
-- store `.env` files, shell-profile variables, cloud-vault copies, or chat
-  attachments;
-- silently delete credentials when an integration is uninstalled;
-- make an approved executable safe—the target and its descendants receive the
-  secret;
-- claim forensic overwrite of storage internally managed by macOS Keychain;
-- protect a compromised macOS account, administrator, malicious approved
-  executable, debugger, or keylogger.
+- make an approved executable safe;
+- confine a credential after delivery to that process or its descendants;
+- detect arbitrary encryption, splitting, file writes, IPC, or network egress;
+- protect against malware, a compromised signed-in account, administrator/root,
+  debuggers, keyloggers, or modified local plugin code;
+- promise forensic erasure inside operating-system-managed storage;
+- claim to be unbreakable.
 
-Read the [threat model](docs/threat-model.md) before relying on a boundary that
-is not named here.
+Read the complete [threat model](docs/threat-model.md), [privacy and data
+handling](docs/privacy-and-data-handling.md), and [security policy](SECURITY.md)
+before using KeepKeys for high-impact credentials.
 
-## The six tools
+## Development and proof
 
-| Tool | What the agent supplies | Native user gate |
-| --- | --- | --- |
-| `keepkeys_store` | name, variable, description | secure entry; confirmation before overwrite |
-| `keepkeys_list` | nothing | none; returns metadata only |
-| `keepkeys_run` | name, purpose, absolute executable, fixed arguments, optional directory | **Allow once** |
-| `keepkeys_remove` | exact name | destructive confirmation |
-| `keepkeys_status` | nothing | none; reads no credentials |
-| `keepkeys_doctor` | nothing | synthetic write/read/delete only |
-
-Typical requests:
-
-> Store my deployment token as `cloudflare-production` using
-> `CLOUDFLARE_API_TOKEN`; it deploys approved BarnLabs releases.
-
-> Use `cloudflare-production` for this exact Wrangler command.
-
-> Remove `cloudflare-production` from KeepKeys.
-
-Never paste the value into the task. KeepKeys will open the native field when it
-needs it.
-
-## Architecture
-
-```text
-Codex · Grok Build · Claude Code · OMP · Gemini CLI     Hermes
-                       │ MCP                              │ thin Python bridge
-                       └──────────────┬───────────────────┘
-                                ▼
-                   shared schema + fixed argv
-                                ▼
-              Swift / AppKit / Security.framework
-              secure entry · approval · Keychain
-                                ▼
-                    one direct child process
-```
-
-The Node MCP server and Hermes bridge carry metadata and fixed argument vectors.
-Keychain reads, secure entry, approval, deletion, execution, and redaction remain
-in the Swift helper. The launcher verifies that helper source against a pinned
-SHA-256 digest before compiling it into a private user cache.
-
-See [architecture](docs/architecture.md), [compatibility and proof](docs/compatibility.md),
-and [privacy/data handling](docs/privacy-and-data-handling.md).
-
-## Build and verify
-
-KeepKeys has no package dependencies and no application scaffold.
+macOS or Linux:
 
 ```sh
 ./scripts/bootstrap
 ./scripts/check
 ./scripts/test
 ./scripts/doctor
-./scripts/package-release
 ```
 
-- `check` validates every client manifest, shared schema, skill copy, Node and
-  Python syntax, shell syntax, source digest, and native compilation.
-- `test` runs MCP, Hermes, validation, execution-scope, and redaction contracts
-  without reading user credentials or opening native UI.
-- `doctor` performs one temporary Keychain write/read/delete round trip with a
-  generated synthetic value.
+Windows:
 
-## Project
+```powershell
+.\scripts\bootstrap.ps1
+.\scripts\check.ps1
+.\scripts\test.ps1
+.\scripts\doctor.ps1
+```
 
-- [Installation and upgrades](INSTALL.md)
-- [Security policy](SECURITY.md)
+CI runs the shared contract on macOS, Windows, and Ubuntu with Node.js 18 and
+22. Separate jobs perform generated-value round trips through macOS Keychain,
+Windows Credential Manager, and a disposable GNOME Keyring session. GitHub
+Actions are pinned to exact upstream commits.
+
+The repository has no runtime package dependencies. macOS compiles the reviewed
+Swift helper with Apple Command Line Tools; Windows uses built-in Windows
+PowerShell/.NET; Linux uses Python's standard library plus the desktop's
+Secret Service tools and Tk.
+
+## Project documents
+
+- [Install, verify, upgrade, and remove](INSTALL.md)
+- [Architecture](docs/architecture.md)
+- [Compatibility matrix](docs/compatibility.md)
+- [Threat model](docs/threat-model.md)
+- [Privacy and data handling](docs/privacy-and-data-handling.md)
+- [Security reporting](SECURITY.md)
+- [Roadmap](ROADMAP.md)
 - [Contributing](CONTRIBUTING.md)
 - [Governance](GOVERNANCE.md)
-- [Roadmap](ROADMAP.md)
-- [Changelog](CHANGELOG.md)
-- [Brand assets](plugins/keepkeys/assets/brand-guidelines.md)
+- [Brand guidelines](plugins/keepkeys/assets/brand-guidelines.md)
 
-KeepKeys is an Apache-2.0 [BarnLabs](https://github.com/barnlabs) open-source
-initiative. Repository publication does not imply listing or approval in any
-client’s official public directory; those review processes are separate.
+## BarnLabs open source
+
+KeepKeys is a BarnLabs open-source initiative, licensed under Apache-2.0. The
+Keykeeper—an old steward carrying a real ring of keys—represents the product's
+job: hold authority carefully, explain exactly where it is going, and hand over
+only the one key needed for the approved task.
+
+Security reports belong in a private GitHub Security Advisory. Product ideas
+and reproducible bugs are welcome through the repository templates.

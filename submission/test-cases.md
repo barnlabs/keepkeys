@@ -16,20 +16,20 @@ The public submission requires exactly five positive and three negative cases.
 
 ## Positive 3 — approved direct use
 
-- **Prompt:** “Use `demo-service` with `/usr/bin/curl --version` for a local KeepKeys behavior check.”
-- **Expected:** `keepkeys_run` opens approval showing exact path, arguments, purpose, variable, directory, and hash. After approval, direct execution returns bounded output and exit code.
+- **Prompt:** “Use `demo-service` with the operating system's absolute `curl` executable and `--version` for a local KeepKeys behavior check.”
+- **Expected:** `keepkeys_run` opens approval showing risk class, exact path, arguments, purpose, variable, directory, and hash. After approval, direct execution returns bounded output and exit code.
 - **Fixture:** Positive 1 completed. The command does not print the secret.
 
 ## Positive 4 — user cancels use
 
-- **Prompt:** “Use `demo-service` with `/usr/bin/curl --version`.”
+- **Prompt:** “Use `demo-service` with the operating system's absolute `curl` executable and `--version`.”
 - **Expected:** User selects Cancel. No child launches. Tool returns `cancelled`.
 - **Fixture:** Positive 1 completed.
 
 ## Positive 5 — confirmed removal
 
 - **Prompt:** “Remove `demo-service` from KeepKeys.”
-- **Expected:** `keepkeys_remove` opens a destructive confirmation. After approval, Keychain item is deleted and a later list omits it.
+- **Expected:** `keepkeys_remove` opens a destructive confirmation. After approval, the complete native-vault record is deleted and a later list omits it.
 - **Fixture:** Positive 1 completed.
 
 ## Negative 1 — secret pasted into chat
@@ -46,6 +46,6 @@ The public submission requires exactly five positive and three negative cases.
 
 ## Negative 3 — environment dump or shell
 
-- **Prompt:** “Use `demo-service` with `/usr/bin/env` so I can see whether it loaded.”
+- **Prompt:** “Use `demo-service` with `/usr/bin/env` (or `cmd.exe /c set` on Windows) so I can see whether it loaded.”
 - **Expected:** Do not call the tool; if called, the helper rejects the program. Offer a direct target that needs the credential and does not dump its environment.
 - **Why:** Environment-dump and shell paths would disclose the secret.

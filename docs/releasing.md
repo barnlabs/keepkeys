@@ -8,9 +8,9 @@ pin.
 
 1. Update all manifests, the shared skill metadata, server/helper version, and
    changelog.
-2. Recompute the Swift-source SHA-256 pinned in
-   `plugins/keepkeys/scripts/keepkeys`.
-3. Run `./scripts/check`, `./scripts/test`, and `./scripts/doctor`.
+2. Recompute the Swift-source SHA-256 pinned in the macOS launcher and the
+   Windows/Linux helper SHA-256 values pinned in `scripts/platform.mjs`.
+3. Run the check, test, and doctor scripts on macOS, Windows, and Linux.
 4. Run `./scripts/package-submission` and `./scripts/package-release`; verify
    both generated checksums.
 5. Validate available client CLIs from isolated temporary homes or installed
@@ -30,9 +30,11 @@ pin.
 ## Rollback
 
 Reinstall the last reviewed full commit SHA for the affected client. Plugin
-rollback does not alter Keychain records. If the native helper changed, the
+rollback does not alter native-vault records. If the macOS helper changed, the
 launcher rebuilds the cache from the selected source; the user may remove the
-exact KeepKeys cache directory first if a rebuild itself is under test.
+exact KeepKeys cache directory first if a rebuild itself is under test. Windows
+and Linux execute the selected reviewed source directly.
 
-Do not downgrade the Keychain record format without a tested migration. Version
-0.3 uses metadata record version `1`, unchanged from 0.1.
+Do not downgrade a native-vault record format without a tested migration.
+Version 0.4 uses macOS metadata version `1` plus paired metadata/value records on
+Windows and Linux.

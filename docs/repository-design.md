@@ -15,7 +15,8 @@ repositories easy to evaluate quickly:
 
 ## Reference review
 
-The 0.3 repository pass reviewed current primary repositories and documentation:
+The 0.4 repository pass reviewed current primary repositories, competitors, and
+platform documentation:
 
 - [1Password Shell Plugins](https://github.com/1Password/shell-plugins) for a
   focused security-tool promise, strong visual entry, action-oriented
@@ -29,13 +30,24 @@ The 0.3 repository pass reviewed current primary repositories and documentation:
 - [Grok Build](https://github.com/xai-org/grok-build) and its official
   marketplace for native plugin layout, exact-SHA installation, and
   pre-install component inventory;
+- [Microsoft Credential Manager
+  APIs](https://learn.microsoft.com/windows/win32/api/wincred/) and the
+  [freedesktop Secret Service
+  specification](https://specifications.freedesktop.org/secret-service/latest-single/)
+  for native Windows/Linux storage and failure semantics;
+- current agent-focused secret brokers including Automic Vault, Cloak, Keyway,
+  Infisical Agent Vault, Shroud, and Akasha to test whether KeepKeys' positioning
+  is defensible;
 - each client’s official plugin or extension specification for file placement
   and installation commands.
 
 KeepKeys adopts the useful patterns, not the projects’ scale. A local secrets
 plugin should remain understandable in one sitting. “Grand” here means polished,
 auditable, and complete—not a large framework or a list of speculative
-features.
+features. Its chosen wedge is the best local, human-controlled secret-use broker
+for desktop coding agents: no cloud, no daemon, no reveal action, native
+credential stores, executable identity, and the same human gate on all three
+desktop operating systems.
 
 ## Information hierarchy
 

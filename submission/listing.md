@@ -14,11 +14,18 @@ Productivity
 
 ## Short description
 
-Local secrets for approved Codex commands.
+Native-vault secrets for approved agent commands.
 
 ## Long description
 
-KeepKeys lets macOS Codex users store named developer secrets outside the conversation and use them through one command at a time. Codex pre-fills the friendly name, environment-variable name, and description, so the user only enters the key in a native window. macOS Keychain stores it, and another native window shows the exact program, arguments, purpose, directory, stored metadata, and executable fingerprint before use. KeepKeys never offers a plaintext retrieval tool.
+KeepKeys lets coding agents use named developer secrets without receiving their
+plaintext values. The agent pre-fills a friendly name, environment-variable
+name, and description; the user types only the key into a native password
+window. KeepKeys stores it in macOS Keychain, Windows Credential Manager, or
+Linux Secret Service. Each use requires native one-time approval showing the
+purpose, risk class, exact program, arguments, directory, metadata, executable
+SHA-256, and detected script fingerprint. KeepKeys never offers a plaintext
+retrieval tool.
 
 ## Website
 
@@ -38,4 +45,6 @@ https://github.com/barnlabs/keepkeys/blob/main/TERMS.md
 
 ## Availability
 
-macOS 13+ only. Codex desktop app and Codex CLI. English listing at initial submission.
+macOS 13+, Windows 10/11, and desktop Linux. Codex desktop app and Codex CLI.
+English listing at initial submission. Linux secure entry and approval require
+a graphical session and compatible Secret Service.

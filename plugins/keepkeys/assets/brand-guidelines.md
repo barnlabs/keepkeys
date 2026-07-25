@@ -52,5 +52,5 @@ stretch, mirror, recolor, add dramatic shadows, place text over the face or keys
 or make the character ominous or comic.
 
 Prefer “local secrets for agents” and “use, never retrieve.” Never claim that
-KeepKeys is unbreakable, guarantees secrecy, or securely erases Keychain storage
-at the forensic layer.
+KeepKeys is unbreakable, guarantees secrecy, or securely erases native-vault
+storage at the forensic layer.
