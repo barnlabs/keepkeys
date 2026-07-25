@@ -21,7 +21,7 @@
         "url": "https://github.com/barnlabs/keepkeys.git",
         "path": "plugins/keepkeys",
         "ref": "main",
-        "sha": "a619a3ad843e5e6a58c8c3308e1e11014b80ade6"
+        "sha": "0e6453c4e57925a62edded30b43fbc85861e9497"
       },
       "category": "security",
       "homepage": "https://github.com/barnlabs/keepkeys",
