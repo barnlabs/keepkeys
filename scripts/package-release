@@ -20,6 +20,11 @@ checksum="$archive.sha256"
   --exclude 'dist' \
   --exclude '__pycache__' \
   --exclude '*.pyc' \
+  --exclude '.ruff_cache' \
+  --exclude '.pytest_cache' \
+  --exclude '.mypy_cache' \
+  --exclude 'node_modules' \
+  --exclude '.DS_Store' \
   "$root/" "$package_root/"
 
 /bin/rm -f "$archive" "$checksum"
@@ -55,6 +60,13 @@ do
     exit 1
   fi
 done
+
+if /usr/bin/unzip -Z1 "$archive" |
+  /usr/bin/grep -E '(^|/)(__pycache__/|[^/]+\.pyc$|\.ruff_cache/|\.pytest_cache/|\.mypy_cache/|node_modules/|\.DS_Store$)'
+then
+  printf '%s\n' "Release archive unexpectedly contains local build or cache artifacts." >&2
+  exit 1
+fi
 
 (
   cd "$dist"

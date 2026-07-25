@@ -181,6 +181,49 @@ private func validateSecret(_ value: String) throws {
     }
 }
 
+private enum StoreCaptureFailure: LocalizedError {
+    case clipboardChanged
+    case clipboardClearFailed
+    case invalidSecret
+    case replacementCancelled
+
+    var errorDescription: String? {
+        switch self {
+        case .clipboardChanged:
+            return "The clipboard changed while KeepKeys was reading it. Copy the complete key, then press Paste & Store again."
+        case .clipboardClearFailed:
+            return "KeepKeys could not clear the clipboard, so the key was not stored. Copy it again and retry."
+        case .invalidSecret:
+            return "No usable key was found on the clipboard. KeepKeys cleared it; copy the complete key, then press Paste & Store again."
+        case .replacementCancelled:
+            return "Replacement was cancelled. KeepKeys already cleared the clipboard; copy the key again if you retry."
+        }
+    }
+}
+
+private func performPasteAndStore(
+    readClipboard: () -> (value: String, version: Int),
+    currentClipboardVersion: () -> Int,
+    clearClipboard: () -> Int,
+    storeSecret: (String) throws -> Void
+) throws {
+    let captured = readClipboard()
+    var secret = captured.value
+    defer { secret = "" }
+    guard currentClipboardVersion() == captured.version else {
+        throw StoreCaptureFailure.clipboardChanged
+    }
+    guard clearClipboard() != captured.version else {
+        throw StoreCaptureFailure.clipboardClearFailed
+    }
+    do {
+        try validateSecret(secret)
+    } catch {
+        throw StoreCaptureFailure.invalidSecret
+    }
+    try storeSecret(secret)
+}
+
 private func validDescription(_ value: String) -> Bool {
     !value.isEmpty && value.utf8.count <= 240 && !hasControlCharacters(value)
 }
@@ -607,56 +650,44 @@ private func storeInteractively(
         if response != .alertFirstButtonReturn {
             return ["status": "cancelled", "message": "Secret storage was cancelled."]
         }
-        let pasteboard = NSPasteboard.general
-        let clipboardVersion = pasteboard.changeCount
-        var secret = pasteboard.string(forType: .string) ?? ""
-        defer { secret = "" }
-        guard pasteboard.changeCount == clipboardVersion else {
-            showError(
-                "The clipboard changed while KeepKeys was reading it. Copy the complete key, then press Paste & Store again."
-            )
-            continue
-        }
-        let clearedVersion = pasteboard.clearContents()
-        guard clearedVersion != clipboardVersion else {
-            showError(
-                "KeepKeys could not clear the clipboard, so the key was not stored. Copy it again and retry."
-            )
-            continue
-        }
         do {
-            try validateSecret(secret)
-        } catch {
-            showError(
-                "No usable key was found on the clipboard. KeepKeys cleared it; copy the complete key, then press Paste & Store again."
+            let pasteboard = NSPasteboard.general
+            try performPasteAndStore(
+                readClipboard: {
+                    let version = pasteboard.changeCount
+                    return (pasteboard.string(forType: .string) ?? "", version)
+                },
+                currentClipboardVersion: { pasteboard.changeCount },
+                clearClipboard: { pasteboard.clearContents() },
+                storeSecret: { secret in
+                    if try KeychainStore.exists(name: name) {
+                        let overwrite = NSAlert()
+                        overwrite.alertStyle = .critical
+                        overwrite.messageText = "Replace '\(name)'?"
+                        overwrite.informativeText =
+                            "This permanently replaces the existing KeepKeys value and variable name."
+                        overwrite.addButton(withTitle: "Replace")
+                        overwrite.addButton(withTitle: "Cancel")
+                        if overwrite.runModal() != .alertFirstButtonReturn {
+                            throw StoreCaptureFailure.replacementCancelled
+                        }
+                    }
+                    try KeychainStore.store(
+                        name: name,
+                        variable: variable,
+                        description: description,
+                        provider: provider,
+                        documentationURLs: documentationURLs,
+                        secret: secret
+                    )
+                }
             )
+        } catch let error as StoreCaptureFailure {
+            if let message = error.errorDescription {
+                showError(message)
+            }
             continue
         }
-
-        if try KeychainStore.exists(name: name) {
-            let overwrite = NSAlert()
-            overwrite.alertStyle = .critical
-            overwrite.messageText = "Replace '\(name)'?"
-            overwrite.informativeText =
-                "This permanently replaces the existing KeepKeys value and variable name."
-            overwrite.addButton(withTitle: "Replace")
-            overwrite.addButton(withTitle: "Cancel")
-            if overwrite.runModal() != .alertFirstButtonReturn {
-                showError(
-                    "Replacement was cancelled. KeepKeys already cleared the clipboard; copy the key again if you retry."
-                )
-                continue
-            }
-        }
-
-        try KeychainStore.store(
-            name: name,
-            variable: variable,
-            description: description,
-            provider: provider,
-            documentationURLs: documentationURLs,
-            secret: secret
-        )
         return [
             "status": "ok",
             "message": "Stored '\(name)' in macOS Keychain.",
@@ -1165,6 +1196,43 @@ private func runSelfTests() throws -> [String: Any] {
     else {
         throw KeepKeysFailure(message: "Validation self-test failed.")
     }
+    var successCleared = false
+    var successStored = false
+    try performPasteAndStore(
+        readClipboard: { ("synthetic-store-secret", 41) },
+        currentClipboardVersion: { 41 },
+        clearClipboard: {
+            successCleared = true
+            return 42
+        },
+        storeSecret: { value in
+            successStored = value == "synthetic-store-secret"
+        }
+    )
+    var rejectedCleared = false
+    var rejectedStored = false
+    var invalidCaptureRejected = false
+    do {
+        try performPasteAndStore(
+            readClipboard: { ("short", 51) },
+            currentClipboardVersion: { 51 },
+            clearClipboard: {
+                rejectedCleared = true
+                return 52
+            },
+            storeSecret: { _ in rejectedStored = true }
+        )
+    } catch StoreCaptureFailure.invalidSecret {
+        invalidCaptureRejected = true
+    }
+    guard successCleared,
+          successStored,
+          invalidCaptureRejected,
+          rejectedCleared,
+          !rejectedStored
+    else {
+        throw KeepKeysFailure(message: "Paste & Store boundary self-test failed.")
+    }
     let marker = "synthetic-test-secret"
     let sample = "before \(marker) \(Data(marker.utf8).base64EncodedString()) after"
     let redacted = redact(sample, secret: marker)
@@ -1216,7 +1284,7 @@ private func runSelfTests() throws -> [String: Any] {
     }
     return [
         "status": "ok",
-        "message": "KeepKeys validation, scoped-process, and redaction self-tests passed.",
+        "message": "KeepKeys validation, Paste & Store, scoped-process, and redaction self-tests passed.",
         "version": keepKeysVersion,
     ]
 }

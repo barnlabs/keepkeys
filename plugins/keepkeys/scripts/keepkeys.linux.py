@@ -174,7 +174,10 @@ def valid_documentation_url(value: str) -> bool:
         or any(ord(character) < 32 or ord(character) == 127 for character in value)
     ):
         return False
-    parsed = urlsplit(value)
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return False
     return (
         parsed.scheme.lower() == "https"
         and bool(parsed.hostname)

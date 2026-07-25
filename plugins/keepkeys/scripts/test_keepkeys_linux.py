@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -127,6 +128,34 @@ class LinuxBackendTests(unittest.TestCase):
                     documentation_urls=("http://docs.example.com/api",),
                 )
             )
+
+    def test_malformed_documentation_url_returns_structured_error_before_ui(self) -> None:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(MODULE_PATH),
+                "store",
+                "--name",
+                "test-key",
+                "--variable",
+                "TEST_KEY",
+                "--description",
+                "Test credential",
+                "--provider",
+                "Example",
+                "--documentation-url",
+                "https://[",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 1)
+        self.assertEqual(completed.stderr, "")
+        self.assertNotIn("Traceback", completed.stdout)
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["status"], "error")
+        self.assertIn("documentation", payload["message"].lower())
 
     def test_store_dialog_has_no_window_wide_return_clipboard_trigger(self) -> None:
         source = MODULE_PATH.read_text(encoding="utf-8")

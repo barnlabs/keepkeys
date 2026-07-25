@@ -125,12 +125,12 @@ for (const [platform, helper, captureThenClearThenValidate] of [
   [
     "macOS",
     sourceText,
-    /pasteboard\.string\(forType: \.string\)[\s\S]{0,800}pasteboard\.clearContents\(\)[\s\S]{0,800}validateSecret\(secret\)/,
+    /let captured = readClipboard\(\)[\s\S]{0,500}clearClipboard\(\)[\s\S]{0,500}validateSecret\(secret\)/,
   ],
   [
     "Windows",
     windowsHelper,
-    /\[Windows\.Clipboard\]::GetText\(\)[\s\S]{0,500}\[Windows\.Clipboard\]::Clear\(\)[\s\S]{0,500}Assert-KeepKeysSecret \$candidateSecret/,
+    /\$candidateSecret = & \$ReadClipboard[\s\S]{0,400}& \$ClearClipboard[\s\S]{0,400}Assert-KeepKeysSecret \$candidateSecret/,
   ],
   [
     "Linux",
@@ -142,6 +142,16 @@ for (const [platform, helper, captureThenClearThenValidate] of [
     helper,
     captureThenClearThenValidate,
     `${platform} must clear even clipboard text that secret validation rejects`,
+  );
+}
+for (const [platform, helper] of [
+  ["macOS", sourceText],
+  ["Windows", windowsHelper],
+]) {
+  assert.match(
+    helper,
+    /Paste & Store boundary self-test failed/,
+    `${platform} must behaviorally test successful and rejected clipboard capture`,
   );
 }
 assert.match(

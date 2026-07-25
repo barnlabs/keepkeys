@@ -419,6 +419,32 @@ function Assert-KeepKeysMetadata {
     }
 }
 
+function Invoke-KeepKeysPasteAndStore {
+    param(
+        [scriptblock]$ReadClipboard,
+        [scriptblock]$ClearClipboard,
+        [scriptblock]$StoreSecret
+    )
+    $stage = "clipboard-read"
+    $candidateSecret = ""
+    try {
+        $candidateSecret = & $ReadClipboard
+        $stage = "clipboard-clear"
+        & $ClearClipboard
+        $stage = "secret-validation"
+        Assert-KeepKeysSecret $candidateSecret
+        $stage = "store"
+        & $StoreSecret $candidateSecret
+    } catch {
+        if (-not $_.Exception.Data.Contains("KeepKeysStage")) {
+            $_.Exception.Data["KeepKeysStage"] = $stage
+        }
+        throw
+    } finally {
+        $candidateSecret = ""
+    }
+}
+
 function Get-KeepKeysOption {
     param([string[]]$Values, [string]$Name, [switch]$Required)
     $index = [Array]::IndexOf($Values, $Name)
@@ -639,48 +665,49 @@ function Show-KeepKeysStoreDialog {
     $state = @{ Result = $null }
     $cancel.Add_Click({ $window.DialogResult = $false })
     $store.Add_Click({
-        $stage = "clipboard-read"
-        $candidateSecret = ""
         try {
-            if (-not [Windows.Clipboard]::ContainsText()) {
-                throw "No usable key was found on the clipboard."
-            }
-            $candidateSecret = [Windows.Clipboard]::GetText()
-            $stage = "clipboard-clear"
-            [Windows.Clipboard]::Clear()
-            $stage = "secret-validation"
-            Assert-KeepKeysSecret $candidateSecret
-            $stage = "vault-check"
-            if ($null -ne [BarnLabs.KeepKeys.CredentialVault]::Read(
-                $Script:MetadataPrefix + $Name,
-                $false
-            )) {
-                $answer = [Windows.MessageBox]::Show(
-                    $window,
-                    "This replaces the existing KeepKeys value and metadata.",
-                    "Replace '$Name'?",
-                    [Windows.MessageBoxButton]::YesNo,
-                    [Windows.MessageBoxImage]::Warning,
-                    [Windows.MessageBoxResult]::No
-                )
-                if ($answer -ne [Windows.MessageBoxResult]::Yes) {
+            Invoke-KeepKeysPasteAndStore `
+                -ReadClipboard {
+                    if (-not [Windows.Clipboard]::ContainsText()) {
+                        throw "No usable key was found on the clipboard."
+                    }
+                    return [Windows.Clipboard]::GetText()
+                } `
+                -ClearClipboard {
+                    [Windows.Clipboard]::Clear()
+                } `
+                -StoreSecret {
+                    param([string]$candidateSecret)
+                    if ($null -ne [BarnLabs.KeepKeys.CredentialVault]::Read(
+                        $Script:MetadataPrefix + $Name,
+                        $false
+                    )) {
+                        $answer = [Windows.MessageBox]::Show(
+                            $window,
+                            "This replaces the existing KeepKeys value and metadata.",
+                            "Replace '$Name'?",
+                            [Windows.MessageBoxButton]::YesNo,
+                            [Windows.MessageBoxImage]::Warning,
+                            [Windows.MessageBoxResult]::No
+                        )
+                        if ($answer -ne [Windows.MessageBoxResult]::Yes) {
+                            $errorLabel.Text = "Replacement was cancelled. KeepKeys already cleared the clipboard; copy the key again if you retry."
+                            return
+                        }
+                    }
+                    $state.Result = [pscustomobject]@{
+                        Name = $Name
+                        Variable = $Variable
+                        Description = $Description
+                        Provider = $Provider
+                        DocumentationUrls = $DocumentationUrls
+                        Secret = $candidateSecret
+                    }
                     $candidateSecret = ""
-                    $errorLabel.Text = "Replacement was cancelled. KeepKeys already cleared the clipboard; copy the key again if you retry."
-                    return
+                    $window.DialogResult = $true
                 }
-            }
-            $state.Result = [pscustomobject]@{
-                Name = $Name
-                Variable = $Variable
-                Description = $Description
-                Provider = $Provider
-                DocumentationUrls = $DocumentationUrls
-                Secret = $candidateSecret
-            }
-            $candidateSecret = ""
-            $window.DialogResult = $true
         } catch {
-            $candidateSecret = ""
+            $stage = [string]$_.Exception.Data["KeepKeysStage"]
             if ($stage -eq "clipboard-read") {
                 $errorLabel.Text = "No usable key was found on the clipboard. Copy the complete key, then press Paste & Store again."
             } elseif ($stage -eq "clipboard-clear") {
@@ -1218,6 +1245,37 @@ function Invoke-KeepKeysSelfTest {
     if (-not $invalidDocumentationRejected) {
         throw "Documentation validation self-test failed."
     }
+    $positiveCapture = @{
+        Cleared = $false
+        Stored = $false
+    }
+    Invoke-KeepKeysPasteAndStore `
+        -ReadClipboard { "synthetic-store-secret" } `
+        -ClearClipboard { $positiveCapture.Cleared = $true } `
+        -StoreSecret {
+            param([string]$value)
+            $positiveCapture.Stored = $value -ceq "synthetic-store-secret"
+        }
+    $rejectedCapture = @{
+        Cleared = $false
+        Stored = $false
+    }
+    $invalidCaptureRejected = $false
+    try {
+        Invoke-KeepKeysPasteAndStore `
+            -ReadClipboard { "short" } `
+            -ClearClipboard { $rejectedCapture.Cleared = $true } `
+            -StoreSecret { $rejectedCapture.Stored = $true }
+    } catch {
+        $invalidCaptureRejected = (
+            [string]$_.Exception.Data["KeepKeysStage"] -ceq "secret-validation"
+        )
+    }
+    if (-not $positiveCapture.Cleared -or -not $positiveCapture.Stored -or
+        -not $invalidCaptureRejected -or -not $rejectedCapture.Cleared -or
+        $rejectedCapture.Stored) {
+        throw "Paste & Store boundary self-test failed."
+    }
     $metadataBytes = ConvertTo-KeepKeysMetadataBytes "Example" `
         ([string[]]@("https://docs.example.com/api"))
     try {
@@ -1301,7 +1359,7 @@ public static class KeepKeysScopeProbe
     }
     return @{
         status = "ok"
-        message = "KeepKeys Windows validation, scoped-process, and redaction self-tests passed."
+        message = "KeepKeys Windows validation, Paste & Store, scoped-process, and redaction self-tests passed."
         version = $Script:Version
     }
 }

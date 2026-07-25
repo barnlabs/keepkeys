@@ -18,6 +18,10 @@
   review.
 - Made the shared-clipboard limitation explicit, added compact-screen Linux
   scrolling, and made long macOS metadata fully reviewable.
+- Added executable macOS and Windows Paste & Store boundary tests for successful
+  capture plus rejected input that must clear the clipboard and skip storage.
+- Made malformed Linux documentation URLs fail through structured JSON and
+  excluded local build/cache artifacts from source packages.
 
 ## 0.4.1 — 2026-07-24
 
