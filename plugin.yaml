@@ -1,6 +1,6 @@
 name: keepkeys
-version: "0.4.1"
-description: Local native-vault secrets for approval-gated agent commands on macOS, Windows, and Linux, without plaintext retrieval.
+version: "0.4.2"
+description: Explicit paste-to-vault secrets for approval-gated agent commands on macOS, Windows, and Linux, without plaintext retrieval.
 author: BarnLabs
 provides_tools:
   - keepkeys_store

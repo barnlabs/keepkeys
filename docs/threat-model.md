@@ -5,7 +5,8 @@
 KeepKeys lets a supported local agent cause one user-approved process to use one
 named secret without placing the plaintext value in the model prompt, tool
 arguments or results, plugin metadata, repository, persistent environment,
-terminal, clipboard, or plaintext file.
+terminal, or plaintext file. Clipboard access occurs only inside the native
+helper after the user explicitly presses **Paste & Store**.
 
 This is scoped delegation, not containment after delegation. The approved
 program and its descendants receive the value.
@@ -13,7 +14,8 @@ program and its descendants receive the value.
 ## Assets
 
 - secret values;
-- friendly names, variable names, descriptions, and command purposes;
+- friendly names, variable names, descriptions, provider names, documentation
+  URLs, and command purposes;
 - user intent for store, replacement, deletion, and each use;
 - integrity of the plugin source, dispatcher, native helper, approval window,
   target executable, and optional script entrypoint;
@@ -24,7 +26,7 @@ program and its descendants receive the value.
 
 | Role or boundary | Trust and control |
 | --- | --- |
-| User | Trusted to enter a value locally and judge the displayed one-time request. |
+| User | Trusted to copy a value from its provider, trigger the native paste, and judge the displayed one-time request. |
 | Agent/client | Untrusted with plaintext. It can propose metadata and a command through fixed schemas. |
 | MCP/Hermes adapter | Trusted code boundary. It validates arguments, selects one bundled backend, uses no shell, and returns bounded JSON. |
 | Native helper | Trusted secret-bearing boundary. It owns secure entry, vault access, approval, fingerprints, child environment, and redaction. |
@@ -38,7 +40,8 @@ program and its descendants receive the value.
 
 No input schema includes `secret`, `value`, or an equivalent plaintext field.
 The behavioral skill forbids asking for the value. Store carries only name,
-variable, and description. There is no plaintext retrieval action.
+variable, description, provider, and official documentation URLs. There is no
+plaintext retrieval action.
 
 The MCP server and Hermes adapter form argument arrays and start a
 repository-relative helper with `shell=false`. The dispatcher keeps only
@@ -46,19 +49,29 @@ session variables needed for the selected native desktop/vault.
 
 ### Native entry to vault
 
-- macOS uses `NSSecureTextField` and a non-synchronizing
-  `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` Keychain item.
-- Windows uses WPF `PasswordBox`. Metadata and value are separate generic
+- macOS uses AppKit pasteboard access only after **Paste & Store** and a
+  non-synchronizing `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` Keychain
+  item.
+- Windows uses WPF clipboard access only after **Paste & Store**. Metadata and
+  value are separate generic
   Credential Manager records, so listing and pre-approval lookup never request
   the value record.
-- Linux uses a native Tk password field and separate metadata/value Secret
+- Linux uses Tk clipboard access only after **Paste & Store** and separate
+  metadata/value Secret
   Service items. It pipes the value directly to `secret-tool store`; the value
   is never an argument, environment variable, terminal input, or file.
 
 All three paths require 8–2048 UTF-8 bytes and clear mutable buffers where their
-runtime provides a reliable operation. Swift, .NET strings, Python strings,
-GUI controls, vault APIs, and target-process environments can retain copies;
-KeepKeys does not claim complete zeroization.
+runtime provides a reliable operation. KeepKeys does not clear or mutate the
+user's system clipboard. Clipboard history, Swift, .NET strings, Python
+strings, GUI frameworks, vault APIs, and target-process environments can retain
+copies; KeepKeys does not claim complete zeroization.
+
+The clipboard is a same-user OS boundary, not a protected channel. Other
+same-user software or clipboard-history features may read its contents before
+or after storage. KeepKeys narrows its own access to the explicit click, never
+returns the value to the agent, and recommends copying directly from the
+provider immediately before storing.
 
 ### Vault to command
 
@@ -142,7 +155,8 @@ launching the command.
 
 The agent can ask for metadata enumeration or propose a misleading purpose,
 path, or arguments. It cannot invoke a value-retrieval tool because none
-exists. Store, replacement, removal, and Run retain native human gates.
+exists. Store clipboard access, replacement, removal, and Run retain native
+human gates.
 Metadata remains visible to the active agent when list is authorized, so
 descriptions should be useful but minimal.
 
@@ -171,7 +185,7 @@ release metadata. It caps and validates the response, requires full commit
 SHAs, and performs no installation. A compromised repository or GitHub account
 could still publish malicious commit identifiers; the user must review the
 linked diff and green public evidence before updating. KeepKeys does not claim
-signed update metadata in version 0.4.1.
+signed update metadata in version 0.4.2.
 
 ## Explicit non-goals
 
@@ -187,7 +201,8 @@ signed update metadata in version 0.4.1.
 
 1. No adapter input accepts plaintext secret material.
 2. No tool or helper action retrieves plaintext for the model.
-3. Secret entry occurs only in native GUI, never chat or terminal.
+3. Secret entry occurs only after explicit **Paste & Store** in native GUI,
+   never chat or terminal.
 4. Listing and pre-approval flow use metadata without loading the protected
    value.
 5. Run requires one-time native approval for an exact request.
@@ -199,3 +214,5 @@ signed update metadata in version 0.4.1.
 11. Doctor uses only a generated temporary credential and removes it.
 12. Missing UI or native-vault prerequisites fail closed.
 13. Update discovery is explicit, bounded, read-only, and cannot install code.
+14. Agent-supplied names, providers, and documentation links are validated
+    before native UI opens and are never editable by the user.

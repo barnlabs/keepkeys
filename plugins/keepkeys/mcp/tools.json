@@ -23,12 +23,32 @@
           "description": "One-line description of what the secret is for, such as publishing approved releases.",
           "minLength": 1,
           "maxLength": 240
+        },
+        "provider": {
+          "type": "string",
+          "description": "Provider or system that issued the credential, such as GitHub.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "documentation_urls": {
+          "type": "array",
+          "description": "One to three official HTTPS documentation links researched by the agent, preferring AI-readable references such as llms.txt, OpenAPI, or plain-text API documentation.",
+          "items": {
+            "type": "string",
+            "minLength": 9,
+            "maxLength": 1024,
+            "pattern": "^https://"
+          },
+          "minItems": 1,
+          "maxItems": 3
         }
       },
       "required": [
         "name",
         "variable",
-        "description"
+        "description",
+        "provider",
+        "documentation_urls"
       ],
       "additionalProperties": false
     },

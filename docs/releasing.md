@@ -44,5 +44,7 @@ exact KeepKeys cache directory first if a rebuild itself is under test. Windows
 and Linux execute the selected reviewed source directly.
 
 Do not downgrade a native-vault record format without a tested migration.
-Version 0.4 uses macOS metadata version `1` plus paired metadata/value records on
-Windows and Linux.
+Version 0.4.2 reads macOS metadata versions `1` and `2`, writes version `2`, and
+uses paired metadata/value records on Windows and Linux. Linux reads version-1
+metadata labels and writes version-2 labels; Windows stores version-2
+provider/documentation JSON in the non-secret metadata record.

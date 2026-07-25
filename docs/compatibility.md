@@ -1,6 +1,6 @@
 # Compatibility
 
-KeepKeys 0.4.1 uses the same tool contract on macOS, Windows, and desktop Linux.
+KeepKeys 0.4.2 uses the same tool contract on macOS, Windows, and desktop Linux.
 Node.js 18 or newer is required by the MCP server and cross-platform launcher.
 
 | Platform | Supported baseline | Native requirements | CI proof |

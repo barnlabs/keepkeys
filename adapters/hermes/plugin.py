@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 from typing import Any
+from urllib.parse import urlsplit
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 _PLUGIN_ROOT = _REPOSITORY_ROOT / "plugins" / "keepkeys"
@@ -39,6 +40,38 @@ def _optional_string(args: dict[str, Any], key: str, maximum: int) -> str | None
     return value
 
 
+def _documentation_urls(args: dict[str, Any]) -> list[str]:
+    values = args.get("documentation_urls")
+    if (
+        not isinstance(values, list)
+        or not 1 <= len(values) <= 3
+        or len(set(values)) != len(values)
+        or any(not isinstance(value, str) for value in values)
+    ):
+        raise ValueError(
+            "documentation_urls must contain one to three distinct HTTPS URLs."
+        )
+    byte_count = 0
+    for value in values:
+        byte_count += len(value.encode("utf-8"))
+        parsed = urlsplit(value)
+        if (
+            len(value.encode("utf-8")) > 1024
+            or parsed.scheme.lower() != "https"
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+        ):
+            raise ValueError(
+                "documentation_urls must contain one to three distinct HTTPS URLs."
+            )
+    if byte_count > 1800:
+        raise ValueError(
+            "documentation_urls must total at most 1800 UTF-8 bytes."
+        )
+    return values
+
+
 def _helper_arguments(tool_name: str, raw_args: Any) -> list[str]:
     if not isinstance(raw_args, dict):
         raise ValueError("Tool arguments must be an object.")
@@ -50,7 +83,7 @@ def _helper_arguments(tool_name: str, raw_args: Any) -> list[str]:
         raise ValueError("Tool arguments contain an unsupported field.")
 
     if tool_name == "keepkeys_store":
-        return [
+        command = [
             "store",
             "--name",
             _required_string(args, "name", 128),
@@ -58,7 +91,12 @@ def _helper_arguments(tool_name: str, raw_args: Any) -> list[str]:
             _required_string(args, "variable", 128),
             "--description",
             _required_string(args, "description", 240),
+            "--provider",
+            _required_string(args, "provider", 80),
         ]
+        for url in _documentation_urls(args):
+            command.extend(["--documentation-url", url])
+        return command
     if tool_name == "keepkeys_list":
         return ["list"]
     if tool_name == "keepkeys_remove":

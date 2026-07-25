@@ -70,7 +70,13 @@ for (const tool of TOOLS) {
 
 const storeTool = TOOLS.find((tool) => tool.name === "keepkeys_store");
 assert.ok(storeTool, "keepkeys_store is missing");
-assert.deepEqual(storeTool.inputSchema.required, ["name", "variable", "description"]);
+assert.deepEqual(storeTool.inputSchema.required, [
+  "name",
+  "variable",
+  "description",
+  "provider",
+  "documentation_urls",
+]);
 
 const skill = readFileSync(
   resolve(pluginRoot, "skills", "keepkeys", "SKILL.md"),
@@ -78,9 +84,37 @@ const skill = readFileSync(
 ).replaceAll("\r\n", "\n");
 assert.match(skill, /^---\nname: keepkeys\n/m);
 assert.match(skill, /Never ask the user to paste, type, dictate, attach, or expose a secret in chat/);
+assert.match(skill, /Paste & Store/);
+assert.match(skill, /AI-readable official\s+documentation/);
 
 const launcher = readFileSync(resolve(pluginRoot, "scripts", "keepkeys"), "utf8");
 const source = readFileSync(resolve(pluginRoot, "scripts", "keepkeys.swift"));
+const sourceText = source.toString("utf8");
+const windowsHelper = readFileSync(
+  resolve(pluginRoot, "scripts", "keepkeys.windows.ps1"),
+  "utf8",
+);
+const linuxHelper = readFileSync(
+  resolve(pluginRoot, "scripts", "keepkeys.linux.py"),
+  "utf8",
+);
+for (const [platform, helper, trigger] of [
+  ["macOS", sourceText, "NSPasteboard.general.string"],
+  ["Windows", windowsHelper, "[Windows.Clipboard]::GetText()"],
+  ["Linux", linuxHelper, "window.clipboard_get()"],
+]) {
+  assert.match(helper, /Paste & Store/, `${platform} is missing the explicit paste action`);
+  assert.ok(helper.includes(trigger), `${platform} is missing click-gated clipboard access`);
+  assert.doesNotMatch(
+    helper,
+    /NSSecureTextField|Windows\.Controls\.PasswordBox|secret=True/,
+    `${platform} still exposes manual secret entry`,
+  );
+}
+for (const helper of [sourceText, windowsHelper, linuxHelper]) {
+  assert.match(helper, /new-key/, "valid new-key regression is missing");
+  assert.match(helper, /https:\/\/docs\./, "documentation URL validation test is missing");
+}
 const expectedSourceHash = launcher.match(/^expected_source_hash="([a-f0-9]{64})"$/m)?.[1];
 assert.ok(expectedSourceHash, "launcher source-integrity digest is missing");
 assert.equal(createHash("sha256").update(source).digest("hex"), expectedSourceHash);

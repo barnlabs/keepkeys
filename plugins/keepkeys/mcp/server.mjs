@@ -48,12 +48,50 @@ function readRequiredString(args, key, maxLength) {
   return value;
 }
 
+function readDocumentationUrls(args) {
+  const values = args.documentation_urls;
+  if (
+    !Array.isArray(values) ||
+    values.length < 1 ||
+    values.length > 3 ||
+    new Set(values).size !== values.length ||
+    values.some(
+      (value) => {
+        if (
+          typeof value !== "string" ||
+          Buffer.byteLength(value, "utf8") > 1024
+        ) {
+          return true;
+        }
+        try {
+          const parsed = new URL(value);
+          return (
+            parsed.protocol !== "https:" ||
+            !parsed.hostname ||
+            Boolean(parsed.username) ||
+            Boolean(parsed.password)
+          );
+        } catch {
+          return true;
+        }
+      },
+    ) ||
+    values.reduce((total, value) => total + Buffer.byteLength(value, "utf8"), 0) >
+      1800
+  ) {
+    throw new Error(
+      "documentation_urls must contain one to three HTTPS URLs totaling at most 1800 characters.",
+    );
+  }
+  return values;
+}
+
 export function helperArguments(toolName, rawArguments) {
   const args = assertObject(rawArguments);
   assertExactKeys(toolName, args);
   switch (toolName) {
     case "keepkeys_store": {
-      return [
+      const command = [
         "store",
         "--name",
         readRequiredString(args, "name", 128),
@@ -61,7 +99,13 @@ export function helperArguments(toolName, rawArguments) {
         readRequiredString(args, "variable", 128),
         "--description",
         readRequiredString(args, "description", 240),
+        "--provider",
+        readRequiredString(args, "provider", 80),
       ];
+      for (const url of readDocumentationUrls(args)) {
+        command.push("--documentation-url", url);
+      }
+      return command;
     }
     case "keepkeys_list":
       return ["list"];
@@ -205,7 +249,7 @@ export function createRequestHandler(helperRunner = runHelper) {
               ? params.protocolVersion
               : PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: "keepkeys", version: "0.4.1" },
+          serverInfo: { name: "keepkeys", version: "0.4.2" },
           instructions:
             "KeepKeys stores values outside chat and never exposes plaintext secrets. Use keepkeys_run only for direct commands the user intends to approve.",
         },

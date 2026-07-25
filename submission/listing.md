@@ -19,13 +19,14 @@ Native-vault secrets for approved agent commands.
 ## Long description
 
 KeepKeys lets coding agents use named developer secrets without receiving their
-plaintext values. The agent pre-fills a friendly name, environment-variable
-name, and description; the user types only the key into a native password
-window. KeepKeys stores it in macOS Keychain, Windows Credential Manager, or
-Linux Secret Service. Each use requires native one-time approval showing the
-purpose, risk class, exact program, arguments, directory, metadata, executable
-SHA-256, and detected script fingerprint. KeepKeys never offers a plaintext
-retrieval tool.
+plaintext values. The agent researches official credential documentation and
+prepares the friendly name, environment variable, description, provider, and
+documentation links. The user only copies the key and presses **Paste & Store**;
+the native helper reads the clipboard on that explicit click and stores the
+value in macOS Keychain, Windows Credential Manager, or Linux Secret Service.
+Each use requires native one-time approval showing the purpose, risk class,
+exact program, arguments, directory, metadata, executable SHA-256, and detected
+script fingerprint. KeepKeys never offers a plaintext retrieval tool.
 
 ## Website
 

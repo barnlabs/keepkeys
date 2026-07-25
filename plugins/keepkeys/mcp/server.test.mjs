@@ -58,6 +58,11 @@ test("store carries metadata but never a secret value", () => {
       name: "github-release",
       variable: "GITHUB_TOKEN",
       description: "Publishes approved BarnLabs releases",
+      provider: "GitHub",
+      documentation_urls: [
+        "https://docs.github.com/en/rest",
+        "https://github.com/github/rest-api-description",
+      ],
     }),
     [
       "store",
@@ -67,8 +72,39 @@ test("store carries metadata but never a secret value", () => {
       "GITHUB_TOKEN",
       "--description",
       "Publishes approved BarnLabs releases",
+      "--provider",
+      "GitHub",
+      "--documentation-url",
+      "https://docs.github.com/en/rest",
+      "--documentation-url",
+      "https://github.com/github/rest-api-description",
     ],
   );
+});
+
+test("store rejects missing, insecure, or excessive documentation links", () => {
+  const base = {
+    name: "github-release",
+    variable: "GITHUB_TOKEN",
+    description: "Publishes approved BarnLabs releases",
+    provider: "GitHub",
+  };
+  for (const documentation_urls of [
+    [],
+    ["http://docs.example.com"],
+    ["https://user:password@docs.example.com"],
+    ["https://docs.example.com", "https://docs.example.com"],
+    ["https://a.example", "https://b.example", "https://c.example", "https://d.example"],
+  ]) {
+    assert.throws(
+      () =>
+        helperArguments("keepkeys_store", {
+          ...base,
+          documentation_urls,
+        }),
+      /documentation_urls/,
+    );
+  }
 });
 
 test("run rejects malformed argument arrays", () => {
@@ -90,12 +126,16 @@ test("runtime validation rejects every undeclared field before helper dispatch",
       name: "demo",
       variable: "DEMO_TOKEN",
       description: "Synthetic test metadata",
+      provider: "Example",
+      documentation_urls: ["https://docs.example.com"],
       secret: "synthetic-only-not-a-credential",
     }],
     ["keepkeys_store", {
       name: "demo",
       variable: "DEMO_TOKEN",
       description: "Synthetic test metadata",
+      provider: "Example",
+      documentation_urls: ["https://docs.example.com"],
       value: "synthetic-only-not-a-credential",
     }],
     ["keepkeys_run", {
@@ -135,7 +175,7 @@ test("MCP handler returns structured helper output", async () => {
   const calls = [];
   const handler = createRequestHandler(async (name, args) => {
     calls.push({ name, args });
-    return { status: "ok", platform: "macOS", version: "0.4.1" };
+    return { status: "ok", platform: "macOS", version: "0.4.2" };
   });
   const response = await handler({
     jsonrpc: "2.0",
@@ -147,7 +187,7 @@ test("MCP handler returns structured helper output", async () => {
   assert.deepEqual(response.result.structuredContent, {
     status: "ok",
     platform: "macOS",
-    version: "0.4.1",
+    version: "0.4.2",
   });
 });
 
@@ -254,7 +294,7 @@ test("stdio server handles a complete protocol transcript through a symlinked pl
     const responses = result.stdout.trim().split("\n").map(JSON.parse);
     assert.equal(responses.length, 4, "notifications must not produce responses");
     assert.equal(responses[0].result.serverInfo.name, "keepkeys");
-    assert.equal(responses[0].result.serverInfo.version, "0.4.1");
+    assert.equal(responses[0].result.serverInfo.version, "0.4.2");
     assert.deepEqual(responses[1].result.tools, TOOLS);
     assert.deepEqual(responses[2], {
       jsonrpc: "2.0",

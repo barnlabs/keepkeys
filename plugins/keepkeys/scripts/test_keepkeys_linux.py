@@ -24,6 +24,8 @@ class LinuxBackendTests(unittest.TestCase):
             name="github-release",
             variable="GITHUB_TOKEN",
             description="Publishes an approved release",
+            provider="GitHub",
+            documentation_urls=("https://docs.github.com/en/rest",),
         )
         label = keepkeys_linux.encode_label(metadata)
         self.assertEqual(keepkeys_linux.decode_label(label), metadata)
@@ -34,6 +36,8 @@ class LinuxBackendTests(unittest.TestCase):
             name="demo",
             variable="DEMO_TOKEN",
             description="Synthetic test credential",
+            provider="Example",
+            documentation_urls=("https://docs.example.com/api",),
         )
         output = (
             "[/org/freedesktop/secrets/collection/login/1]\n"
@@ -80,6 +84,26 @@ class LinuxBackendTests(unittest.TestCase):
         self.assertTrue(keepkeys_linux.valid_variable("SERVICE_API_TOKEN"))
         for value in ("PATH", "LD_PRELOAD", "PYTHONPATH", "NODE_OPTIONS"):
             self.assertFalse(keepkeys_linux.valid_variable(value), value)
+
+    def test_store_metadata_contract_accepts_new_key_and_https_docs(self) -> None:
+        metadata = keepkeys_linux.Metadata(
+            name="new-key",
+            variable="SECRET_KEY",
+            description="Credential for future approved agent commands",
+            provider="Example",
+            documentation_urls=("https://docs.example.com/api",),
+        )
+        keepkeys_linux.validate_metadata(metadata)
+        with self.assertRaises(keepkeys_linux.KeepKeysError):
+            keepkeys_linux.validate_metadata(
+                keepkeys_linux.Metadata(
+                    name="new-key",
+                    variable="SECRET_KEY",
+                    description="Credential for future approved agent commands",
+                    provider="Example",
+                    documentation_urls=("http://docs.example.com/api",),
+                )
+            )
 
     def test_truncated_stream_is_omitted_in_full(self) -> None:
         capture = keepkeys_linux.Capture()

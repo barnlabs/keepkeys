@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>You type the key once. Your agent can use it, never retrieve it.</strong>
+  <strong>You paste the key once. Your agent can use it, never retrieve it.</strong>
 </p>
 
 <p align="center">
@@ -13,17 +13,18 @@
   <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-1F2D27.svg" />
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-1F2D27.svg" />
   <img alt="desktop Linux" src="https://img.shields.io/badge/Linux-desktop-1F2D27.svg" />
-  <img alt="KeepKeys 0.4.1" src="https://img.shields.io/badge/version-0.4.1-D96C4D.svg" />
+  <img alt="KeepKeys 0.4.2" src="https://img.shields.io/badge/version-0.4.2-D96C4D.svg" />
 </p>
 
 KeepKeys is the open-source, local secret-use broker for coding agents. It
-opens a native secure-entry window, stores the value in the operating system's
+opens a native paste-and-store window, stores the value in the operating system's
 credential vault, and gives the agent one narrow capability: run a specific
 command with one named secret after you review the exact request.
 
 There is no `get`, `show`, `copy`, reveal, or export tool. Friendly names,
-environment-variable names, and descriptions remain reusable for future tasks;
-the plaintext value does not.
+environment-variable names, descriptions, providers, and official
+documentation links remain reusable for future tasks; the plaintext value does
+not.
 
 ## Why KeepKeys exists
 
@@ -36,8 +37,8 @@ KeepKeys is deliberately narrower:
 | Property | KeepKeys |
 | --- | --- |
 | At-rest storage | macOS Keychain, Windows Credential Manager, or Linux Secret Service |
-| Secret entry | Native password field, never chat or terminal |
-| Agent API | Store metadata, list metadata, remove, and approval-gated Run |
+| Secret entry | Explicit native **Paste & Store**, never chat or terminal |
+| Agent API | Research and store metadata, list metadata, remove, and approval-gated Run |
 | Plaintext retrieval | No tool or helper action |
 | Authorization | One native **Allow once** decision per command |
 | Process scope | Empty child environment plus one approved variable |
@@ -53,9 +54,9 @@ possession of it.
 
 | Operating system | Secure store | Native human gate |
 | --- | --- | --- |
-| **macOS 13+** | Security.framework Keychain; device-only and non-synchronizing | AppKit secure text, replacement, removal, and command approval |
-| **Windows 10/11** | paired metadata/value records in Windows Credential Manager | branded WPF `PasswordBox`, replacement, removal, and command approval |
-| **desktop Linux** | paired metadata/value items in freedesktop Secret Service | branded Tk password, replacement, removal, and command approval |
+| **macOS 13+** | Security.framework Keychain; device-only and non-synchronizing | AppKit explicit clipboard paste, replacement, removal, and command approval |
+| **Windows 10/11** | paired metadata/value records in Windows Credential Manager | branded WPF explicit clipboard paste, replacement, removal, and command approval |
+| **desktop Linux** | paired metadata/value items in freedesktop Secret Service | branded Tk explicit clipboard paste, replacement, removal, and command approval |
 
 Listing and the approval screen read only metadata. The protected value is
 loaded after **Allow once**, metadata is checked again, and executable hashes
@@ -95,11 +96,13 @@ plugin source at `62b2eb87f913abe3c109823c2d315e95bea432af`. See
 
 Store:
 
-1. The agent supplies a friendly name such as `github-release`, a variable such
-   as `GITHUB_TOKEN`, and a useful one-line description.
-2. KeepKeys pre-fills all three.
-3. The user types only the key into the branded native password field.
-4. The operating system vault stores it.
+1. The agent gathers any missing non-secret context, researches official
+   credential documentation, and chooses the name, environment variable,
+   description, provider, and one to three official HTTPS documentation links.
+2. KeepKeys validates that metadata before opening and displays it read-only.
+3. The user copies the key from the provider and presses **Paste & Store**.
+4. Only that click lets the native helper read the clipboard; the operating
+   system vault stores the value without returning it to the agent.
 
 Run:
 
@@ -119,7 +122,8 @@ credentials.
 KeepKeys does:
 
 - keep plaintext out of model prompts, tool inputs/results, plugin metadata,
-  argv, persistent environment, clipboard automation, and plaintext files;
+  argv, persistent environment, agent-controlled clipboard access, and
+  plaintext files;
 - pin native helper sources and fail closed on integrity mismatch;
 - block common shells, environment dumpers, and Windows dynamic script hosts;
 - classify common network clients and interpreters visibly;

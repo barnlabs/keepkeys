@@ -9,7 +9,7 @@ cloud vault, account system, daemon, or standalone password manager.
 
 The core sentence is:
 
-> You type the key once. Your agent can use it, never retrieve it.
+> You paste the key once. Your agent can use it, never retrieve it.
 
 Every interface must make three facts obvious:
 
@@ -21,9 +21,15 @@ Every interface must make three facts obvious:
 
 ### Store
 
-The agent supplies a stable name, uppercase variable name, and useful
-description. The native form pre-fills those fields. The user types only the
-secret into a password control. Replacement requires an explicit warning.
+The agent asks only for missing non-secret context, researches official
+credential documentation, and supplies a stable name, uppercase variable name,
+useful description, provider, and one to three official HTTPS documentation
+links. KeepKeys validates that metadata before opening and renders it read-only.
+
+The user copies the key from the provider and presses **Paste & Store**. The
+native helper reads the clipboard only in direct response to that click, stores
+the exact value in the operating-system vault, and never returns it to the
+agent. Replacement requires an explicit warning.
 
 ### Use
 
@@ -73,12 +79,15 @@ mascot—remains dominant. Detailed asset rules live in
 
 ## Interaction and accessibility
 
-- Use native secure password controls and native keyboard/focus behavior.
+- Use a native button as the only clipboard trigger; metadata is readable and
+  selectable but never editable.
 - Provide visible labels; placeholders never carry required meaning.
 - Preserve readable contrast with text on warm paper or night pine.
 - Keep destructive actions visually distinct and never preselected.
 - Do not depend on hover, animation, color alone, or pointer input.
 - Keep approval details selectable/readable without making the secret visible.
+- Explain directly beside the action that clipboard access occurs only after
+  **Paste & Store**.
 - Support platform scaling and long but valid descriptions without clipping the
   action buttons.
 

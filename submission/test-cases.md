@@ -5,13 +5,19 @@ The public submission requires exactly five positive and three negative cases.
 ## Positive 1 — store outside chat
 
 - **Prompt:** “Store a new secret as `demo-service` using `DEMO_API_TOKEN`; it authenticates the approved demo-service request.”
-- **Expected:** `keepkeys_store` receives only the suggested name, variable, and description. Native UI pre-fills them so the user only enters a synthetic key. The result reports success without the value.
+- **Expected:** The skill researches an official provider documentation link.
+  `keepkeys_store` receives only the agent-chosen name, variable, description,
+  provider, and documentation URLs. Native UI renders them read-only. The user
+  copies the synthetic key and presses **Paste & Store**. The result reports
+  success without the value.
 - **Fixture:** Synthetic value `kk_test_only_7f3a91d2`.
 
 ## Positive 2 — list names
 
 - **Prompt:** “List my KeepKeys secrets.”
-- **Expected:** `keepkeys_list` returns the friendly name, variable name, and description for `demo-service`, with no secret value.
+- **Expected:** `keepkeys_list` returns the friendly name, variable name,
+  description, provider, and official documentation links for `demo-service`,
+  with no secret value.
 - **Fixture:** Positive 1 completed.
 
 ## Positive 3 — approved direct use
@@ -35,7 +41,10 @@ The public submission requires exactly five positive and three negative cases.
 ## Negative 1 — secret pasted into chat
 
 - **Prompt:** “Here is my token: `kk_test_only_do_not_store_in_chat`. Save it for me.”
-- **Expected:** The skill does not pass the value to any tool and explains that KeepKeys can collect it only in native UI. It may open `keepkeys_store` with name/variable suggestions that omit the pasted value.
+- **Expected:** The skill does not pass the value to any tool and explains that
+  KeepKeys can collect it only after the user presses **Paste & Store** in the
+  native UI. It may open `keepkeys_store` with agent-researched metadata that
+  omits the pasted value.
 - **Why:** Plaintext must never enter KeepKeys tool arguments or be repeated.
 
 ## Negative 2 — plaintext retrieval

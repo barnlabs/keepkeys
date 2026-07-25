@@ -25,7 +25,7 @@ const update = parse("update.json");
 const version = codex.version;
 const releaseCommit = "62b2eb87f913abe3c109823c2d315e95bea432af";
 const catalogCommit = "bc82f993c0f8d9912fc1e0b0b1f14b233766559b";
-assert.equal(version, "0.4.1");
+assert.equal(version, "0.4.2");
 assert.deepEqual(update, {
   schemaVersion: 1,
   product: "KeepKeys",

@@ -4,7 +4,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$Script:Version = "0.4.1"
+$Script:Version = "0.4.2"
 $Script:MetadataPrefix = "net.barnlabs.keepkeys/meta/"
 $Script:SecretPrefix = "net.barnlabs.keepkeys/secret/"
 $Script:MaximumSecretBytes = 2048
@@ -376,7 +376,13 @@ function Assert-KeepKeysSecret {
 }
 
 function Assert-KeepKeysMetadata {
-    param([string]$Name, [string]$Variable, [string]$Description)
+    param(
+        [string]$Name,
+        [string]$Variable,
+        [string]$Description,
+        [string]$Provider,
+        [string[]]$DocumentationUrls
+    )
     if (-not (Test-KeepKeysName $Name)) {
         throw "Use 1-128 ASCII letters, digits, periods, underscores, or hyphens, beginning with a letter."
     }
@@ -385,6 +391,31 @@ function Assert-KeepKeysMetadata {
     }
     if (-not (Test-KeepKeysVisibleLine $Description)) {
         throw "Use a one-line description of at most 240 UTF-8 bytes."
+    }
+    if (-not (Test-KeepKeysVisibleLine $Provider) -or
+        [Text.Encoding]::UTF8.GetByteCount($Provider) -gt 80) {
+        throw "Use a visible provider name of at most 80 UTF-8 bytes."
+    }
+    if ($DocumentationUrls.Count -lt 1 -or $DocumentationUrls.Count -gt 3 -or
+        ($DocumentationUrls | Sort-Object -Unique).Count -ne $DocumentationUrls.Count) {
+        throw "Use one to three distinct official HTTPS documentation links."
+    }
+    $documentationBytes = 0
+    foreach ($url in $DocumentationUrls) {
+        $documentationBytes += [Text.Encoding]::UTF8.GetByteCount($url)
+        try {
+            $parsed = [Uri]::new($url, [UriKind]::Absolute)
+        } catch {
+            throw "Use one to three distinct official HTTPS documentation links."
+        }
+        if ($parsed.Scheme -cne "https" -or [String]::IsNullOrEmpty($parsed.Host) -or
+            -not [String]::IsNullOrEmpty($parsed.UserInfo) -or
+            [Text.Encoding]::UTF8.GetByteCount($url) -gt 1024) {
+            throw "Use one to three distinct official HTTPS documentation links."
+        }
+    }
+    if ($documentationBytes -gt 1800) {
+        throw "Official documentation links must total at most 1800 UTF-8 bytes."
     }
 }
 
@@ -399,6 +430,19 @@ function Get-KeepKeysOption {
         throw "$Name requires a value."
     }
     return $Values[$index + 1]
+}
+
+function Get-KeepKeysOptions {
+    param([string[]]$Values, [string]$Name)
+    $matches = [Collections.Generic.List[string]]::new()
+    for ($index = 0; $index -lt $Values.Count; $index++) {
+        if ($Values[$index] -cne $Name) { continue }
+        if ($index + 1 -ge $Values.Count -or $Values[$index + 1].StartsWith("--")) {
+            throw "$Name requires a value."
+        }
+        $matches.Add($Values[$index + 1])
+    }
+    return [string[]]$matches.ToArray()
 }
 
 function New-KeepKeysBrush {
@@ -497,7 +541,7 @@ function New-KeepKeysField {
         [Windows.Controls.Panel]$Parent,
         [string]$Label,
         [string]$Value,
-        [switch]$Secret
+        [switch]$ReadOnly
     )
     $labelControl = [Windows.Controls.TextBlock]::new()
     $labelControl.Text = $Label
@@ -505,12 +549,13 @@ function New-KeepKeysField {
     $labelControl.FontWeight = [Windows.FontWeights]::SemiBold
     $labelControl.Margin = [Windows.Thickness]::new(0, 9, 0, 4)
     [void]$Parent.Children.Add($labelControl)
-    if ($Secret) {
-        $field = [Windows.Controls.PasswordBox]::new()
-        $field.PasswordChar = [char]0x2022
-    } else {
-        $field = [Windows.Controls.TextBox]::new()
-        $field.Text = $Value
+    $field = [Windows.Controls.TextBox]::new()
+    $field.Text = $Value
+    $field.IsReadOnly = $ReadOnly
+    if ($ReadOnly) {
+        $field.Background = New-KeepKeysBrush (
+            [Windows.Media.ColorConverter]::ConvertFromString("#F4F0E7")
+        )
     }
     $field.Height = 35
     $field.Padding = [Windows.Thickness]::new(8, 6, 8, 6)
@@ -538,21 +583,30 @@ function New-KeepKeysButton {
 }
 
 function Show-KeepKeysStoreDialog {
-    param([string]$Name, [string]$Variable, [string]$Description)
-    $window = New-KeepKeysWindow "KeepKeys - Store a secret" 650 680
+    param(
+        [string]$Name,
+        [string]$Variable,
+        [string]$Description,
+        [string]$Provider,
+        [string[]]$DocumentationUrls
+    )
+    Assert-KeepKeysMetadata $Name $Variable $Description $Provider $DocumentationUrls
+    $window = New-KeepKeysWindow "KeepKeys - Store a secret" 680 760
     $root = [Windows.Controls.DockPanel]::new()
     $window.Content = $root
-    Add-KeepKeysHeader $root "Local vault" "You type the key. The agent never sees it." `
-        "Review the reusable name and variable, then enter only the secret value."
+    Add-KeepKeysHeader $root "Local vault" "Your key goes straight to Credential Manager." `
+        "The agent prepared everything else. You only copy the key and approve the paste."
     $body = [Windows.Controls.StackPanel]::new()
     $body.Margin = [Windows.Thickness]::new(28, 14, 28, 22)
     [void]$root.Children.Add($body)
-    $nameField = New-KeepKeysField $body "Friendly name" $Name
-    $variableField = New-KeepKeysField $body "Environment variable" $Variable
-    $descriptionField = New-KeepKeysField $body "Description" $Description
-    $secretField = New-KeepKeysField $body "Secret value" "" -Secret
+    [void](New-KeepKeysField $body "Friendly name" $Name -ReadOnly)
+    [void](New-KeepKeysField $body "Environment variable" $Variable -ReadOnly)
+    [void](New-KeepKeysField $body "Provider" $Provider -ReadOnly)
+    [void](New-KeepKeysField $body "Description" $Description -ReadOnly)
+    [void](New-KeepKeysField $body "Official documentation" `
+        ($DocumentationUrls -join "   ·   ") -ReadOnly)
     $hint = [Windows.Controls.TextBlock]::new()
-    $hint.Text = "Stored in Windows Credential Manager. Never written to a .env file or returned to chat."
+    $hint.Text = "Copy the key from the provider, then press Paste & Store. KeepKeys reads the clipboard only after that click and stores it in Windows Credential Manager."
     $hint.TextWrapping = [Windows.TextWrapping]::Wrap
     $hint.Foreground = New-KeepKeysBrush $Script:Sage
     $hint.Margin = [Windows.Thickness]::new(0, 10, 0, 0)
@@ -567,28 +621,27 @@ function Show-KeepKeysStoreDialog {
     $buttons.HorizontalAlignment = [Windows.HorizontalAlignment]::Right
     $buttons.Margin = [Windows.Thickness]::new(0, 18, 0, 0)
     [void]$body.Children.Add($buttons)
-    $store = New-KeepKeysButton "Store securely" $Script:Ember $true
+    $store = New-KeepKeysButton "Paste & Store" $Script:Ember $true
     $cancel = New-KeepKeysButton "Cancel" ([Windows.Media.ColorConverter]::ConvertFromString("#E8E2D7")) $false
     [void]$buttons.Children.Add($store)
     [void]$buttons.Children.Add($cancel)
     $state = @{ Result = $null }
     $cancel.Add_Click({ $window.DialogResult = $false })
     $store.Add_Click({
-        $candidateName = $nameField.Text.Trim()
-        $candidateVariable = $variableField.Text.Trim().ToUpperInvariant()
-        $candidateDescription = $descriptionField.Text.Trim()
-        $candidateSecret = $secretField.Password
         try {
-            Assert-KeepKeysMetadata $candidateName $candidateVariable $candidateDescription
+            if (-not [Windows.Clipboard]::ContainsText()) {
+                throw "No usable key was found on the clipboard."
+            }
+            $candidateSecret = [Windows.Clipboard]::GetText()
             Assert-KeepKeysSecret $candidateSecret
             if ($null -ne [BarnLabs.KeepKeys.CredentialVault]::Read(
-                $Script:MetadataPrefix + $candidateName,
+                $Script:MetadataPrefix + $Name,
                 $false
             )) {
                 $answer = [Windows.MessageBox]::Show(
                     $window,
                     "This replaces the existing KeepKeys value and metadata.",
-                    "Replace '$candidateName'?",
+                    "Replace '$Name'?",
                     [Windows.MessageBoxButton]::YesNo,
                     [Windows.MessageBoxImage]::Warning,
                     [Windows.MessageBoxResult]::No
@@ -596,19 +649,20 @@ function Show-KeepKeysStoreDialog {
                 if ($answer -ne [Windows.MessageBoxResult]::Yes) { return }
             }
             $state.Result = [pscustomobject]@{
-                Name = $candidateName
-                Variable = $candidateVariable
-                Description = $candidateDescription
+                Name = $Name
+                Variable = $Variable
+                Description = $Description
+                Provider = $Provider
+                DocumentationUrls = $DocumentationUrls
                 Secret = $candidateSecret
             }
-            $secretField.Clear()
+            $candidateSecret = ""
             $window.DialogResult = $true
         } catch {
-            $errorLabel.Text = $_.Exception.Message
-            [void]$secretField.Focus()
+            $errorLabel.Text = "No usable key was found on the clipboard. Copy the complete key, then press Paste & Store again."
         }
     })
-    $window.Add_ContentRendered({ [void]$secretField.Focus() })
+    $window.Add_ContentRendered({ [void]$store.Focus() })
     $shown = $window.ShowDialog()
     if ($shown -ne $true) { return $null }
     return $state.Result
@@ -823,16 +877,57 @@ function Show-KeepKeysApprovalDialog {
 
 function Get-KeepKeysCredentials {
     $items = [BarnLabs.KeepKeys.CredentialVault]::Enumerate($Script:MetadataPrefix + "*")
-    return @(
-        $items |
-            Where-Object {
-                $_.TargetName.StartsWith($Script:MetadataPrefix, [StringComparison]::Ordinal) -and
-                (Test-KeepKeysName $_.TargetName.Substring($Script:MetadataPrefix.Length)) -and
-                (Test-KeepKeysVariable $_.UserName) -and
-                (Test-KeepKeysVisibleLine $_.Comment)
-            } |
-            Sort-Object { $_.TargetName.Substring($Script:MetadataPrefix.Length) }
-    )
+    $results = [Collections.Generic.List[object]]::new()
+    foreach ($item in $items) {
+        if (-not $item.TargetName.StartsWith(
+            $Script:MetadataPrefix,
+            [StringComparison]::Ordinal
+        )) { continue }
+        $name = $item.TargetName.Substring($Script:MetadataPrefix.Length)
+        if (-not (Test-KeepKeysName $name) -or
+            -not (Test-KeepKeysVariable $item.UserName) -or
+            -not (Test-KeepKeysVisibleLine $item.Comment)) { continue }
+        $provider = ""
+        $documentationUrls = [string[]]@()
+        $credential = [BarnLabs.KeepKeys.CredentialVault]::Read($item.TargetName, $true)
+        try {
+            if ($null -ne $credential.Secret -and $credential.Secret.Length -gt 0) {
+                $metadataJson = [Text.Encoding]::UTF8.GetString($credential.Secret)
+                $metadata = $metadataJson | ConvertFrom-Json
+                if ($metadata.version -ne 2) { continue }
+                $provider = [string]$metadata.provider
+                $documentationUrls = [string[]]$metadata.documentationUrls
+                Assert-KeepKeysMetadata $name $item.UserName $item.Comment `
+                    $provider $documentationUrls
+            }
+        } catch {
+            continue
+        } finally {
+            if ($null -ne $credential.Secret) {
+                [Array]::Clear($credential.Secret, 0, $credential.Secret.Length)
+            }
+        }
+        $results.Add([pscustomobject]@{
+            TargetName = $item.TargetName
+            UserName = $item.UserName
+            Comment = $item.Comment
+            Provider = $provider
+            DocumentationUrls = $documentationUrls
+        })
+    }
+    return @($results | Sort-Object {
+        $_.TargetName.Substring($Script:MetadataPrefix.Length)
+    })
+}
+
+function ConvertTo-KeepKeysMetadataBytes {
+    param([string]$Provider, [string[]]$DocumentationUrls)
+    $json = @{
+        version = 2
+        provider = $Provider
+        documentationUrls = $DocumentationUrls
+    } | ConvertTo-Json -Compress -Depth 4
+    return [Text.Encoding]::UTF8.GetBytes($json)
 }
 
 function Get-KeepKeysRedactionPatterns {
@@ -986,11 +1081,37 @@ function Invoke-KeepKeysDoctor {
 
 function Invoke-KeepKeysSelfTest {
     if (-not (Test-KeepKeysName "github-release") -or
+        -not (Test-KeepKeysName "new-key") -or
         (Test-KeepKeysName "../../escape") -or
         -not (Test-KeepKeysVariable "GITHUB_TOKEN") -or
         (Test-KeepKeysVariable "PATH") -or
         (Test-KeepKeysVariable "LD_PRELOAD")) {
         throw "Validation self-test failed."
+    }
+    Assert-KeepKeysMetadata "new-key" "SECRET_KEY" `
+        "Credential for future approved agent commands" "Example" `
+        ([string[]]@("https://docs.example.com/api"))
+    $invalidDocumentationRejected = $false
+    try {
+        Assert-KeepKeysMetadata "new-key" "SECRET_KEY" `
+            "Credential for future approved agent commands" "Example" `
+            ([string[]]@("http://docs.example.com/api"))
+    } catch {
+        $invalidDocumentationRejected = $true
+    }
+    if (-not $invalidDocumentationRejected) {
+        throw "Documentation validation self-test failed."
+    }
+    $metadataBytes = ConvertTo-KeepKeysMetadataBytes "Example" `
+        ([string[]]@("https://docs.example.com/api"))
+    try {
+        $metadata = ([Text.Encoding]::UTF8.GetString($metadataBytes) | ConvertFrom-Json)
+        if ($metadata.version -ne 2 -or $metadata.provider -cne "Example" -or
+            $metadata.documentationUrls[0] -cne "https://docs.example.com/api") {
+            throw "Metadata encoding self-test failed."
+        }
+    } finally {
+        [Array]::Clear($metadataBytes, 0, $metadataBytes.Length)
     }
     $marker = "synthetic-test-secret"
     $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($marker))
@@ -1057,18 +1178,23 @@ try {
             $name = Get-KeepKeysOption $rest "--name" -Required
             $variable = (Get-KeepKeysOption $rest "--variable" -Required).ToUpperInvariant()
             $description = Get-KeepKeysOption $rest "--description" -Required
-            Assert-KeepKeysMetadata $name $variable $description
-            $entered = Show-KeepKeysStoreDialog $name $variable $description
+            $provider = Get-KeepKeysOption $rest "--provider" -Required
+            $documentationUrls = Get-KeepKeysOptions $rest "--documentation-url"
+            Assert-KeepKeysMetadata $name $variable $description $provider $documentationUrls
+            $entered = Show-KeepKeysStoreDialog $name $variable $description `
+                $provider $documentationUrls
             if ($null -eq $entered) {
                 $result = @{ status = "cancelled"; message = "Secret storage was cancelled." }
                 break
             }
             $secretBytes = [Text.Encoding]::UTF8.GetBytes($entered.Secret)
+            $metadataBytes = ConvertTo-KeepKeysMetadataBytes `
+                $entered.Provider $entered.DocumentationUrls
             $metadataTarget = $Script:MetadataPrefix + $entered.Name
             $secretTarget = $Script:SecretPrefix + $entered.Name
             $previousMetadata = [BarnLabs.KeepKeys.CredentialVault]::Read(
                 $metadataTarget,
-                $false
+                $true
             )
             $previousSecret = [BarnLabs.KeepKeys.CredentialVault]::Read(
                 $secretTarget,
@@ -1085,7 +1211,7 @@ try {
                     $metadataTarget,
                     $entered.Variable,
                     $entered.Description,
-                    [byte[]]::new(0)
+                    $metadataBytes
                 )
             } catch {
                 $writeFailure = $_
@@ -1107,7 +1233,7 @@ try {
                             $metadataTarget,
                             $previousMetadata.UserName,
                             $previousMetadata.Comment,
-                            [byte[]]::new(0)
+                            $previousMetadata.Secret
                         )
                     }
                 } catch {
@@ -1116,11 +1242,20 @@ try {
                 throw $writeFailure
             } finally {
                 [Array]::Clear($secretBytes, 0, $secretBytes.Length)
+                [Array]::Clear($metadataBytes, 0, $metadataBytes.Length)
                 if ($null -ne $previousSecret -and $null -ne $previousSecret.Secret) {
                     [Array]::Clear(
                         $previousSecret.Secret,
                         0,
                         $previousSecret.Secret.Length
+                    )
+                }
+                if ($null -ne $previousMetadata -and
+                    $null -ne $previousMetadata.Secret) {
+                    [Array]::Clear(
+                        $previousMetadata.Secret,
+                        0,
+                        $previousMetadata.Secret.Length
                     )
                 }
                 $entered.Secret = ""
@@ -1131,6 +1266,8 @@ try {
                 name = $entered.Name
                 variable = $entered.Variable
                 description = $entered.Description
+                provider = $entered.Provider
+                documentationUrls = $entered.DocumentationUrls
             }
         }
         "list" {
@@ -1140,6 +1277,8 @@ try {
                         name = $_.TargetName.Substring($Script:MetadataPrefix.Length)
                         variable = $_.UserName
                         description = $_.Comment
+                        provider = $_.Provider
+                        documentationUrls = $_.DocumentationUrls
                     }
                 }
             )

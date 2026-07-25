@@ -20,12 +20,13 @@ import subprocess
 import sys
 import threading
 from typing import Any, NoReturn
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
-VERSION = "0.4.1"
+VERSION = "0.4.2"
 METADATA_SERVICE = "net.barnlabs.keepkeys.metadata"
 SECRET_SERVICE = "net.barnlabs.keepkeys.secret"
-LABEL_PREFIX = "KeepKeys|v1|"
+LABEL_PREFIX_V1 = "KeepKeys|v1|"
+LABEL_PREFIX_V2 = "KeepKeys|v2|"
 MAX_SECRET_BYTES = 2_048
 MAX_CAPTURED_BYTES = 1_048_576
 OMITTED_OUTPUT = (
@@ -113,6 +114,8 @@ class Metadata:
     name: str
     variable: str
     description: str
+    provider: str = ""
+    documentation_urls: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -156,6 +159,29 @@ def valid_description(value: str) -> bool:
         and all(ord(character) >= 32 and ord(character) != 127 for character in value)
     )
 
+def valid_provider(value: str) -> bool:
+    return (
+        bool(value)
+        and len(value.encode("utf-8")) <= 80
+        and all(ord(character) >= 32 and ord(character) != 127 for character in value)
+    )
+
+
+def valid_documentation_url(value: str) -> bool:
+    if (
+        not value
+        or len(value.encode("utf-8")) > 1_024
+        or any(ord(character) < 32 or ord(character) == 127 for character in value)
+    ):
+        return False
+    parsed = urlsplit(value)
+    return (
+        parsed.scheme.lower() == "https"
+        and bool(parsed.hostname)
+        and parsed.username is None
+        and parsed.password is None
+    )
+
 
 def valid_purpose(value: str) -> bool:
     return valid_description(value)
@@ -171,7 +197,7 @@ def validate_secret(value: str) -> None:
         )
 
 
-def validate_metadata(metadata: Metadata) -> None:
+def validate_metadata(metadata: Metadata, *, allow_legacy: bool = False) -> None:
     if not valid_name(metadata.name):
         raise KeepKeysError(
             "Use 1–128 ASCII letters, digits, periods, underscores, or hyphens, "
@@ -184,6 +210,19 @@ def validate_metadata(metadata: Metadata) -> None:
         )
     if not valid_description(metadata.description):
         raise KeepKeysError("Use a one-line description of at most 240 UTF-8 bytes.")
+    if allow_legacy and not metadata.provider and not metadata.documentation_urls:
+        return
+    if not valid_provider(metadata.provider):
+        raise KeepKeysError("Use a visible provider name of at most 80 UTF-8 bytes.")
+    if (
+        not 1 <= len(metadata.documentation_urls) <= 3
+        or len(set(metadata.documentation_urls)) != len(metadata.documentation_urls)
+        or sum(len(url.encode("utf-8")) for url in metadata.documentation_urls) > 1_800
+        or not all(valid_documentation_url(url) for url in metadata.documentation_urls)
+    ):
+        raise KeepKeysError(
+            "Use one to three distinct official HTTPS documentation links."
+        )
 
 
 def encode_label(metadata: Metadata) -> str:
@@ -192,18 +231,25 @@ def encode_label(metadata: Metadata) -> str:
             "name": metadata.name,
             "variable": metadata.variable,
             "description": metadata.description,
+            "provider": metadata.provider,
+            "documentationUrls": list(metadata.documentation_urls),
         },
         separators=(",", ":"),
         ensure_ascii=False,
     ).encode("utf-8")
     encoded = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
-    return LABEL_PREFIX + encoded
+    return LABEL_PREFIX_V2 + encoded
 
 
 def decode_label(label: str) -> Metadata | None:
-    if not label.startswith(LABEL_PREFIX):
+    if label.startswith(LABEL_PREFIX_V2):
+        encoded = label[len(LABEL_PREFIX_V2) :]
+        legacy = False
+    elif label.startswith(LABEL_PREFIX_V1):
+        encoded = label[len(LABEL_PREFIX_V1) :]
+        legacy = True
+    else:
         return None
-    encoded = label[len(LABEL_PREFIX) :]
     encoded += "=" * (-len(encoded) % 4)
     try:
         payload = json.loads(base64.urlsafe_b64decode(encoded).decode("utf-8"))
@@ -211,8 +257,10 @@ def decode_label(label: str) -> Metadata | None:
             name=payload["name"],
             variable=payload["variable"],
             description=payload["description"],
+            provider=payload.get("provider", ""),
+            documentation_urls=tuple(payload.get("documentationUrls", [])),
         )
-        validate_metadata(metadata)
+        validate_metadata(metadata, allow_legacy=legacy)
         return metadata
     except (KeyError, TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
         return None
@@ -472,7 +520,7 @@ class BrandedUI:
         label: str,
         value: str,
         *,
-        secret: bool = False,
+        readonly: bool = False,
     ) -> Any:
         self.tk.Label(
             parent,
@@ -492,30 +540,45 @@ class BrandedUI:
             highlightbackground="#d9d4c9",
             highlightcolor=self.ember,
             insertbackground=self.night,
-            show="•" if secret else "",
         )
         entry.insert(0, value)
+        if readonly:
+            entry.configure(
+                state="readonly",
+                readonlybackground="#f4f0e7",
+            )
         entry.pack(fill="x", ipady=7)
         return entry
 
     def store(self, metadata: Metadata) -> tuple[Metadata, str] | None:
+        validate_metadata(metadata)
         result: list[tuple[Metadata, str] | None] = [None]
-        window = self._window("KeepKeys — Store a secret", 620, 600)
+        window = self._window("KeepKeys — Store a secret", 640, 680)
         self._header(
             window,
             "Local vault",
-            "You type the key. The agent never sees it.",
-            "Review the reusable name and variable, then enter only the secret value.",
+            "Your key goes straight to Secret Service.",
+            "The agent prepared everything else. You only copy the key and approve the paste.",
         )
         body = self.tk.Frame(window, bg=self.paper, padx=26, pady=16)
         body.pack(fill="both", expand=True)
-        name = self._field(body, "Friendly name", metadata.name)
-        variable = self._field(body, "Environment variable", metadata.variable)
-        description = self._field(body, "Description", metadata.description)
-        secret = self._field(body, "Secret value", "", secret=True)
+        self._field(body, "Friendly name", metadata.name, readonly=True)
+        self._field(body, "Environment variable", metadata.variable, readonly=True)
+        self._field(body, "Provider", metadata.provider, readonly=True)
+        self._field(body, "Description", metadata.description, readonly=True)
+        self._field(
+            body,
+            "Official documentation",
+            "   ·   ".join(metadata.documentation_urls),
+            readonly=True,
+        )
         hint = self.tk.Label(
             body,
-            text="Stored in your desktop Secret Service. Never written to a .env file or returned to chat.",
+            text=(
+                "Copy the key from the provider, then press Paste & Store. "
+                "KeepKeys reads the clipboard only after that click and stores "
+                "the value in your desktop Secret Service."
+            ),
             bg=self.paper,
             fg=self.sage,
             justify="left",
@@ -541,29 +604,27 @@ class BrandedUI:
             window.destroy()
 
         def submit() -> None:
-            candidate = Metadata(
-                name=name.get().strip(),
-                variable=variable.get().strip().upper(),
-                description=description.get().strip(),
-            )
-            value = secret.get()
             try:
-                validate_metadata(candidate)
+                value = window.clipboard_get()
                 validate_secret(value)
-            except KeepKeysError as caught:
-                error.configure(text=str(caught))
-                secret.focus_set()
+            except (self.tk.TclError, KeepKeysError):
+                error.configure(
+                    text=(
+                        "No usable key was found on the clipboard. Copy the "
+                        "complete key, then press Paste & Store again."
+                    )
+                )
                 return
-            if search_metadata(candidate.name) and not self.messagebox.askyesno(
-                f"Replace “{candidate.name}”?",
+            if search_metadata(metadata.name) and not self.messagebox.askyesno(
+                f"Replace “{metadata.name}”?",
                 "This replaces the existing KeepKeys value and metadata.",
                 parent=window,
                 default="no",
                 icon="warning",
             ):
                 return
-            result[0] = (candidate, value)
-            secret.delete(0, self.tk.END)
+            result[0] = (metadata, value)
+            value = ""
             window.destroy()
 
         self.tk.Button(
@@ -578,7 +639,7 @@ class BrandedUI:
         ).pack(side="right")
         self.tk.Button(
             buttons,
-            text="Store securely",
+            text="Paste & Store",
             command=submit,
             bg=self.ember,
             fg="white",
@@ -588,7 +649,6 @@ class BrandedUI:
             padx=18,
             pady=9,
         ).pack(side="right", padx=(0, 10))
-        secret.focus_set()
         window.bind("<Escape>", lambda _event: cancel())
         window.bind("<Return>", lambda _event: submit())
         window.grab_set()
@@ -941,11 +1001,24 @@ def require_option(arguments: list[str], name: str) -> str:
     return value
 
 
+def repeated_options(arguments: list[str], name: str) -> tuple[str, ...]:
+    values: list[str] = []
+    for index, argument in enumerate(arguments):
+        if argument != name:
+            continue
+        if index + 1 >= len(arguments) or arguments[index + 1].startswith("--"):
+            raise KeepKeysError(f"{name} requires a value.")
+        values.append(arguments[index + 1])
+    return tuple(values)
+
+
 def action_store(arguments: list[str]) -> dict[str, Any]:
     metadata = Metadata(
         name=require_option(arguments, "--name"),
         variable=require_option(arguments, "--variable").upper(),
         description=require_option(arguments, "--description"),
+        provider=require_option(arguments, "--provider"),
+        documentation_urls=repeated_options(arguments, "--documentation-url"),
     )
     validate_metadata(metadata)
     entered = BrandedUI().store(metadata)
@@ -989,6 +1062,8 @@ def action_store(arguments: list[str]) -> dict[str, Any]:
         "name": final_metadata.name,
         "variable": final_metadata.variable,
         "description": final_metadata.description,
+        "provider": final_metadata.provider,
+        "documentationUrls": list(final_metadata.documentation_urls),
     }
 
 
@@ -1056,11 +1131,17 @@ def action_doctor() -> dict[str, Any]:
         name=name,
         variable="KEEPKEYS_DOCTOR",
         description="Temporary KeepKeys Secret Service verification",
+        provider="BarnLabs",
+        documentation_urls=("https://github.com/barnlabs/keepkeys",),
     )
     second_metadata = Metadata(
         name=name,
         variable="KEEPKEYS_DOCTOR_UPDATED",
         description="Updated temporary KeepKeys verification",
+        provider="BarnLabs",
+        documentation_urls=(
+            "https://github.com/barnlabs/keepkeys/blob/main/README.md",
+        ),
     )
     try:
         store_value(name, first)
@@ -1094,16 +1175,22 @@ def action_doctor() -> dict[str, Any]:
 def action_self_test() -> dict[str, Any]:
     if not (
         valid_name("github-release")
+        and valid_name("new-key")
         and not valid_name("../../escape")
         and valid_variable("GITHUB_TOKEN")
         and not valid_variable("PATH")
         and not valid_variable("LD_PRELOAD")
+        and valid_provider("GitHub")
+        and valid_documentation_url("https://docs.github.com/en/rest")
+        and not valid_documentation_url("http://docs.example.com")
     ):
         raise KeepKeysError("Validation self-test failed.")
     metadata = Metadata(
         name="self-test",
         variable="KEEPKEYS_TEST",
         description="Synthetic scoped-process self-test",
+        provider="BarnLabs",
+        documentation_urls=("https://github.com/barnlabs/keepkeys",),
     )
     label = encode_label(metadata)
     if decode_label(label) != metadata:
@@ -1152,6 +1239,8 @@ def main(arguments: list[str]) -> None:
                         "name": item.name,
                         "variable": item.variable,
                         "description": item.description,
+                        "provider": item.provider,
+                        "documentationUrls": list(item.documentation_urls),
                     }
                     for item in search_metadata()
                 ],
