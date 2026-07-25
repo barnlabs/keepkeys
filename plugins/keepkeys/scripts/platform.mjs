@@ -18,12 +18,18 @@ function copyPresent(target, source, names) {
   }
 }
 
+export function canonicalTextSha256(source) {
+  return createHash("sha256")
+    .update(source.replaceAll("\r\n", "\n"), "utf8")
+    .digest("hex");
+}
+
 function verifiedHelper(relativePath, expectedHash) {
   const path = resolve(pluginRoot, relativePath);
   if (lstatSync(path).isSymbolicLink()) {
     throw new Error("KeepKeys native helper source must not be a symbolic link.");
   }
-  const actualHash = createHash("sha256").update(readFileSync(path)).digest("hex");
+  const actualHash = canonicalTextSha256(readFileSync(path, "utf8"));
   if (actualHash !== expectedHash) {
     throw new Error(
       "KeepKeys native helper source failed its pinned SHA-256 integrity check.",

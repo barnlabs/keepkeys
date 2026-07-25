@@ -10,6 +10,12 @@ import { TOOLS } from "../plugins/keepkeys/mcp/server.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pluginRoot = resolve(root, "plugins", "keepkeys");
+const attributes = readFileSync(resolve(root, ".gitattributes"), "utf8");
+assert.match(
+  attributes,
+  /^\* text=auto eol=lf$/m,
+  "Git text checkouts must use LF so signed helper sources are portable",
+);
 const manifestPath = resolve(pluginRoot, ".codex-plugin", "plugin.json");
 const marketplacePath = resolve(root, ".agents", "plugins", "marketplace.json");
 const mcpPath = resolve(pluginRoot, ".mcp.json");
@@ -66,7 +72,10 @@ const storeTool = TOOLS.find((tool) => tool.name === "keepkeys_store");
 assert.ok(storeTool, "keepkeys_store is missing");
 assert.deepEqual(storeTool.inputSchema.required, ["name", "variable", "description"]);
 
-const skill = readFileSync(resolve(pluginRoot, "skills", "keepkeys", "SKILL.md"), "utf8");
+const skill = readFileSync(
+  resolve(pluginRoot, "skills", "keepkeys", "SKILL.md"),
+  "utf8",
+).replaceAll("\r\n", "\n");
 assert.match(skill, /^---\nname: keepkeys\n/m);
 assert.match(skill, /Never ask the user to paste, type, dictate, attach, or expose a secret in chat/);
 
@@ -95,9 +104,12 @@ for (const [constant, relative] of [
     new RegExp(`const ${constant} =\\s*\\n?\\s*"([a-f0-9]{64})"`),
   )?.[1];
   assert.ok(expected, `${constant} is missing`);
-  const helper = readFileSync(resolve(pluginRoot, relative));
+  const helper = readFileSync(resolve(pluginRoot, relative), "utf8").replaceAll(
+    "\r\n",
+    "\n",
+  );
   assert.equal(
-    createHash("sha256").update(helper).digest("hex"),
+    createHash("sha256").update(helper, "utf8").digest("hex"),
     expected,
     `${relative} failed its pinned source-integrity check`,
   );

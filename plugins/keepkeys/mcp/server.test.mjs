@@ -11,7 +11,10 @@ import {
   createRequestHandler,
   helperArguments,
 } from "./server.mjs";
-import { helperInvocation } from "../scripts/platform.mjs";
+import {
+  canonicalTextSha256,
+  helperInvocation,
+} from "../scripts/platform.mjs";
 
 test("tool schemas never accept a plaintext secret", () => {
   for (const tool of TOOLS) {
@@ -144,6 +147,13 @@ test("platform dispatch keeps one argv contract across macOS, Windows, and Linux
     "unix:path=/run/user/1000/bus",
   );
   assert.equal(linux.env.DISPLAY, ":0");
+});
+
+test("native helper fingerprints are stable across LF and CRLF checkouts", () => {
+  assert.equal(
+    canonicalTextSha256("line one\nline two\n"),
+    canonicalTextSha256("line one\r\nline two\r\n"),
+  );
 });
 
 function expectWindowsScript(value) {
