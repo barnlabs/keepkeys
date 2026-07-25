@@ -998,16 +998,12 @@ function Invoke-KeepKeysSelfTest {
     if ($redacted.Contains($marker) -or $redacted.Contains($encoded)) {
         throw "Redaction self-test failed."
     }
-    $powershell = Join-Path $PSHOME "powershell.exe"
-    $probe = (
-        '$secretValue = [Environment]::GetEnvironmentVariable(''KEEPKEYS_TEST'');' +
-        '$pathValue = [Environment]::GetEnvironmentVariable(''PATH'');' +
-        '[Console]::Out.Write($secretValue + ''|'' + $pathValue)'
-    )
+    $node = (Get-Command node.exe -CommandType Application -ErrorAction Stop).Source
+    $probe = 'process.stdout.write((process.env.KEEPKEYS_TEST || "") + "|" + (process.env.PATH || ""))'
     $run = [BarnLabs.KeepKeys.ScopedRunner]::Run(
-        $powershell,
-        [string[]]@("-NoLogo", "-NoProfile", "-NonInteractive", "-Command", $probe),
-        $PSHOME,
+        $node,
+        [string[]]@("-e", $probe),
+        (Split-Path $node),
         "KEEPKEYS_TEST",
         $marker,
         $Script:MaximumCapturedBytes
