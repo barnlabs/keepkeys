@@ -160,6 +160,11 @@ assert.match(
   "Windows Store metadata must remain reviewable on compact displays",
 );
 assert.match(
+  windowsHelper,
+  /@\(\$DocumentationUrls \| Sort-Object -Unique\)\.Count/,
+  "Windows PowerShell 5.1 must preserve a one-item documentation array before Count",
+);
+assert.match(
   linuxHelper,
   /winfo_screenheight\(\)/,
   "Linux native windows must stay within the screen work area",

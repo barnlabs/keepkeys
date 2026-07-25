@@ -397,7 +397,7 @@ function Assert-KeepKeysMetadata {
         throw "Use a visible provider name of at most 80 UTF-8 bytes."
     }
     if ($DocumentationUrls.Count -lt 1 -or $DocumentationUrls.Count -gt 3 -or
-        ($DocumentationUrls | Sort-Object -Unique).Count -ne $DocumentationUrls.Count) {
+        @($DocumentationUrls | Sort-Object -Unique).Count -ne $DocumentationUrls.Count) {
         throw "Use one to three distinct official HTTPS documentation links."
     }
     $documentationBytes = 0
