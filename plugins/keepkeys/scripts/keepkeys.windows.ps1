@@ -622,7 +622,7 @@ function Show-KeepKeysStoreDialog {
     [void](New-KeepKeysField $content "Official documentation" `
         ($DocumentationUrls -join "   ·   ") -ReadOnly)
     $hint = [Windows.Controls.TextBlock]::new()
-    $hint.Text = "Copy the key from the provider, then press Paste & Store. KeepKeys reads the clipboard only after that click and stores it in Windows Credential Manager."
+    $hint.Text = "Copy the key immediately before clicking. KeepKeys clears the current clipboard after reading it, but same-user software or clipboard history may still observe it. The value never enters chat or a tool call."
     $hint.TextWrapping = [Windows.TextWrapping]::Wrap
     $hint.Foreground = New-KeepKeysBrush $Script:Sage
     $hint.Margin = [Windows.Thickness]::new(0, 10, 0, 0)
@@ -639,7 +639,7 @@ function Show-KeepKeysStoreDialog {
     $state = @{ Result = $null }
     $cancel.Add_Click({ $window.DialogResult = $false })
     $store.Add_Click({
-        $clipboardAccepted = $false
+        $stage = "clipboard-read"
         $candidateSecret = ""
         try {
             if (-not [Windows.Clipboard]::ContainsText()) {
@@ -647,7 +647,9 @@ function Show-KeepKeysStoreDialog {
             }
             $candidateSecret = [Windows.Clipboard]::GetText()
             Assert-KeepKeysSecret $candidateSecret
-            $clipboardAccepted = $true
+            $stage = "clipboard-clear"
+            [Windows.Clipboard]::Clear()
+            $stage = "vault-check"
             if ($null -ne [BarnLabs.KeepKeys.CredentialVault]::Read(
                 $Script:MetadataPrefix + $Name,
                 $false
@@ -660,7 +662,11 @@ function Show-KeepKeysStoreDialog {
                     [Windows.MessageBoxImage]::Warning,
                     [Windows.MessageBoxResult]::No
                 )
-                if ($answer -ne [Windows.MessageBoxResult]::Yes) { return }
+                if ($answer -ne [Windows.MessageBoxResult]::Yes) {
+                    $candidateSecret = ""
+                    $errorLabel.Text = "Replacement was cancelled. KeepKeys already cleared the clipboard; copy the key again if you retry."
+                    return
+                }
             }
             $state.Result = [pscustomobject]@{
                 Name = $Name
@@ -674,10 +680,12 @@ function Show-KeepKeysStoreDialog {
             $window.DialogResult = $true
         } catch {
             $candidateSecret = ""
-            if ($clipboardAccepted) {
-                $errorLabel.Text = "Windows Credential Manager could not be accessed. $($_.Exception.Message)"
-            } else {
+            if ($stage -eq "clipboard-read") {
                 $errorLabel.Text = "No usable key was found on the clipboard. Copy the complete key, then press Paste & Store again."
+            } elseif ($stage -eq "clipboard-clear") {
+                $errorLabel.Text = "KeepKeys could not clear the clipboard, so the key was not stored. Copy it again and retry."
+            } else {
+                $errorLabel.Text = "Windows Credential Manager could not be accessed. $($_.Exception.Message)"
             }
         }
     })

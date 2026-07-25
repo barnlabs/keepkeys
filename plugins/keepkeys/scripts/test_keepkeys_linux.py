@@ -138,6 +138,9 @@ class LinuxBackendTests(unittest.TestCase):
             'store_button.bind("<Return>", lambda _event: store_button.invoke())',
             source,
         )
+        self.assertIn("window.clipboard_clear()", source)
+        self.assertIn("winfo_screenheight()", source)
+        self.assertIn("self.tk.Canvas", source)
 
     def test_truncated_stream_is_omitted_in_full(self) -> None:
         capture = keepkeys_linux.Capture()

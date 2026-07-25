@@ -482,8 +482,15 @@ class BrandedUI:
         window = self.tk.Toplevel(self.root)
         window.title(title)
         window.configure(bg=self.paper)
-        window.geometry(f"{width}x{height}")
-        window.resizable(False, False)
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+        safe_width = min(width, max(320, screen_width - 32))
+        safe_height = min(height, max(300, screen_height - 48))
+        x = max(0, (screen_width - safe_width) // 2)
+        y = max(0, (screen_height - safe_height) // 2)
+        window.geometry(f"{safe_width}x{safe_height}+{x}+{y}")
+        window.minsize(min(480, safe_width), min(420, safe_height))
+        window.resizable(True, True)
         window.protocol("WM_DELETE_WINDOW", window.destroy)
         window.attributes("-topmost", True)
         window.after(200, lambda: window.attributes("-topmost", False))
@@ -582,22 +589,65 @@ class BrandedUI:
         )
         body = self.tk.Frame(window, bg=self.paper, padx=26, pady=16)
         body.pack(fill="both", expand=True)
-        self._field(body, "Friendly name", metadata.name, readonly=True)
-        self._field(body, "Environment variable", metadata.variable, readonly=True)
-        self._field(body, "Provider", metadata.provider, readonly=True)
-        self._field(body, "Description", metadata.description, readonly=True)
+        footer = self.tk.Frame(body, bg=self.paper)
+        footer.pack(fill="x", side="bottom")
+        error = self.tk.Label(
+            footer,
+            text="",
+            bg=self.paper,
+            fg="#a43d2b",
+            anchor="w",
+            justify="left",
+            wraplength=550,
+        )
+        error.pack(fill="x", pady=(4, 8))
+        buttons = self.tk.Frame(footer, bg=self.paper)
+        buttons.pack(fill="x")
+
+        scroll_shell = self.tk.Frame(body, bg=self.paper)
+        scroll_shell.pack(fill="both", expand=True)
+        canvas = self.tk.Canvas(
+            scroll_shell,
+            bg=self.paper,
+            borderwidth=0,
+            highlightthickness=0,
+        )
+        scrollbar = self.tk.Scrollbar(
+            scroll_shell,
+            orient="vertical",
+            command=canvas.yview,
+        )
+        content = self.tk.Frame(canvas, bg=self.paper)
+        content_window = canvas.create_window((0, 0), window=content, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        content.bind(
+            "<Configure>",
+            lambda _event: canvas.configure(scrollregion=canvas.bbox("all")),
+        )
+        canvas.bind(
+            "<Configure>",
+            lambda event: canvas.itemconfigure(content_window, width=event.width),
+        )
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        self._field(content, "Friendly name", metadata.name, readonly=True)
+        self._field(content, "Environment variable", metadata.variable, readonly=True)
+        self._field(content, "Provider", metadata.provider, readonly=True)
+        self._field(content, "Description", metadata.description, readonly=True)
         self._field(
-            body,
+            content,
             "Official documentation",
             "   ·   ".join(metadata.documentation_urls),
             readonly=True,
         )
         hint = self.tk.Label(
-            body,
+            content,
             text=(
-                "Copy the key from the provider, then press Paste & Store. "
-                "KeepKeys reads the clipboard only after that click and stores "
-                "the value in your desktop Secret Service."
+                "Copy the key immediately before clicking. KeepKeys clears the "
+                "current clipboard after reading it, but same-user software or "
+                "clipboard history may still observe it. The value never enters "
+                "chat or a tool call."
             ),
             bg=self.paper,
             fg=self.sage,
@@ -606,19 +656,6 @@ class BrandedUI:
             wraplength=550,
         )
         hint.pack(fill="x", pady=(10, 4))
-        error = self.tk.Label(
-            body,
-            text="",
-            bg=self.paper,
-            fg="#a43d2b",
-            anchor="w",
-            justify="left",
-            wraplength=550,
-        )
-        error.pack(fill="x")
-
-        buttons = self.tk.Frame(body, bg=self.paper)
-        buttons.pack(fill="x", side="bottom", pady=(10, 0))
 
         def cancel() -> None:
             window.destroy()
@@ -627,11 +664,15 @@ class BrandedUI:
             try:
                 value = window.clipboard_get()
                 validate_secret(value)
+                window.clipboard_clear()
+                window.update_idletasks()
             except (self.tk.TclError, KeepKeysError):
+                value = ""
                 error.configure(
                     text=(
-                        "No usable key was found on the clipboard. Copy the "
-                        "complete key, then press Paste & Store again."
+                        "No usable key was found or KeepKeys could not clear the "
+                        "clipboard. Copy the complete key, then press Paste & "
+                        "Store again."
                     )
                 )
                 return
@@ -642,6 +683,13 @@ class BrandedUI:
                 default="no",
                 icon="warning",
             ):
+                value = ""
+                error.configure(
+                    text=(
+                        "Replacement was cancelled. KeepKeys already cleared "
+                        "the clipboard; copy the key again if you retry."
+                    )
+                )
                 return
             result[0] = (metadata, value)
             value = ""

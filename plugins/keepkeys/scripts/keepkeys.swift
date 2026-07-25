@@ -537,16 +537,26 @@ private func storeInteractively(
     container.addSubview(
         makeLabel("AGENT-PREPARED CREDENTIAL", frame: NSRect(x: 0, y: 276, width: 500, height: 18))
     )
-    let summary = NSTextField(
-        wrappingLabelWithString:
-            "\(name)  →  \(variable)\n\(provider)\n\(description)"
-    )
-    summary.frame = NSRect(x: 0, y: 204, width: 500, height: 65)
+    let summary = NSTextView(frame: NSRect(x: 0, y: 0, width: 496, height: 62))
+    summary.string = "\(name)  →  \(variable)\n\(provider)\n\(description)"
+    summary.isEditable = false
+    summary.isSelectable = true
+    summary.drawsBackground = false
     summary.font = NSFont.systemFont(ofSize: 13, weight: .medium)
     summary.textColor = .labelColor
-    summary.isSelectable = true
+    summary.textContainerInset = NSSize(width: 8, height: 6)
+    summary.isHorizontallyResizable = false
+    summary.textContainer?.widthTracksTextView = true
     summary.setAccessibilityLabel("Agent-prepared credential details")
-    container.addSubview(summary)
+
+    let summaryScroll = NSScrollView(
+        frame: NSRect(x: 0, y: 204, width: 500, height: 65)
+    )
+    summaryScroll.documentView = summary
+    summaryScroll.hasVerticalScroller = true
+    summaryScroll.hasHorizontalScroller = false
+    summaryScroll.borderType = .bezelBorder
+    container.addSubview(summaryScroll)
 
     container.addSubview(
         makeLabel("OFFICIAL DOCUMENTATION", frame: NSRect(x: 0, y: 177, width: 500, height: 18))
@@ -571,7 +581,7 @@ private func storeInteractively(
 
     let clipboardNotice = NSTextField(
         wrappingLabelWithString:
-            "Copy the key from \(provider), then press Paste & Store. KeepKeys reads the clipboard only after that click. The agent never receives the value."
+            "Copy the key immediately before clicking. KeepKeys clears the current clipboard after reading it, but same-user software or clipboard history may still observe it. The value never enters chat or a tool call."
     )
     clipboardNotice.frame = NSRect(x: 0, y: 0, width: 500, height: 54)
     clipboardNotice.font = NSFont.systemFont(ofSize: 12)
@@ -597,7 +607,9 @@ private func storeInteractively(
         if response != .alertFirstButtonReturn {
             return ["status": "cancelled", "message": "Secret storage was cancelled."]
         }
-        var secret = NSPasteboard.general.string(forType: .string) ?? ""
+        let pasteboard = NSPasteboard.general
+        let clipboardVersion = pasteboard.changeCount
+        var secret = pasteboard.string(forType: .string) ?? ""
         defer { secret = "" }
         do {
             try validateSecret(secret)
@@ -607,6 +619,13 @@ private func storeInteractively(
             )
             continue
         }
+        guard pasteboard.changeCount == clipboardVersion else {
+            showError(
+                "The clipboard changed while KeepKeys was reading it. Copy the complete key, then press Paste & Store again."
+            )
+            continue
+        }
+        pasteboard.clearContents()
 
         if try KeychainStore.exists(name: name) {
             let overwrite = NSAlert()
@@ -617,6 +636,9 @@ private func storeInteractively(
             overwrite.addButton(withTitle: "Replace")
             overwrite.addButton(withTitle: "Cancel")
             if overwrite.runModal() != .alertFirstButtonReturn {
+                showError(
+                    "Replacement was cancelled. KeepKeys already cleared the clipboard; copy the key again if you retry."
+                )
                 continue
             }
         }

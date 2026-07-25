@@ -13,11 +13,12 @@ before changing behavior.
 
 ## Non-negotiable invariants
 
-- Never add a `get`, reveal, copy, export, agent-controlled clipboard,
+- Never add a `get`, reveal, copy, export, agent-invoked clipboard,
   terminal-entry, chat-entry, file-backed secret, or secret-returning tool.
 - Clipboard access is permitted only inside a native Store window, in direct
-  response to the user activating **Paste & Store**. The agent must prepare
-  every title, name, variable, description, provider, and documentation link.
+  response to the user activating **Paste & Store**, and the helper must clear
+  the current clipboard immediately after capture. The agent must prepare every
+  title, name, variable, description, provider, and documentation link.
 - Tool inputs and outputs may contain names, variable names, descriptions,
   purposes, paths, arguments, fingerprints, and status only—never a secret
   value.
@@ -86,9 +87,10 @@ settings remain maintainer-owned external actions.
 
 - Flag P1 if any changed schema, adapter, command, log, test, document, or UI
   creates a path for a secret value to enter chat, argv, persistent environment,
-  agent-controlled clipboard, plaintext storage, or a tool response. Safe path:
-  explicit native **Paste & Store**, the native vault, and the one approved
-  child.
+  an agent-invoked clipboard action, plaintext storage, or a tool response. The
+  supported Store path deliberately crosses the shared system clipboard after
+  explicit native **Paste & Store**, clears it immediately after capture, and
+  documents that same-user processes or clipboard history can still observe it.
 
 ### Approval and executable identity
 

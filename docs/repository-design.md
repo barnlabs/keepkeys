@@ -71,6 +71,6 @@ credential boundary.
 The visual system is deep pine, barn ember, warm paper, and aged brass. The
 Keykeeper—a capable old man carrying a substantial ring of keys—is the primary
 character. He makes stewardship and user-controlled access more distinctive
-than a generic lock badge. Copy uses “use, never retrieve” and names limitations
-near the promise. See the bundled
+than a generic lock badge. Copy promises to keep keys out of chat and tool
+payloads, with the shared-clipboard limitation beside the Store flow. See the bundled
 [brand guidelines](../plugins/keepkeys/assets/brand-guidelines.md).

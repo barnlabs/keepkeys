@@ -9,7 +9,7 @@ cloud vault, account system, daemon, or standalone password manager.
 
 The core sentence is:
 
-> You paste the key once. Your agent can use it, never retrieve it.
+> You paste once. Your key stays out of chat and tool payloads.
 
 Every interface must make three facts obvious:
 
@@ -27,9 +27,13 @@ useful description, provider, and one to three official HTTPS documentation
 links. KeepKeys validates that metadata before opening and renders it read-only.
 
 The user copies the key from the provider and presses **Paste & Store**. The
-native helper reads the clipboard only in direct response to that click, stores
-the exact value in the operating-system vault, and never returns it to the
-agent. Replacement requires an explicit warning.
+native helper reads the clipboard only in direct response to that click,
+immediately clears the current clipboard, stores the exact value in the
+operating-system vault, and never returns it through the agent protocol.
+Replacement requires an explicit warning. Because the system clipboard is
+shared with same-user software and may have operating-system history, the
+interface tells the user to copy immediately before clicking and does not claim
+clipboard isolation.
 
 ### Use
 

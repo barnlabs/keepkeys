@@ -13,7 +13,7 @@ the user's device.
 | Variable name | Native-vault metadata | Yes when stored, listed, or displayed for use | Until replacement/removal |
 | Description | Native-vault metadata | Yes when stored, listed, or displayed for use | Until replacement/removal |
 | Provider and official documentation URLs | Native-vault metadata | Yes when stored, listed, or displayed | Until replacement/removal |
-| Clipboard value | Operating-system clipboard plus transient native-helper memory after explicit **Paste & Store** | No | KeepKeys does not change clipboard retention; helper copy exists only during store |
+| Clipboard value | Shared operating-system clipboard plus transient native-helper memory after explicit **Paste & Store** | Not through KeepKeys; same-user software may observe it | Helper clears the current clipboard immediately after capture; OS history or another process may retain a prior copy |
 | Run purpose, path, arguments, cwd, hashes | Native approval window and transient helper memory | Yes; proposed by agent | Not persisted by KeepKeys |
 | Bounded redacted stdout/stderr | MCP or Hermes result | Yes | Controlled by the host client |
 | Compiled macOS helper cache | `~/Library/Caches/net.barnlabs.keepkeys` | Not credential data | Until cache removal |
@@ -30,8 +30,11 @@ The agent supplies name, variable, description, provider, one to three official
 HTTPS documentation links, and a concrete command request. The user copies the
 credential from its provider and presses **Paste & Store** in the native
 KeepKeys window. The helper reads the clipboard only in direct response to that
-click. It does not monitor, poll, or inspect the clipboard in the background,
-and the agent has no clipboard-reading tool.
+click and immediately clears the current clipboard. It does not monitor, poll,
+or inspect the clipboard in the background, and KeepKeys exposes no
+clipboard-reading tool. A coding host with unrestricted same-user command
+execution can use operating-system clipboard APIs independently of KeepKeys, so
+users should copy only when the Store window is ready and click immediately.
 
 - macOS transfers the value between AppKit's pasteboard API,
   Security.framework, and the approved child environment.

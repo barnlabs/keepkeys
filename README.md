@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>You paste the key once. Your agent can use it, never retrieve it.</strong>
+  <strong>You paste once. Your key stays out of chat and tool payloads.</strong>
 </p>
 
 <p align="center">
@@ -13,8 +13,12 @@
   <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-1F2D27.svg" />
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-1F2D27.svg" />
   <img alt="desktop Linux" src="https://img.shields.io/badge/Linux-desktop-1F2D27.svg" />
-  <img alt="KeepKeys 0.4.2" src="https://img.shields.io/badge/version-0.4.2-D96C4D.svg" />
+  <img alt="KeepKeys 0.4.2 release candidate" src="https://img.shields.io/badge/version-0.4.2--candidate-D96C4D.svg" />
 </p>
+
+> **Release candidate:** the 0.4.2 source and installation pins on this branch
+> remain candidates until the public macOS/Windows/Linux matrix, Release gate,
+> and independent review are recorded in [CHECKLIST.md](CHECKLIST.md).
 
 KeepKeys is the open-source, local secret-use broker for coding agents. It
 opens a native paste-and-store window, stores the value in the operating system's
@@ -47,8 +51,8 @@ KeepKeys is deliberately narrower:
 | Output | Concurrent 1 MiB bounds and common-representation redaction |
 | Service model | Local, offline, no KeepKeys account, cloud, daemon, or telemetry |
 
-The distinction is simple: KeepKeys gives an agent use of a credential, not
-possession of it.
+The distinction is simple: KeepKeys provides approval-gated use without adding
+a reveal operation to the agent protocol.
 
 ## Native on all three desktop platforms
 
@@ -101,8 +105,9 @@ Store:
    description, provider, and one to three official HTTPS documentation links.
 2. KeepKeys validates that metadata before opening and displays it read-only.
 3. The user copies the key from the provider and presses **Paste & Store**.
-4. Only that click lets the native helper read the clipboard; the operating
-   system vault stores the value without returning it to the agent.
+4. Only that click lets the native helper read the clipboard. It immediately
+   clears the current clipboard, then the operating-system vault stores the
+   value without returning it through the agent protocol.
 
 Run:
 
@@ -122,8 +127,9 @@ credentials.
 KeepKeys does:
 
 - keep plaintext out of model prompts, tool inputs/results, plugin metadata,
-  argv, persistent environment, agent-controlled clipboard access, and
-  plaintext files;
+  argv, persistent environment, and plaintext files;
+- read the system clipboard only after **Paste & Store** and clear its current
+  contents immediately after capture;
 - pin native helper sources and fail closed on integrity mismatch;
 - block common shells, environment dumpers, and Windows dynamic script hosts;
 - classify common network clients and interpreters visibly;
@@ -136,6 +142,9 @@ KeepKeys does not:
 - make an approved executable safe;
 - confine a credential after delivery to that process or its descendants;
 - detect arbitrary encryption, splitting, file writes, IPC, or network egress;
+- prevent same-user software, a coding host with unrestricted local-command
+  execution, or operating-system clipboard history from observing a value
+  while it is on the shared clipboard;
 - protect against malware, a compromised signed-in account, administrator/root,
   debuggers, keyloggers, or modified local plugin code;
 - promise forensic erasure inside operating-system-managed storage;

@@ -26,16 +26,29 @@ const version = codex.version;
 const releaseCommit = "c483906cd2a8ed44924a4315965412b14496c080";
 const catalogCommit = "9f1c0d65d89d28156acf164f91531004e1048cb2";
 assert.equal(version, "0.4.2");
-assert.deepEqual(update, {
-  schemaVersion: 1,
-  product: "KeepKeys",
-  channel: "stable",
-  version,
-  sourceCommit: releaseCommit,
-  catalogCommit,
-  installGuide: "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
-  releaseNotes: "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md",
-});
+const expectedUpdate =
+  update.version === version
+    ? {
+        schemaVersion: 1,
+        product: "KeepKeys",
+        channel: "stable",
+        version,
+        sourceCommit: releaseCommit,
+        catalogCommit,
+        installGuide: "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
+        releaseNotes: "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md",
+      }
+    : {
+        schemaVersion: 1,
+        product: "KeepKeys",
+        channel: "stable",
+        version: "0.4.1",
+        sourceCommit: "62b2eb87f913abe3c109823c2d315e95bea432af",
+        catalogCommit: "bc82f993c0f8d9912fc1e0b0b1f14b233766559b",
+        installGuide: "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
+        releaseNotes: "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md",
+      };
+assert.deepEqual(update, expectedUpdate);
 assert.equal(claude.version, version);
 assert.equal(grok.version, version);
 assert.equal(claudeMarketplace.version, version);

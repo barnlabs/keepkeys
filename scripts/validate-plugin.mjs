@@ -99,7 +99,7 @@ const linuxHelper = readFileSync(
   "utf8",
 );
 for (const [platform, helper, trigger] of [
-  ["macOS", sourceText, "NSPasteboard.general.string"],
+  ["macOS", sourceText, "pasteboard.string(forType: .string)"],
   ["Windows", windowsHelper, "[Windows.Clipboard]::GetText()"],
   ["Linux", linuxHelper, "window.clipboard_get()"],
 ]) {
@@ -111,6 +111,21 @@ for (const [platform, helper, trigger] of [
     `${platform} still exposes manual secret entry`,
   );
 }
+for (const [platform, helper, clearAction] of [
+  ["macOS", sourceText, "pasteboard.clearContents()"],
+  ["Windows", windowsHelper, "[Windows.Clipboard]::Clear()"],
+  ["Linux", linuxHelper, "window.clipboard_clear()"],
+]) {
+  assert.ok(
+    helper.includes(clearAction),
+    `${platform} must clear the current clipboard immediately after capture`,
+  );
+}
+assert.match(
+  sourceText,
+  /let summaryScroll = NSScrollView/,
+  "macOS Store metadata must remain fully reviewable",
+);
 assert.match(
   windowsHelper,
   /SystemParameters\]::WorkArea/,
@@ -120,6 +135,16 @@ assert.match(
   windowsHelper,
   /Windows\.Controls\.ScrollViewer/,
   "Windows Store metadata must remain reviewable on compact displays",
+);
+assert.match(
+  linuxHelper,
+  /winfo_screenheight\(\)/,
+  "Linux native windows must stay within the screen work area",
+);
+assert.match(
+  linuxHelper,
+  /self\.tk\.Canvas/,
+  "Linux Store metadata must scroll while actions stay visible",
 );
 for (const helper of [sourceText, windowsHelper, linuxHelper]) {
   assert.match(helper, /new-key/, "valid new-key regression is missing");

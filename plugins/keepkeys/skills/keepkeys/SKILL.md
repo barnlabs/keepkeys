@@ -37,8 +37,10 @@ KeepKeys gives the agent **use** of a local secret, not its plaintext value.
 4. Call `keepkeys_store` with only those non-secret metadata fields.
 5. KeepKeys shows the metadata as read-only context. The user copies the
    credential elsewhere, then presses **Paste & Store**. The native helper reads
-   the clipboard only on that click and stores the value without returning it
-   to the agent.
+   the clipboard only on that click, clears the current clipboard immediately,
+   and stores the value without returning it through the agent protocol. The
+   system clipboard is shared with same-user software, so tell the user to copy
+   only when the native Store window is ready and click immediately.
 6. Report only the success or cancellation result. Never ask for the value
    before or after the tool call.
 

@@ -1,5 +1,10 @@
 # Install KeepKeys
 
+> **0.4.2 release candidate:** the pins below become the stable installation
+> only after the public macOS/Windows/Linux matrix, Release gate, and independent
+> review are recorded in [CHECKLIST.md](CHECKLIST.md). Until then,
+> [`update.json`](update.json) continues to advertise 0.4.1 as stable.
+
 KeepKeys supports macOS, Windows, and desktop Linux. Every client integration
 uses the same tool schema and platform dispatcher.
 
@@ -192,8 +197,10 @@ The agent supplies:
 
 KeepKeys validates and displays those fields read-only. Copy the credential
 from its provider, then press **Paste & Store**. The native helper reads the
-clipboard only after that click and stores the value directly in the OS vault.
-Never paste it into the conversation.
+clipboard only after that click, clears the current clipboard immediately, and
+stores the value directly in the OS vault. Same-user software or clipboard
+history may still observe a shared clipboard value, so copy only when the
+window is ready and click immediately. Never paste it into the conversation.
 
 For use, ask for a concrete direct command. The native approval surface shows:
 

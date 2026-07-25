@@ -27,7 +27,7 @@ program and its descendants receive the value.
 | Role or boundary | Trust and control |
 | --- | --- |
 | User | Trusted to copy a value from its provider, trigger the native paste, and judge the displayed one-time request. |
-| Agent/client | Untrusted with plaintext. It can propose metadata and a command through fixed schemas. |
+| Agent/client | Untrusted with plaintext through the KeepKeys protocol. It can propose metadata and a command through fixed schemas. A host with unrestricted same-user command execution is not contained while a value is on the shared clipboard. |
 | MCP/Hermes adapter | Trusted code boundary. It validates arguments, selects one bundled backend, uses no shell, and returns bounded JSON. |
 | Native helper | Trusted secret-bearing boundary. It owns click-gated clipboard ingestion, vault access, approval, fingerprints, child environment, and redaction. |
 | OS credential vault | Trusted for per-user at-rest protection and its own lock/unlock policy. |
@@ -61,17 +61,20 @@ session variables needed for the selected native desktop/vault.
   Service items. It pipes the value directly to `secret-tool store`; the value
   is never an argument, environment variable, terminal input, or file.
 
-All three paths require 8–2048 UTF-8 bytes and clear mutable buffers where their
-runtime provides a reliable operation. KeepKeys does not clear or mutate the
-user's system clipboard. Clipboard history, Swift, .NET strings, Python
-strings, GUI frameworks, vault APIs, and target-process environments can retain
-copies; KeepKeys does not claim complete zeroization.
+All three paths require 8–2048 UTF-8 bytes. After capture, each helper
+immediately clears the current clipboard before storage or replacement review.
+The helpers also clear mutable buffers where their runtime provides a reliable
+operation. Clipboard history, Swift, .NET strings, Python strings, GUI
+frameworks, vault APIs, and target-process environments can retain copies;
+KeepKeys does not claim complete zeroization.
 
 The clipboard is a same-user OS boundary, not a protected channel. Other
-same-user software or clipboard-history features may read its contents before
-or after storage. KeepKeys narrows its own access to the explicit click, never
-returns the value to the agent, and recommends copying directly from the
-provider immediately before storing.
+same-user software—including an agent host able to run arbitrary local
+commands—or clipboard-history features may read its contents before the helper
+clears it. Clearing reduces dwell time but cannot retract a history entry or a
+copy already observed. KeepKeys narrows its own access to the explicit click,
+never returns the value through its protocol, and instructs the user to copy
+directly from the provider immediately before storing.
 
 ### Vault to command
 
@@ -154,9 +157,12 @@ launching the command.
 ### Prompt injection or compromised agent
 
 The agent can ask for metadata enumeration or propose a misleading purpose,
-path, or arguments. It cannot invoke a value-retrieval tool because none
-exists. Store clipboard access, replacement, removal, and Run retain native
-human gates.
+path, or arguments. It cannot invoke a KeepKeys value-retrieval tool because
+none exists. Store clipboard access, replacement, removal, and Run retain
+native human gates. If the agent host can execute arbitrary commands as the
+signed-in user, KeepKeys does not sandbox that host from the shared system
+clipboard or native vault; the user must copy only when the Store window is
+ready and activate **Paste & Store** immediately.
 Metadata remains visible to the active agent when list is authorized, so
 descriptions should be useful but minimal.
 
@@ -191,6 +197,8 @@ signed update metadata in version 0.4.2.
 
 - protection from root/administrator, malware, keyloggers, debuggers, injected
   code, or a compromised signed-in account;
+- containment of an agent host with unrestricted same-user local-command
+  execution while a credential is present on the shared system clipboard;
 - confinement after delivery to an approved executable;
 - general output DLP or network egress control;
 - team sharing, cloud synchronization, backup, recovery, or rotation;
@@ -202,7 +210,8 @@ signed update metadata in version 0.4.2.
 1. No adapter input accepts plaintext secret material.
 2. No tool or helper action retrieves plaintext for the model.
 3. Secret entry occurs only after explicit **Paste & Store** in native GUI,
-   never chat or terminal.
+   never chat or terminal, and the current clipboard is cleared immediately
+   after capture.
 4. Listing and pre-approval flow use metadata without loading the protected
    value.
 5. Run requires one-time native approval for an exact request.

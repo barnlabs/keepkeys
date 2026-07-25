@@ -4,7 +4,7 @@
 
 - Replaced editable store metadata and password typing with one explicit
   **Paste & Store** action; the native helper reads the clipboard only after
-  that click.
+  that click and clears the current clipboard immediately after capture.
 - Validates all agent-prepared metadata before any native window opens, closing
   the invalid-name correction loop and regressing the valid `new-key` case.
 - Added agent-researched provider and official HTTPS documentation links to the
@@ -16,6 +16,8 @@
 - Hardened post-approval Windows metadata rechecks, compact-display scrolling,
   malformed metadata handling, and version-1 Linux rollback after adversarial
   review.
+- Made the shared-clipboard limitation explicit, added compact-screen Linux
+  scrolling, and made long macOS metadata fully reviewable.
 
 ## 0.4.1 — 2026-07-24
 
