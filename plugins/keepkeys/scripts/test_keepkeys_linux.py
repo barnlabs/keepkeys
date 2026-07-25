@@ -84,6 +84,17 @@ class LinuxBackendTests(unittest.TestCase):
             ],
         )
 
+    def test_malformed_v2_documentation_items_fail_closed(self) -> None:
+        payload = base64.urlsafe_b64encode(
+            b'{"name":"demo","variable":"DEMO_TOKEN","description":"d",'
+            b'"provider":"Example","documentationUrls":[1]}'
+        ).decode("ascii").rstrip("=")
+        self.assertIsNone(
+            keepkeys_linux.decode_label(
+                keepkeys_linux.LABEL_PREFIX_V2 + payload
+            )
+        )
+
     def test_common_secret_representations_are_redacted(self) -> None:
         marker = "synthetic-test-secret"
         encoded = base64.b64encode(marker.encode()).decode()

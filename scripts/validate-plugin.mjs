@@ -111,6 +111,16 @@ for (const [platform, helper, trigger] of [
     `${platform} still exposes manual secret entry`,
   );
 }
+assert.match(
+  windowsHelper,
+  /SystemParameters\]::WorkArea/,
+  "Windows native windows must stay within the scaled work area",
+);
+assert.match(
+  windowsHelper,
+  /Windows\.Controls\.ScrollViewer/,
+  "Windows Store metadata must remain reviewable on compact displays",
+);
 for (const helper of [sourceText, windowsHelper, linuxHelper]) {
   assert.match(helper, /new-key/, "valid new-key regression is missing");
   assert.match(helper, /https:\/\/docs\./, "documentation URL validation test is missing");

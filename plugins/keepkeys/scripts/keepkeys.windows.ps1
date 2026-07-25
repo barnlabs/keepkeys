@@ -455,9 +455,10 @@ function New-KeepKeysBrush {
 function New-KeepKeysWindow {
     param([string]$Title, [double]$Width, [double]$Height)
     $window = [Windows.Window]::new()
+    $workArea = [Windows.SystemParameters]::WorkArea
     $window.Title = $Title
-    $window.Width = $Width
-    $window.Height = $Height
+    $window.Width = [Math]::Min($Width, [Math]::Max(320, $workArea.Width - 32))
+    $window.Height = [Math]::Min($Height, [Math]::Max(320, $workArea.Height - 32))
     $window.ResizeMode = [Windows.ResizeMode]::NoResize
     $window.WindowStartupLocation = [Windows.WindowStartupLocation]::CenterScreen
     $window.Background = New-KeepKeysBrush $Script:Paper
@@ -596,31 +597,41 @@ function Show-KeepKeysStoreDialog {
     $window.Content = $root
     Add-KeepKeysHeader $root "Local vault" "Your key goes straight to Credential Manager." `
         "The agent prepared everything else. You only copy the key and approve the paste."
-    $body = [Windows.Controls.StackPanel]::new()
+    $body = [Windows.Controls.DockPanel]::new()
     $body.Margin = [Windows.Thickness]::new(28, 14, 28, 22)
     [void]$root.Children.Add($body)
-    [void](New-KeepKeysField $body "Friendly name" $Name -ReadOnly)
-    [void](New-KeepKeysField $body "Environment variable" $Variable -ReadOnly)
-    [void](New-KeepKeysField $body "Provider" $Provider -ReadOnly)
-    [void](New-KeepKeysField $body "Description" $Description -ReadOnly)
-    [void](New-KeepKeysField $body "Official documentation" `
+    $buttons = [Windows.Controls.StackPanel]::new()
+    $buttons.Orientation = [Windows.Controls.Orientation]::Horizontal
+    $buttons.HorizontalAlignment = [Windows.HorizontalAlignment]::Right
+    $buttons.Margin = [Windows.Thickness]::new(0, 18, 0, 0)
+    [Windows.Controls.DockPanel]::SetDock(
+        $buttons,
+        [Windows.Controls.Dock]::Bottom
+    )
+    [void]$body.Children.Add($buttons)
+    $scroll = [Windows.Controls.ScrollViewer]::new()
+    $scroll.VerticalScrollBarVisibility = [Windows.Controls.ScrollBarVisibility]::Auto
+    $scroll.HorizontalScrollBarVisibility = [Windows.Controls.ScrollBarVisibility]::Disabled
+    $content = [Windows.Controls.StackPanel]::new()
+    $scroll.Content = $content
+    [void]$body.Children.Add($scroll)
+    [void](New-KeepKeysField $content "Friendly name" $Name -ReadOnly)
+    [void](New-KeepKeysField $content "Environment variable" $Variable -ReadOnly)
+    [void](New-KeepKeysField $content "Provider" $Provider -ReadOnly)
+    [void](New-KeepKeysField $content "Description" $Description -ReadOnly)
+    [void](New-KeepKeysField $content "Official documentation" `
         ($DocumentationUrls -join "   ·   ") -ReadOnly)
     $hint = [Windows.Controls.TextBlock]::new()
     $hint.Text = "Copy the key from the provider, then press Paste & Store. KeepKeys reads the clipboard only after that click and stores it in Windows Credential Manager."
     $hint.TextWrapping = [Windows.TextWrapping]::Wrap
     $hint.Foreground = New-KeepKeysBrush $Script:Sage
     $hint.Margin = [Windows.Thickness]::new(0, 10, 0, 0)
-    [void]$body.Children.Add($hint)
+    [void]$content.Children.Add($hint)
     $errorLabel = [Windows.Controls.TextBlock]::new()
     $errorLabel.Foreground = New-KeepKeysBrush ([Windows.Media.ColorConverter]::ConvertFromString("#A43D2B"))
     $errorLabel.TextWrapping = [Windows.TextWrapping]::Wrap
     $errorLabel.Margin = [Windows.Thickness]::new(0, 8, 0, 0)
-    [void]$body.Children.Add($errorLabel)
-    $buttons = [Windows.Controls.StackPanel]::new()
-    $buttons.Orientation = [Windows.Controls.Orientation]::Horizontal
-    $buttons.HorizontalAlignment = [Windows.HorizontalAlignment]::Right
-    $buttons.Margin = [Windows.Thickness]::new(0, 18, 0, 0)
-    [void]$body.Children.Add($buttons)
+    [void]$content.Children.Add($errorLabel)
     $store = New-KeepKeysButton "Paste & Store" $Script:Ember $true
     $cancel = New-KeepKeysButton "Cancel" ([Windows.Media.ColorConverter]::ConvertFromString("#E8E2D7")) $false
     [void]$buttons.Children.Add($store)
@@ -1465,10 +1476,6 @@ try {
                 $result = @{ status = "cancelled"; message = "Command use was cancelled." }
                 break
             }
-            $refreshedMetadata = Read-KeepKeysMetadata $request.Name
-            if (-not (Test-KeepKeysMetadataEqual $metadata $refreshedMetadata)) {
-                throw "The secret metadata changed after approval. KeepKeys refused to run."
-            }
             $record = [BarnLabs.KeepKeys.CredentialVault]::Read(
                 $secretTarget,
                 $true
@@ -1476,8 +1483,16 @@ try {
             if ($null -eq $record) {
                 throw "No KeepKeys secret is stored as '$($request.Name)'."
             }
-            $secret = [Text.Encoding]::UTF8.GetString($record.Secret)
-            [Array]::Clear($record.Secret, 0, $record.Secret.Length)
+            $secret = ""
+            try {
+                $secret = [Text.Encoding]::UTF8.GetString($record.Secret)
+                $refreshedMetadata = Read-KeepKeysMetadata $request.Name
+                if (-not (Test-KeepKeysMetadataEqual $metadata $refreshedMetadata)) {
+                    throw "The secret metadata changed after approval. KeepKeys refused to run."
+                }
+            } finally {
+                [Array]::Clear($record.Secret, 0, $record.Secret.Length)
+            }
             Assert-KeepKeysSecret $secret
             try {
                 $result = Invoke-KeepKeysRun $request $metadata $secret

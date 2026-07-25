@@ -45,8 +45,8 @@ def _documentation_urls(args: dict[str, Any]) -> list[str]:
     if (
         not isinstance(values, list)
         or not 1 <= len(values) <= 3
-        or len(set(values)) != len(values)
         or any(not isinstance(value, str) for value in values)
+        or len(set(values)) != len(values)
     ):
         raise ValueError(
             "documentation_urls must contain one to three distinct HTTPS URLs."

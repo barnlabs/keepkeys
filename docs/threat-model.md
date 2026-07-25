@@ -29,7 +29,7 @@ program and its descendants receive the value.
 | User | Trusted to copy a value from its provider, trigger the native paste, and judge the displayed one-time request. |
 | Agent/client | Untrusted with plaintext. It can propose metadata and a command through fixed schemas. |
 | MCP/Hermes adapter | Trusted code boundary. It validates arguments, selects one bundled backend, uses no shell, and returns bounded JSON. |
-| Native helper | Trusted secret-bearing boundary. It owns secure entry, vault access, approval, fingerprints, child environment, and redaction. |
+| Native helper | Trusted secret-bearing boundary. It owns click-gated clipboard ingestion, vault access, approval, fingerprints, child environment, and redaction. |
 | OS credential vault | Trusted for per-user at-rest protection and its own lock/unlock policy. |
 | Approved executable | Trusted only for this action. It and descendants can read, transform, persist, or transmit the secret. |
 | Same-user malware / administrator | Out of the defended boundary. It can inspect memory, replace local code, automate UI, or access the signed-in vault. |

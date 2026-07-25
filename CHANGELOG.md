@@ -13,6 +13,9 @@
   version-2 metadata for new credentials.
 - Added positive, negative, and cross-platform parity tests for documentation
   links, clipboard-trigger language, and agent-owned fields.
+- Hardened post-approval Windows metadata rechecks, compact-display scrolling,
+  malformed metadata handling, and version-1 Linux rollback after adversarial
+  review.
 
 ## 0.4.1 — 2026-07-24
 

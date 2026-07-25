@@ -275,7 +275,14 @@ def decode_label(label: str) -> Metadata | None:
         )
         validate_metadata(metadata, allow_legacy=legacy)
         return metadata
-    except (KeyError, TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+    except (
+        AttributeError,
+        KeyError,
+        TypeError,
+        ValueError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+    ):
         return None
 
 

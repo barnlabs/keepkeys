@@ -166,6 +166,28 @@ class HermesAdapterTests(unittest.TestCase):
                 },
             )
 
+    def test_store_rejects_non_string_documentation_links_structurally(self) -> None:
+        for documentation_urls in ([{}], [[]]):
+            with self.subTest(documentation_urls=documentation_urls):
+                result = plugin._handler_for("keepkeys_store")(
+                    {
+                        "name": "new-key",
+                        "variable": "SECRET_KEY",
+                        "description": "Credential for future approved agent commands",
+                        "provider": "Example",
+                        "documentation_urls": documentation_urls,
+                    }
+                )
+                self.assertEqual(
+                    json.loads(result),
+                    {
+                        "error": (
+                            "documentation_urls must contain one to three "
+                            "distinct HTTPS URLs."
+                        )
+                    },
+                )
+
     def test_handler_returns_json_without_helper_exception_details(self) -> None:
         with patch.object(
             plugin,
