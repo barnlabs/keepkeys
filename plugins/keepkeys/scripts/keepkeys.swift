@@ -3,7 +3,7 @@ import CryptoKit
 import Foundation
 import Security
 
-private let keepKeysVersion = "0.4.0"
+private let keepKeysVersion = "0.4.1"
 private let keychainService = "net.barnlabs.keepkeys"
 private let maximumSecretBytes = 2_048
 private let maximumCapturedBytes = 1_048_576

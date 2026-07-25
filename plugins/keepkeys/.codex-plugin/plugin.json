@@ -1,6 +1,6 @@
 {
   "name": "keepkeys",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Store local secrets outside chat and let your agent use them through approval-gated commands.",
   "author": {
     "name": "BarnLabs",

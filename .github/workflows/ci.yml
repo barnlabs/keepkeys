@@ -79,5 +79,21 @@ jobs:
           node-version: "22"
       - run: ./scripts/package-submission
       - run: ./scripts/package-release
-      - run: unzip -l dist/keepkeys-skills-0.4.0.zip
-      - run: unzip -l dist/keepkeys-0.4.0-source.zip
+      - run: unzip -l dist/keepkeys-skills-0.4.1.zip
+      - run: unzip -l dist/keepkeys-0.4.1-source.zip
+
+  release-gate:
+    name: Release gate
+    if: always()
+    needs: [verify, native-vault, package]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every proof job
+        env:
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          NATIVE_VAULT_RESULT: ${{ needs.native-vault.result }}
+          PACKAGE_RESULT: ${{ needs.package.result }}
+        run: |
+          test "$VERIFY_RESULT" = success
+          test "$NATIVE_VAULT_RESULT" = success
+          test "$PACKAGE_RESULT" = success

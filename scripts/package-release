@@ -38,10 +38,16 @@ for member in \
   "keepkeys/plugins/keepkeys/.grok-plugin/plugin.json" \
   "keepkeys/plugins/keepkeys/.mcp.grok.json" \
   "keepkeys/plugins/keepkeys/mcp/server.mjs" \
+  "keepkeys/plugins/keepkeys/scripts/check-for-update.mjs" \
   "keepkeys/plugins/keepkeys/scripts/keepkeys" \
   "keepkeys/plugins/keepkeys/scripts/keepkeys.linux.py" \
   "keepkeys/plugins/keepkeys/scripts/keepkeys.windows.ps1" \
-  "keepkeys/plugins/keepkeys/scripts/platform.mjs"
+  "keepkeys/plugins/keepkeys/scripts/platform.mjs" \
+  "keepkeys/AGENTS.md" \
+  "keepkeys/CHECKLIST.md" \
+  "keepkeys/CODE_REVIEW.md" \
+  "keepkeys/DESIGN.md" \
+  "keepkeys/docs/updating.md"
 do
   if ! /usr/bin/unzip -Z1 "$archive" | /usr/bin/grep -Fqx "$member"; then
     printf '%s\n' "Release archive is missing $member." >&2

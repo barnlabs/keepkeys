@@ -88,7 +88,7 @@ test("MCP handler returns structured helper output", async () => {
   const calls = [];
   const handler = createRequestHandler(async (name, args) => {
     calls.push({ name, args });
-    return { status: "ok", platform: "macOS", version: "0.4.0" };
+    return { status: "ok", platform: "macOS", version: "0.4.1" };
   });
   const response = await handler({
     jsonrpc: "2.0",
@@ -100,7 +100,7 @@ test("MCP handler returns structured helper output", async () => {
   assert.deepEqual(response.result.structuredContent, {
     status: "ok",
     platform: "macOS",
-    version: "0.4.0",
+    version: "0.4.1",
   });
 });
 
@@ -161,35 +161,49 @@ function expectWindowsScript(value) {
   return value;
 }
 
-test("stdio server starts when the plugin path contains a symlink", () => {
+test("stdio server handles a complete protocol transcript through a symlinked plugin path", () => {
   const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const temporaryRoot = mkdtempSync(join(tmpdir(), "keepkeys-mcp-"));
   const alias = join(temporaryRoot, "plugin");
   try {
     symlinkSync(pluginRoot, alias, "dir");
-    const request = {
-      jsonrpc: "2.0",
-      id: 1,
-      method: "initialize",
-      params: {
-        protocolVersion: "2025-06-18",
-        capabilities: {},
-        clientInfo: { name: "keepkeys-test", version: "1" },
+    const requests = [
+      {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-06-18",
+          capabilities: {},
+          clientInfo: { name: "keepkeys-test", version: "1" },
+        },
       },
-    };
+      { jsonrpc: "2.0", method: "notifications/initialized" },
+      { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} },
+      { jsonrpc: "2.0", id: 3, method: "missing/method", params: {} },
+      { malformed: "request without an id is a notification" },
+    ];
     const result = spawnSync(
       process.execPath,
       [join(alias, "mcp", "server.mjs"), "--stdio"],
       {
-        input: `${JSON.stringify(request)}\n`,
+        input: `${requests.map((request) => JSON.stringify(request)).join("\n")}\n`,
         encoding: "utf8",
         timeout: 5_000,
       },
     );
     assert.equal(result.status, 0, result.stderr);
-    const response = JSON.parse(result.stdout.trim());
-    assert.equal(response.result.serverInfo.name, "keepkeys");
-    assert.equal(response.result.serverInfo.version, "0.4.0");
+    assert.equal(result.stderr, "");
+    const responses = result.stdout.trim().split("\n").map(JSON.parse);
+    assert.equal(responses.length, 3, "notifications must not produce responses");
+    assert.equal(responses[0].result.serverInfo.name, "keepkeys");
+    assert.equal(responses[0].result.serverInfo.version, "0.4.1");
+    assert.deepEqual(responses[1].result.tools, TOOLS);
+    assert.deepEqual(responses[2], {
+      jsonrpc: "2.0",
+      id: 3,
+      error: { code: -32601, message: "Method not found: missing/method" },
+    });
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });
   }

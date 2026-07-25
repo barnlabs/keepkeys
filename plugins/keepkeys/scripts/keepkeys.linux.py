@@ -22,7 +22,7 @@ import threading
 from typing import Any, NoReturn
 from urllib.parse import quote
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 METADATA_SERVICE = "net.barnlabs.keepkeys.metadata"
 SECRET_SERVICE = "net.barnlabs.keepkeys.secret"
 LABEL_PREFIX = "KeepKeys|v1|"

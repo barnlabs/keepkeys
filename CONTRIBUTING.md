@@ -6,7 +6,10 @@ KeepKeys stays small because every additional capability expands a credential bo
 
 1. Describe the user problem and why the existing store/list/use/remove tools cannot solve it.
 2. Check [docs/threat-model.md](docs/threat-model.md).
-3. Keep the plugin as the product. Do not add a standalone app, cloud vault, account system, telemetry service, updater, or raw-secret retrieval path.
+3. Keep the plugin as the product. Do not add a standalone app, cloud vault,
+   account system, telemetry service, silent/background updater, or raw-secret
+   retrieval path. Deliberate update discovery must stay read-only and
+   user-initiated.
 4. Preserve the one shared contract and dispatcher. A new client integration
    must be a thin adapter; a new operating system needs a threat-modeled native
    vault and human-gate backend.
@@ -36,6 +39,9 @@ read an existing user vault item, or require the plugin to be installed.
 - Update submission test cases if visible plugin behavior changes.
 - Add adapter validation and installation documentation for every newly supported client.
 - Explain exact verification and remaining risk.
+- Follow [CODE_REVIEW.md](CODE_REVIEW.md): request an independent read-only
+  review of the exact diff, repair findings, rerun regressions, and record a
+  `PASS` verdict before release.
 - Do not include generated cache binaries, `.env` files, logs, credential-vault
   exports, or screenshots containing field values.
 

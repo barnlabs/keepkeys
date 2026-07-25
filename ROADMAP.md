@@ -33,14 +33,14 @@ KeepKeys develops by proof, not by feature count.
 
 ## Next proof targets
 
-- [ ] Complete each upstream public-directory submission that fits its policy
-- [ ] Add repeatable isolated client smoke tests when upstream CLIs offer
-      stable, non-authenticated validation commands
-- [ ] Add signed release artifacts after a signing and revocation runbook exists
-- [ ] Evaluate platform authentication and access-control hardening without
-      degrading reliability or accessibility
-- [ ] Add visual-regression fixtures for native windows where CI can capture
-      real platform rendering without weakening secret-entry isolation
+The authoritative owner, test, adversarial-review, and acceptance details live
+in [CHECKLIST.md](CHECKLIST.md). Current budgeted proofs are:
+
+- [ ] public-directory submission;
+- [ ] authenticated disposable host smoke tests;
+- [ ] native visual-regression fixtures;
+- [ ] signed artifacts and provenance;
+- [ ] an external security assessment.
 
 ## Deliberate non-goals
 

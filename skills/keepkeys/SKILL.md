@@ -5,7 +5,7 @@ license: Apache-2.0
 compatibility: macOS 13+, Windows 10/11, or desktop Linux; Node.js 18+ and the platform prerequisites documented in INSTALL.md.
 metadata:
   author: BarnLabs
-  version: "0.4.0"
+  version: "0.4.1"
 ---
 
 # KeepKeys

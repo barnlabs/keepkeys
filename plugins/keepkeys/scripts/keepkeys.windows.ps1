@@ -4,7 +4,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$Script:Version = "0.4.0"
+$Script:Version = "0.4.1"
 $Script:MetadataPrefix = "net.barnlabs.keepkeys/meta/"
 $Script:SecretPrefix = "net.barnlabs.keepkeys/secret/"
 $Script:MaximumSecretBytes = 2048
@@ -998,16 +998,41 @@ function Invoke-KeepKeysSelfTest {
     if ($redacted.Contains($marker) -or $redacted.Contains($encoded)) {
         throw "Redaction self-test failed."
     }
-    $node = (Get-Command node.exe -CommandType Application -ErrorAction Stop).Source
-    $probe = 'process.stdout.write((process.env.KEEPKEYS_TEST || "") + "|" + (process.env.PATH || ""))'
-    $run = [BarnLabs.KeepKeys.ScopedRunner]::Run(
-        $node,
-        [string[]]@("-e", $probe),
-        (Split-Path $node),
-        "KEEPKEYS_TEST",
-        $marker,
-        $Script:MaximumCapturedBytes
+    $probeRoot = Join-Path ([IO.Path]::GetTempPath()) (
+        "keepkeys-scope-" + [Guid]::NewGuid().ToString("N").ToLowerInvariant()
     )
+    $probePath = Join-Path $probeRoot "KeepKeysScopeProbe.exe"
+    $probeSource = @'
+using System;
+
+public static class KeepKeysScopeProbe
+{
+    public static int Main()
+    {
+        string secret = Environment.GetEnvironmentVariable("KEEPKEYS_TEST") ?? "";
+        string path = Environment.GetEnvironmentVariable("PATH") ?? "";
+        Console.Out.Write(secret + "|" + path);
+        return 0;
+    }
+}
+'@
+    [void][IO.Directory]::CreateDirectory($probeRoot)
+    try {
+        Add-Type -TypeDefinition $probeSource -Language CSharp `
+            -OutputAssembly $probePath -OutputType ConsoleApplication
+        $run = [BarnLabs.KeepKeys.ScopedRunner]::Run(
+            $probePath,
+            [string[]]@(),
+            $probeRoot,
+            "KEEPKEYS_TEST",
+            $marker,
+            $Script:MaximumCapturedBytes
+        )
+    } finally {
+        if (Test-Path -LiteralPath $probeRoot) {
+            Remove-Item -LiteralPath $probeRoot -Recurse -Force
+        }
+    }
     $output = Protect-KeepKeysOutput ([Text.Encoding]::UTF8.GetString($run.StandardOutput)) $marker
     if ($run.ExitCode -ne 0 -or
         $output -cne "[REDACTED BY KEEPKEYS]|" -or

@@ -60,6 +60,12 @@ desktop operating systems.
 5. **Submission:** materials for directory review, clearly separated from
    repository availability.
 
+[DESIGN.md](../DESIGN.md) owns product/visual decisions,
+[CHECKLIST.md](../CHECKLIST.md) owns acceptance evidence and future proof
+budgets, [CODE_REVIEW.md](../CODE_REVIEW.md) owns the independent verdict loop,
+and [AGENTS.md](../AGENTS.md) keeps automated contributors inside the
+credential boundary.
+
 ## Brand constraint
 
 The visual system is deep pine, barn ember, warm paper, and aged brass. The

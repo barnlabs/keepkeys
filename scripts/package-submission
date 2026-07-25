@@ -12,6 +12,7 @@ cp "$plugin/.codex-plugin/plugin.json" "$build_root/keepkeys/.codex-plugin/plugi
 cp -R "$plugin/assets" "$build_root/keepkeys/assets"
 cp -R "$plugin/skills" "$build_root/keepkeys/skills"
 cp -R "$plugin/scripts" "$build_root/keepkeys/scripts"
+/bin/rm -f "$build_root/keepkeys/scripts/"*.test.mjs
 cp "$root/LICENSE" "$build_root/keepkeys/LICENSE"
 cp "$root/TERMS.md" "$build_root/keepkeys/TERMS.md"
 cp "$root/docs/privacy-and-data-handling.md" "$build_root/keepkeys/PRIVACY.md"
@@ -42,6 +43,7 @@ for (const relative of [
   "scripts/keepkeys-cli.mjs",
   "scripts/keepkeys.linux.py",
   "scripts/keepkeys.windows.ps1",
+  "scripts/check-for-update.mjs",
   "scripts/platform.mjs",
   "LICENSE",
   "PRIVACY.md",
@@ -75,6 +77,7 @@ for member in \
   "keepkeys/scripts/keepkeys-cli.mjs" \
   "keepkeys/scripts/keepkeys.linux.py" \
   "keepkeys/scripts/keepkeys.windows.ps1" \
+  "keepkeys/scripts/check-for-update.mjs" \
   "keepkeys/scripts/platform.mjs" \
   "keepkeys/LICENSE" \
   "keepkeys/PRIVACY.md" \

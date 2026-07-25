@@ -1,6 +1,6 @@
 # Compatibility
 
-KeepKeys 0.4 uses the same tool contract on macOS, Windows, and desktop Linux.
+KeepKeys 0.4.1 uses the same tool contract on macOS, Windows, and desktop Linux.
 Node.js 18 or newer is required by the MCP server and cross-platform launcher.
 
 | Platform | Supported baseline | Native requirements | CI proof |
@@ -32,6 +32,11 @@ The bundled Codex, Grok Build, Claude Code, Oh My Pi, Gemini CLI, Hermes, and
 Agent Skills adapters share the same schemas and helper dispatch. Individual
 client plugin installers may have their own OS restrictions; KeepKeys' local
 runtime itself is cross-platform.
+
+Compatibility here means contract and package validation plus the stated
+native-runtime CI. Optional client CLIs that are not installed or authenticated
+are not silently added to a maintainer's system; disposable end-to-end host
+smokes remain separately tracked in [CHECKLIST.md](../CHECKLIST.md).
 
 ## Fail-closed behavior
 

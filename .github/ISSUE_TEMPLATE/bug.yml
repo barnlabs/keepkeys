@@ -16,7 +16,7 @@ body:
   - type: input
     id: environment
     attributes:
-      label: macOS, agent client, and client version
+      label: Operating system, vault provider, agent client, and client version
     validations:
       required: true
   - type: textarea

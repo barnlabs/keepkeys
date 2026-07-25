@@ -3,8 +3,8 @@
 Use the narrowest channel that fits:
 
 - **Setup or usage:** open a GitHub Discussion if available; otherwise open a
-  question issue with KeepKeys version, client/version, macOS version, and a
-  synthetic reproduction.
+  question issue with KeepKeys version, client/version, operating system and
+  version, vault provider where applicable, and a synthetic reproduction.
 - **Bug:** use the bug issue template. Never include real secret values,
   Keychain exports, credential-bearing screenshots, or logs containing private
   data.

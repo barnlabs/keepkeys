@@ -4,7 +4,9 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
 try {
-    & node --test plugins/keepkeys/mcp/server.test.mjs
+    & node --test `
+        plugins/keepkeys/mcp/server.test.mjs `
+        plugins/keepkeys/scripts/check-for-update.test.mjs
     if ($LASTEXITCODE -ne 0) {
         throw "KeepKeys Node tests failed."
     }

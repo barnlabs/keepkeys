@@ -6,11 +6,15 @@ cd "$root"
 
 node scripts/validate-plugin.mjs
 node scripts/validate-adapters.mjs
+node scripts/validate-docs.mjs
 node --check plugins/keepkeys/mcp/server.mjs
 node --check plugins/keepkeys/mcp/server.test.mjs
+node --check plugins/keepkeys/scripts/check-for-update.mjs
+node --check plugins/keepkeys/scripts/check-for-update.test.mjs
 node --check plugins/keepkeys/scripts/keepkeys-cli.mjs
 node --check plugins/keepkeys/scripts/platform.mjs
 node --check scripts/scan-secrets.mjs
+node --check scripts/validate-docs.mjs
 python3 -m py_compile \
   __init__.py \
   adapters/hermes/plugin.py \

@@ -15,6 +15,7 @@ the user's device.
 | Run purpose, path, arguments, cwd, hashes | Native approval window and transient helper memory | Yes; proposed by agent | Not persisted by KeepKeys |
 | Bounded redacted stdout/stderr | MCP or Hermes result | Yes | Controlled by the host client |
 | Compiled macOS helper cache | `~/Library/Caches/net.barnlabs.keepkeys` | Not credential data | Until cache removal |
+| Stable release metadata | `raw.githubusercontent.com/barnlabs/keepkeys/main/update.json` when the user explicitly checks | Version and public Git commit SHAs only | Not persisted by KeepKeys |
 
 Linux Secret Service attributes and labels, macOS Keychain attributes, and
 Windows Credential Manager metadata are not treated as secret values. Keep
@@ -37,6 +38,11 @@ read the clipboard automatically.
 The approved executable and descendants receive the value. They may access the
 network, files, logs, or other processes according to their own behavior and OS
 permissions. KeepKeys does not inspect or control those destinations.
+
+The optional update checker makes one explicit HTTPS request for a public JSON
+manifest. It sends no credential names, values, vault metadata, command data,
+device identifier, or analytics, and it never runs automatically. GitHub and
+the user's network provider may observe the request under their own policies.
 
 ## Logs and diagnostics
 

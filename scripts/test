@@ -4,7 +4,9 @@ set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
-node --test plugins/keepkeys/mcp/server.test.mjs
+node --test \
+  plugins/keepkeys/mcp/server.test.mjs \
+  plugins/keepkeys/scripts/check-for-update.test.mjs
 python3 -m unittest adapters.hermes.test_plugin
 python3 -m unittest plugins.keepkeys.scripts.test_keepkeys_linux
 

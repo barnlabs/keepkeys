@@ -1,6 +1,6 @@
 {
   "name": "keepkeys",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Local native-vault secrets for approval-gated agent commands on macOS, Windows, and Linux, without plaintext retrieval.",
   "mcpServers": {
     "keepkeys": {

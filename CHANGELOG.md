@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.1 — 2026-07-24
+
+- Added a deliberate, strict-schema update checker that reports immutable
+  functional and catalog commits without downloading or installing code.
+- Added project-level design, production-checklist, agent, and independent
+  code-review contracts, including a bounded adversarial repair loop.
+- Added a full MCP stdio transcript regression and local documentation-link
+  validation.
+- Reworked the Windows scoped-process self-test to use a fixed compiled probe,
+  keeping the test independent of Node.js and shell environment behavior.
+- Added a single required CI release gate and expanded packages to carry the
+  update checker and release-governance artifacts.
+- Refreshed public issue, pull-request, support, privacy, release, and update
+  documentation for macOS, Windows, and Linux.
+
 ## 0.4.0 — 2026-07-24
 
 - Added native Windows support with WPF secure entry, paired metadata/value

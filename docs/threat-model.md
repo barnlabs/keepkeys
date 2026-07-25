@@ -166,6 +166,13 @@ dependencies, and cross-platform CI reduce risk. They do not defend against a
 malicious plugin checkout, compromised client process, compromised CI/release
 account, or altered operating system.
 
+The deliberate update checker trusts a fixed GitHub Raw origin only for public
+release metadata. It caps and validates the response, requires full commit
+SHAs, and performs no installation. A compromised repository or GitHub account
+could still publish malicious commit identifiers; the user must review the
+linked diff and green public evidence before updating. KeepKeys does not claim
+signed update metadata in version 0.4.1.
+
 ## Explicit non-goals
 
 - protection from root/administrator, malware, keyloggers, debuggers, injected
@@ -191,3 +198,4 @@ account, or altered operating system.
 10. Output is bounded and common representations are redacted.
 11. Doctor uses only a generated temporary credential and removes it.
 12. Missing UI or native-vault prerequisites fail closed.
+13. Update discovery is explicit, bounded, read-only, and cannot install code.
