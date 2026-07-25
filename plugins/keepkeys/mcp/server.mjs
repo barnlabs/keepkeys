@@ -48,6 +48,16 @@ function readRequiredString(args, key, maxLength) {
   return value;
 }
 
+function readRequiredUtf8String(args, key, maxBytes) {
+  const value = readRequiredString(args, key, maxBytes);
+  if (Buffer.byteLength(value, "utf8") > maxBytes) {
+    throw new Error(
+      `${key} must be a non-empty string of at most ${maxBytes} UTF-8 bytes.`,
+    );
+  }
+  return value;
+}
+
 function readDocumentationUrls(args) {
   const values = args.documentation_urls;
   if (
@@ -100,7 +110,7 @@ export function helperArguments(toolName, rawArguments) {
         "--description",
         readRequiredString(args, "description", 240),
         "--provider",
-        readRequiredString(args, "provider", 80),
+        readRequiredUtf8String(args, "provider", 80),
       ];
       for (const url of readDocumentationUrls(args)) {
         command.push("--documentation-url", url);

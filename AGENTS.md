@@ -20,8 +20,8 @@ before changing behavior.
   the current clipboard immediately after capture. The agent must prepare every
   title, name, variable, description, provider, and documentation link.
 - Tool inputs and outputs may contain names, variable names, descriptions,
-  purposes, paths, arguments, fingerprints, and status only—never a secret
-  value.
+  provider names, documentation links, purposes, paths, arguments,
+  fingerprints, and status only—never a secret value.
 - Listing and pre-approval UI read metadata only. Read the protected value only
   after **Allow once**, then recheck metadata and executable identity before
   launch.

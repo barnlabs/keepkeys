@@ -10,6 +10,12 @@ import { TOOLS } from "../plugins/keepkeys/mcp/server.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pluginRoot = resolve(root, "plugins", "keepkeys");
+const agentRules = readFileSync(resolve(root, "AGENTS.md"), "utf8");
+assert.match(
+  agentRules,
+  /provider names, documentation links/,
+  "Agent metadata allowlist must cover provider names and documentation links",
+);
 const attributes = readFileSync(resolve(root, ".gitattributes"), "utf8");
 assert.match(
   attributes,
@@ -171,8 +177,23 @@ assert.match(
 );
 assert.match(
   windowsHelper,
-  /@\(\$DocumentationUrls \| Sort-Object -Unique\)\.Count/,
-  "Windows PowerShell 5.1 must preserve a one-item documentation array before Count",
+  /HashSet\[string\]\]::new\([\s\S]{0,100}StringComparer\]::Ordinal/,
+  "Windows documentation URL uniqueness must use ordinal case-sensitive comparison",
+);
+assert.match(
+  windowsHelper,
+  /\$Script:MaximumMetadataBytes = 2560/,
+  "Windows metadata must respect Credential Manager's 2560-byte blob limit",
+);
+assert.match(
+  windowsHelper,
+  /\$serializedMetadata = ConvertTo-KeepKeysMetadataBytes \$Provider \$DocumentationUrls[\s\S]{0,120}\[Array\]::Clear/,
+  "Windows must size-check serialized metadata before opening the Store UI",
+);
+assert.match(
+  windowsHelper,
+  /Credential Manager metadata-size self-test failed/,
+  "Windows must regress serialized metadata expansion beyond the vault limit",
 );
 assert.match(
   linuxHelper,

@@ -8,6 +8,7 @@ $Script:Version = "0.4.2"
 $Script:MetadataPrefix = "net.barnlabs.keepkeys/meta/"
 $Script:SecretPrefix = "net.barnlabs.keepkeys/secret/"
 $Script:MaximumSecretBytes = 2048
+$Script:MaximumMetadataBytes = 2560
 $Script:MaximumCapturedBytes = 1048576
 $Script:OmittedOutput = "[OUTPUT OMITTED BY KEEPKEYS: stream exceeded the 1 MiB safety limit]"
 
@@ -396,12 +397,17 @@ function Assert-KeepKeysMetadata {
         [Text.Encoding]::UTF8.GetByteCount($Provider) -gt 80) {
         throw "Use a visible provider name of at most 80 UTF-8 bytes."
     }
-    if ($DocumentationUrls.Count -lt 1 -or $DocumentationUrls.Count -gt 3 -or
-        @($DocumentationUrls | Sort-Object -Unique).Count -ne $DocumentationUrls.Count) {
+    if ($DocumentationUrls.Count -lt 1 -or $DocumentationUrls.Count -gt 3) {
         throw "Use one to three distinct official HTTPS documentation links."
     }
+    $distinctDocumentationUrls = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal
+    )
     $documentationBytes = 0
     foreach ($url in $DocumentationUrls) {
+        if (-not $distinctDocumentationUrls.Add($url)) {
+            throw "Use one to three distinct official HTTPS documentation links."
+        }
         $documentationBytes += [Text.Encoding]::UTF8.GetByteCount($url)
         try {
             $parsed = [Uri]::new($url, [UriKind]::Absolute)
@@ -417,6 +423,8 @@ function Assert-KeepKeysMetadata {
     if ($documentationBytes -gt 1800) {
         throw "Official documentation links must total at most 1800 UTF-8 bytes."
     }
+    $serializedMetadata = ConvertTo-KeepKeysMetadataBytes $Provider $DocumentationUrls
+    [Array]::Clear($serializedMetadata, 0, $serializedMetadata.Length)
 }
 
 function Invoke-KeepKeysPasteAndStore {
@@ -941,7 +949,12 @@ function ConvertTo-KeepKeysMetadataBytes {
         provider = $Provider
         documentationUrls = $DocumentationUrls
     } | ConvertTo-Json -Compress -Depth 4
-    return [Text.Encoding]::UTF8.GetBytes($json)
+    $bytes = [Text.Encoding]::UTF8.GetBytes($json)
+    if ($bytes.Length -gt $Script:MaximumMetadataBytes) {
+        [Array]::Clear($bytes, 0, $bytes.Length)
+        throw "Serialized KeepKeys metadata must not exceed $($Script:MaximumMetadataBytes) UTF-8 bytes."
+    }
+    return $bytes
 }
 
 function ConvertFrom-KeepKeysMetadataCredential {
@@ -1234,6 +1247,12 @@ function Invoke-KeepKeysSelfTest {
     Assert-KeepKeysMetadata "new-key" "SECRET_KEY" `
         "Credential for future approved agent commands" "Example" `
         ([string[]]@("https://docs.example.com/api"))
+    Assert-KeepKeysMetadata "new-key" "SECRET_KEY" `
+        "Credential for future approved agent commands" "Example" `
+        ([string[]]@(
+            "https://docs.example.com/API",
+            "https://docs.example.com/api"
+        ))
     $invalidDocumentationRejected = $false
     try {
         Assert-KeepKeysMetadata "new-key" "SECRET_KEY" `
@@ -1244,6 +1263,20 @@ function Invoke-KeepKeysSelfTest {
     }
     if (-not $invalidDocumentationRejected) {
         throw "Documentation validation self-test failed."
+    }
+    $oversizedMetadataRejected = $false
+    try {
+        $expandingMetadataValue = [String]::new([char]92, 1300)
+        $oversizedMetadata = ConvertTo-KeepKeysMetadataBytes `
+            $expandingMetadataValue ([string[]]@("https://docs.example.com/api"))
+        [Array]::Clear($oversizedMetadata, 0, $oversizedMetadata.Length)
+    } catch {
+        $oversizedMetadataRejected = (
+            $_.Exception.Message -like "*$($Script:MaximumMetadataBytes)*"
+        )
+    }
+    if (-not $oversizedMetadataRejected) {
+        throw "Credential Manager metadata-size self-test failed."
     }
     $positiveCapture = @{
         Cleared = $false

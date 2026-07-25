@@ -22,6 +22,9 @@
   capture plus rejected input that must clear the clipboard and skip storage.
 - Made malformed Linux documentation URLs fail through structured JSON and
   excluded local build/cache artifacts from source packages.
+- Aligned MCP and Hermes provider validation with native UTF-8 byte limits,
+  enforced Windows Credential Manager's serialized metadata ceiling before UI,
+  and preserved case-distinct official documentation URLs.
 
 ## 0.4.1 — 2026-07-24
 

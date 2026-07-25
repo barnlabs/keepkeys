@@ -31,6 +31,15 @@ def _required_string(args: dict[str, Any], key: str, maximum: int) -> str:
     return value
 
 
+def _required_utf8_string(args: dict[str, Any], key: str, maximum: int) -> str:
+    value = _required_string(args, key, maximum)
+    if len(value.encode("utf-8")) > maximum:
+        raise ValueError(
+            f"{key} must be a non-empty string of at most {maximum} UTF-8 bytes."
+        )
+    return value
+
+
 def _optional_string(args: dict[str, Any], key: str, maximum: int) -> str | None:
     value = args.get(key)
     if value is None:
@@ -92,7 +101,7 @@ def _helper_arguments(tool_name: str, raw_args: Any) -> list[str]:
             "--description",
             _required_string(args, "description", 240),
             "--provider",
-            _required_string(args, "provider", 80),
+            _required_utf8_string(args, "provider", 80),
         ]
         for url in _documentation_urls(args):
             command.extend(["--documentation-url", url])

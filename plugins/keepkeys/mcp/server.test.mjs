@@ -107,6 +107,29 @@ test("store rejects missing, insecure, or excessive documentation links", () => 
   }
 });
 
+test("store enforces the native 80-byte UTF-8 provider boundary", () => {
+  const base = {
+    name: "new-key",
+    variable: "SECRET_KEY",
+    description: "Credential for future approved agent commands",
+    documentation_urls: ["https://docs.example.com/api"],
+  };
+  assert.doesNotThrow(() =>
+    helperArguments("keepkeys_store", {
+      ...base,
+      provider: "鍵".repeat(26),
+    }),
+  );
+  assert.throws(
+    () =>
+      helperArguments("keepkeys_store", {
+        ...base,
+        provider: "鍵".repeat(27),
+      }),
+    /provider must be a non-empty string of at most 80 UTF-8 bytes/,
+  );
+});
+
 test("run rejects malformed argument arrays", () => {
   assert.throws(
     () =>

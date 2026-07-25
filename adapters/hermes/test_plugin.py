@@ -166,6 +166,29 @@ class HermesAdapterTests(unittest.TestCase):
                 },
             )
 
+    def test_store_enforces_native_provider_utf8_byte_boundary(self) -> None:
+        base = {
+            "name": "new-key",
+            "variable": "SECRET_KEY",
+            "description": "Credential for future approved agent commands",
+            "documentation_urls": ["https://docs.example.com/api"],
+        }
+        plugin._helper_arguments(
+            "keepkeys_store",
+            {
+                **base,
+                "provider": "鍵" * 26,
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "at most 80 UTF-8 bytes"):
+            plugin._helper_arguments(
+                "keepkeys_store",
+                {
+                    **base,
+                    "provider": "鍵" * 27,
+                },
+            )
+
     def test_store_rejects_non_string_documentation_links_structurally(self) -> None:
         for documentation_urls in ([{}], [[]]):
             with self.subTest(documentation_urls=documentation_urls):
