@@ -15,7 +15,7 @@ Start with [codex-market-guide.md](codex-market-guide.md).
 
 ## Current official references
 
-Checked July 24, 2026:
+Checked July 25, 2026:
 
 - [Build plugins](https://developers.openai.com/plugins/build/plugins)
 - [Submit plugins](https://developers.openai.com/plugins/deploy/submission)

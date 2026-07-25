@@ -23,8 +23,8 @@ const tools = parse("plugins/keepkeys/mcp/tools.json");
 const update = parse("update.json");
 
 const version = codex.version;
-const releaseCommit = "62b2eb87f913abe3c109823c2d315e95bea432af";
-const catalogCommit = "bc82f993c0f8d9912fc1e0b0b1f14b233766559b";
+const releaseCommit = "9260477dd91e6db9d25b2f3bc16ef9ab653eaa4a";
+const catalogCommit = "1b6fc12c116b8a4304edf7259923dddc5b3f4da8";
 assert.equal(version, "0.4.2");
 assert.deepEqual(update, {
   schemaVersion: 1,

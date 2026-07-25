@@ -13,6 +13,9 @@ cp -R "$plugin/assets" "$build_root/keepkeys/assets"
 cp -R "$plugin/skills" "$build_root/keepkeys/skills"
 cp -R "$plugin/scripts" "$build_root/keepkeys/scripts"
 /bin/rm -f "$build_root/keepkeys/scripts/"*.test.mjs
+/usr/bin/find "$build_root/keepkeys/scripts" -type d -name '__pycache__' -prune \
+  -exec /bin/rm -rf {} +
+/usr/bin/find "$build_root/keepkeys/scripts" -type f -name '*.pyc' -delete
 cp "$root/LICENSE" "$build_root/keepkeys/LICENSE"
 cp "$root/TERMS.md" "$build_root/keepkeys/TERMS.md"
 cp "$root/docs/privacy-and-data-handling.md" "$build_root/keepkeys/PRIVACY.md"
@@ -91,6 +94,10 @@ done
 
 if /usr/bin/unzip -Z1 "$archive" | /usr/bin/grep -E '(^|/)(\.mcp\.json|mcp/)'; then
   printf '%s\n' "Submission archive unexpectedly contains MCP files." >&2
+  exit 1
+fi
+if /usr/bin/unzip -Z1 "$archive" | /usr/bin/grep -E '(^|/)(__pycache__/|[^/]+\.pyc$)'; then
+  printf '%s\n' "Submission archive unexpectedly contains Python bytecode." >&2
   exit 1
 fi
 
