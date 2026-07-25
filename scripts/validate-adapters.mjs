@@ -23,7 +23,7 @@ const tools = parse("plugins/keepkeys/mcp/tools.json");
 const update = parse("update.json");
 
 const version = codex.version;
-const releaseCommit = "cb3d04709d5b34f80dce25f59a28e8f2b15aacd0";
+const releaseCommit = "4b3109f7b846bd2d58cd9e32e1b4fbd084fd6e60";
 const catalogCommit = "6bc245848c5a52e1a8be19acc0866716ae340935";
 assert.equal(version, "0.4.2");
 const expectedUpdate =
