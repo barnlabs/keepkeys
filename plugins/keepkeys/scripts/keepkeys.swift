@@ -611,21 +611,27 @@ private func storeInteractively(
         let clipboardVersion = pasteboard.changeCount
         var secret = pasteboard.string(forType: .string) ?? ""
         defer { secret = "" }
-        do {
-            try validateSecret(secret)
-        } catch {
-            showError(
-                "No usable key was found on the clipboard. Copy the complete key, then press Paste & Store again."
-            )
-            continue
-        }
         guard pasteboard.changeCount == clipboardVersion else {
             showError(
                 "The clipboard changed while KeepKeys was reading it. Copy the complete key, then press Paste & Store again."
             )
             continue
         }
-        pasteboard.clearContents()
+        let clearedVersion = pasteboard.clearContents()
+        guard clearedVersion != clipboardVersion else {
+            showError(
+                "KeepKeys could not clear the clipboard, so the key was not stored. Copy it again and retry."
+            )
+            continue
+        }
+        do {
+            try validateSecret(secret)
+        } catch {
+            showError(
+                "No usable key was found on the clipboard. KeepKeys cleared it; copy the complete key, then press Paste & Store again."
+            )
+            continue
+        }
 
         if try KeychainStore.exists(name: name) {
             let overwrite = NSAlert()

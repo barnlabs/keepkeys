@@ -121,6 +121,29 @@ for (const [platform, helper, clearAction] of [
     `${platform} must clear the current clipboard immediately after capture`,
   );
 }
+for (const [platform, helper, captureThenClearThenValidate] of [
+  [
+    "macOS",
+    sourceText,
+    /pasteboard\.string\(forType: \.string\)[\s\S]{0,800}pasteboard\.clearContents\(\)[\s\S]{0,800}validateSecret\(secret\)/,
+  ],
+  [
+    "Windows",
+    windowsHelper,
+    /\[Windows\.Clipboard\]::GetText\(\)[\s\S]{0,500}\[Windows\.Clipboard\]::Clear\(\)[\s\S]{0,500}Assert-KeepKeysSecret \$candidateSecret/,
+  ],
+  [
+    "Linux",
+    linuxHelper,
+    /window\.clipboard_get\(\)[\s\S]{0,300}window\.clipboard_clear\(\)[\s\S]{0,300}validate_secret\(value\)/,
+  ],
+]) {
+  assert.match(
+    helper,
+    captureThenClearThenValidate,
+    `${platform} must clear even clipboard text that secret validation rejects`,
+  );
+}
 assert.match(
   sourceText,
   /let summaryScroll = NSScrollView/,

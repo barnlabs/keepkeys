@@ -141,6 +141,11 @@ class LinuxBackendTests(unittest.TestCase):
         self.assertIn("window.clipboard_clear()", source)
         self.assertIn("winfo_screenheight()", source)
         self.assertIn("self.tk.Canvas", source)
+        capture = source.index("value = window.clipboard_get()")
+        clear = source.index("window.clipboard_clear()", capture)
+        validate = source.index("validate_secret(value)", clear)
+        self.assertLess(capture, clear)
+        self.assertLess(clear, validate)
 
     def test_truncated_stream_is_omitted_in_full(self) -> None:
         capture = keepkeys_linux.Capture()

@@ -663,9 +663,9 @@ class BrandedUI:
         def submit() -> None:
             try:
                 value = window.clipboard_get()
-                validate_secret(value)
                 window.clipboard_clear()
                 window.update_idletasks()
+                validate_secret(value)
             except (self.tk.TclError, KeepKeysError):
                 value = ""
                 error.configure(

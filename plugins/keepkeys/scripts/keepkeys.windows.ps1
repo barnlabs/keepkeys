@@ -646,9 +646,10 @@ function Show-KeepKeysStoreDialog {
                 throw "No usable key was found on the clipboard."
             }
             $candidateSecret = [Windows.Clipboard]::GetText()
-            Assert-KeepKeysSecret $candidateSecret
             $stage = "clipboard-clear"
             [Windows.Clipboard]::Clear()
+            $stage = "secret-validation"
+            Assert-KeepKeysSecret $candidateSecret
             $stage = "vault-check"
             if ($null -ne [BarnLabs.KeepKeys.CredentialVault]::Read(
                 $Script:MetadataPrefix + $Name,
@@ -684,6 +685,8 @@ function Show-KeepKeysStoreDialog {
                 $errorLabel.Text = "No usable key was found on the clipboard. Copy the complete key, then press Paste & Store again."
             } elseif ($stage -eq "clipboard-clear") {
                 $errorLabel.Text = "KeepKeys could not clear the clipboard, so the key was not stored. Copy it again and retry."
+            } elseif ($stage -eq "secret-validation") {
+                $errorLabel.Text = "No usable key was found on the clipboard. KeepKeys cleared it; copy the complete key, then press Paste & Store again."
             } else {
                 $errorLabel.Text = "Windows Credential Manager could not be accessed. $($_.Exception.Message)"
             }
