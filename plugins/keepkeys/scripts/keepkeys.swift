@@ -3,7 +3,7 @@ import CryptoKit
 import Foundation
 import Security
 
-private let keepKeysVersion = "0.3.0"
+private let keepKeysVersion = "0.4.0"
 private let keychainService = "net.barnlabs.keepkeys"
 private let maximumSecretBytes = 2_048
 private let maximumCapturedBytes = 1_048_576
@@ -13,15 +13,50 @@ private struct KeepKeysFailure: LocalizedError {
     var errorDescription: String? { message }
 }
 
-private struct EntryMetadata: Codable {
+private struct EntryMetadata: Codable, Equatable {
     let version: Int
     let variable: String
     let description: String
 }
 
+private struct EntrySummary {
+    let name: String
+    let metadata: EntryMetadata
+    let createdAt: Date?
+    let modifiedAt: Date?
+}
+
 private struct SecretRecord {
     let metadata: EntryMetadata
     var secret: String
+}
+
+private enum ExecutionRisk: String {
+    case routine
+    case network
+    case interpreter
+
+    var title: String {
+        switch self {
+        case .routine:
+            return "Direct executable"
+        case .network:
+            return "Network-capable executable"
+        case .interpreter:
+            return "Script interpreter"
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .routine:
+            "KeepKeys verified the executable itself. Its child processes still inherit the approved secret."
+        case .network:
+            "This program can send the credential or derived data over the network. Approve only the exact destination and action you intend."
+        case .interpreter:
+            "This program can execute script code. KeepKeys also fingerprints the detected entrypoint when one is present."
+        }
+    }
 }
 
 private struct RunRequest {
@@ -31,6 +66,9 @@ private struct RunRequest {
     let arguments: [String]
     let workingDirectory: URL?
     let fingerprint: String
+    let entrypoint: URL?
+    let entrypointFingerprint: String?
+    let risk: ExecutionRisk
 }
 
 private func emit(_ object: [String: Any]) {
@@ -212,7 +250,29 @@ private enum KeychainStore {
         return SecretRecord(metadata: metadata, secret: secret)
     }
 
-    static func entries() throws -> [[String: String]] {
+    static func metadata(name: String) throws -> EntryMetadata {
+        var query = keychainQuery(name: name)
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        query[kSecReturnAttributes as String] = true
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound {
+            throw KeepKeysFailure(message: "No KeepKeys secret is stored as '\(name)'.")
+        }
+        guard status == errSecSuccess,
+              let row = result as? [String: Any],
+              let metadataData = row[kSecAttrGeneric as String] as? Data,
+              let metadata = try? JSONDecoder().decode(EntryMetadata.self, from: metadataData),
+              metadata.version == 1,
+              validVariable(metadata.variable),
+              validDescription(metadata.description)
+        else {
+            throw KeepKeysFailure(message: "The Keychain item has invalid KeepKeys metadata.")
+        }
+        return metadata
+    }
+
+    static func summaries() throws -> [EntrySummary] {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: keychainService,
@@ -236,7 +296,7 @@ private enum KeychainStore {
         } else {
             rows = []
         }
-        return rows.compactMap { row -> [String: String]? in
+        return rows.compactMap { row -> EntrySummary? in
             guard let name = row[kSecAttrAccount as String] as? String,
                   let metadataData = row[kSecAttrGeneric as String] as? Data,
                   let metadata = try? JSONDecoder().decode(EntryMetadata.self, from: metadataData),
@@ -247,12 +307,23 @@ private enum KeychainStore {
             else {
                 return nil
             }
-            return [
-                "name": name,
-                "variable": metadata.variable,
-                "description": metadata.description,
+            return EntrySummary(
+                name: name,
+                metadata: metadata,
+                createdAt: row[kSecAttrCreationDate as String] as? Date,
+                modifiedAt: row[kSecAttrModificationDate as String] as? Date
+            )
+        }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    static func entries() throws -> [[String: String]] {
+        try summaries().map { summary in
+            [
+                "name": summary.name,
+                "variable": summary.metadata.variable,
+                "description": summary.metadata.description,
             ]
-        }.sorted { ($0["name"] ?? "") < ($1["name"] ?? "") }
+        }
     }
 
     static func remove(name: String) throws {
@@ -262,6 +333,54 @@ private enum KeychainStore {
         }
         throw KeepKeysFailure(message: "Keychain deletion failed (OSStatus \(status)).")
     }
+}
+
+private enum Brand {
+    static let pine = NSColor(
+        calibratedRed: 31.0 / 255.0,
+        green: 45.0 / 255.0,
+        blue: 39.0 / 255.0,
+        alpha: 1
+    )
+    static let nightPine = NSColor(
+        calibratedRed: 20.0 / 255.0,
+        green: 33.0 / 255.0,
+        blue: 29.0 / 255.0,
+        alpha: 1
+    )
+    static let ember = NSColor(
+        calibratedRed: 217.0 / 255.0,
+        green: 108.0 / 255.0,
+        blue: 77.0 / 255.0,
+        alpha: 1
+    )
+    static let brass = NSColor(
+        calibratedRed: 199.0 / 255.0,
+        green: 154.0 / 255.0,
+        blue: 69.0 / 255.0,
+        alpha: 1
+    )
+    static let paper = NSColor(
+        calibratedRed: 1,
+        green: 248.0 / 255.0,
+        blue: 236.0 / 255.0,
+        alpha: 1
+    )
+    static let sage = NSColor(
+        calibratedRed: 65.0 / 255.0,
+        green: 84.0 / 255.0,
+        blue: 76.0 / 255.0,
+        alpha: 1
+    )
+}
+
+private func loadBrandImage(named name: String) -> NSImage? {
+    guard let assetsDirectory = ProcessInfo.processInfo.environment["KEEPKEYS_ASSETS_DIR"] else {
+        return nil
+    }
+    let url = URL(fileURLWithPath: assetsDirectory, isDirectory: true)
+        .appendingPathComponent(name, isDirectory: false)
+    return NSImage(contentsOf: url)
 }
 
 private func activateApplication() {
@@ -352,13 +471,13 @@ private func storeInteractively(
     while true {
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.icon = NSImage(
+        alert.icon = loadBrandImage(named: "icon.png") ?? NSImage(
             systemSymbolName: "key.fill",
             accessibilityDescription: "KeepKeys"
         )
-        alert.messageText = "Store a secret for your agent"
+        alert.messageText = "You type the key. The agent never sees it."
         alert.informativeText =
-            "The value stays in this Mac's Keychain. It is not returned to the conversation."
+            "Review the reusable name and variable, then enter only the secret value. It stays in this Mac's Keychain."
         alert.accessoryView = container
         alert.addButton(withTitle: "Store in Keychain")
         alert.addButton(withTitle: "Cancel")
@@ -439,6 +558,7 @@ private func removeInteractively(name: String) throws -> [String: Any] {
     activateApplication()
     let alert = NSAlert()
     alert.alertStyle = .critical
+    alert.icon = loadBrandImage(named: "icon.png")
     alert.messageText = "Remove '\(name)' from KeepKeys?"
     alert.informativeText =
         "This deletes the credential from macOS Keychain. The action cannot be undone."
@@ -513,8 +633,28 @@ private func displayArgument(_ value: String) -> String {
 
 private func approveRun(_ request: RunRequest, metadata: EntryMetadata) -> Bool {
     activateApplication()
-    let command = ([request.program.path] + request.arguments).map(displayArgument).joined(separator: " ")
+    let displayedArguments = request.arguments.map(displayArgument).joined(separator: " ")
+    let entrypointDetails: String
+    if let entrypoint = request.entrypoint,
+       let entrypointFingerprint = request.entrypointFingerprint
+    {
+        entrypointDetails = """
+
+        Script entrypoint
+        \(entrypoint.path)
+
+        Entrypoint SHA-256
+        \(entrypointFingerprint)
+        """
+    } else {
+        entrypointDetails = ""
+    }
     let details = """
+    Risk
+    \(request.risk.title)
+
+    \(request.risk.explanation)
+
     Purpose
     \(request.purpose)
 
@@ -529,9 +669,10 @@ private func approveRun(_ request: RunRequest, metadata: EntryMetadata) -> Bool 
 
     SHA-256
     \(request.fingerprint)
+    \(entrypointDetails)
 
     Arguments
-    \(request.arguments.isEmpty ? "(none)" : command)
+    \(request.arguments.isEmpty ? "(none)" : displayedArguments)
 
     Working directory
     \(request.workingDirectory?.path ?? "(none)")
@@ -555,7 +696,7 @@ private func approveRun(_ request: RunRequest, metadata: EntryMetadata) -> Bool 
 
     let alert = NSAlert()
     alert.alertStyle = .warning
-    alert.icon = NSImage(
+    alert.icon = loadBrandImage(named: "icon.png") ?? NSImage(
         systemSymbolName: "key.horizontal.fill",
         accessibilityDescription: "KeepKeys"
     )
@@ -654,6 +795,15 @@ private func executeProcess(_ request: RunRequest, record: inout SecretRecord) t
             message: "The executable changed after approval details were prepared. KeepKeys refused to run it."
         )
     }
+    if let entrypoint = request.entrypoint,
+       let entrypointFingerprint = request.entrypointFingerprint,
+       try executableFingerprint(entrypoint) != entrypointFingerprint
+    {
+        record.secret = ""
+        throw KeepKeysFailure(
+            message: "The script entrypoint changed after approval details were prepared. KeepKeys refused to run it."
+        )
+    }
 
     let process = Process()
     process.executableURL = request.program
@@ -702,10 +852,16 @@ private func executeProcess(_ request: RunRequest, record: inout SecretRecord) t
     ]
 }
 
-private func runApproved(_ request: RunRequest, record: inout SecretRecord) throws -> [String: Any] {
-    guard approveRun(request, metadata: record.metadata) else {
-        record.secret = ""
+private func runApproved(_ request: RunRequest, metadata: EntryMetadata) throws -> [String: Any] {
+    guard approveRun(request, metadata: metadata) else {
         return ["status": "cancelled", "message": "Command use was cancelled."]
+    }
+    var record = try KeychainStore.load(name: request.name)
+    guard record.metadata == metadata else {
+        record.secret = ""
+        throw KeepKeysFailure(
+            message: "The secret metadata changed after approval. KeepKeys refused to run."
+        )
     }
     return try executeProcess(request, record: &record)
 }
@@ -747,13 +903,54 @@ private func parseRun(_ args: [String]) throws -> RunRequest {
     }
     let program = try resolvedExecutable(rawProgram)
     let cwd = try resolvedWorkingDirectory(parseOption(optionArgs, name: "--cwd"))
+    let executableName = program.lastPathComponent.lowercased()
+    let networkExecutables: Set<String> = [
+        "aws", "az", "curl", "docker", "gcloud", "gh", "git", "kubectl",
+        "npm", "pnpm", "rsync", "scp", "ssh", "wget", "yarn",
+    ]
+    let interpreters: Set<String> = [
+        "bun", "deno", "java", "node", "perl", "php", "python", "python3", "ruby",
+    ]
+    let risk: ExecutionRisk
+    if interpreters.contains(executableName) {
+        risk = .interpreter
+    } else if networkExecutables.contains(executableName) {
+        risk = .network
+    } else {
+        risk = .routine
+    }
+    var entrypoint: URL?
+    var entrypointFingerprint: String?
+    if risk == .interpreter, let firstArgument = arguments.first {
+        let candidate: URL
+        if firstArgument.hasPrefix("/") {
+            candidate = URL(fileURLWithPath: firstArgument)
+        } else if let cwd {
+            candidate = cwd.appendingPathComponent(firstArgument)
+        } else {
+            candidate = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                .appendingPathComponent(firstArgument)
+        }
+        let resolvedCandidate = candidate.resolvingSymlinksInPath().standardizedFileURL
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(
+            atPath: resolvedCandidate.path,
+            isDirectory: &isDirectory
+        ), !isDirectory.boolValue {
+            entrypoint = resolvedCandidate
+            entrypointFingerprint = try executableFingerprint(resolvedCandidate)
+        }
+    }
     return RunRequest(
         name: name,
         purpose: purpose,
         program: program,
         arguments: arguments,
         workingDirectory: cwd,
-        fingerprint: try executableFingerprint(program)
+        fingerprint: try executableFingerprint(program),
+        entrypoint: entrypoint,
+        entrypointFingerprint: entrypointFingerprint,
+        risk: risk
     )
 }
 
@@ -847,7 +1044,10 @@ private func runSelfTests() throws -> [String: Any] {
         program: environmentPrinter,
         arguments: [],
         workingDirectory: nil,
-        fingerprint: try executableFingerprint(environmentPrinter)
+        fingerprint: try executableFingerprint(environmentPrinter),
+        entrypoint: nil,
+        entrypointFingerprint: nil,
+        risk: .routine
     )
     let processResult = try executeProcess(request, record: &record)
     guard processResult["exitCode"] as? Int == 0,
@@ -891,15 +1091,15 @@ private func main() {
             result = try removeInteractively(name: name)
         case "run":
             let request = try parseRun(Array(args.dropFirst()))
-            var record = try KeychainStore.load(name: request.name)
-            result = try runApproved(request, record: &record)
-            record.secret = ""
+            let metadata = try KeychainStore.metadata(name: request.name)
+            result = try runApproved(request, metadata: metadata)
         case "status":
             result = [
                 "status": "ok",
                 "message": "KeepKeys helper is available.",
                 "platform": "macOS",
                 "version": keepKeysVersion,
+                "vault": "macOS Keychain",
                 "plaintextRetrieval": false,
             ]
         case "doctor":

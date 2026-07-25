@@ -24,7 +24,7 @@ const tools = parse("plugins/keepkeys/mcp/tools.json");
 const version = codex.version;
 const releaseCommit = "a619a3ad843e5e6a58c8c3308e1e11014b80ade6";
 const catalogCommit = "71e0779de73765d541578100f2bf906dc7cfa588";
-assert.equal(version, "0.3.0");
+assert.equal(version, "0.4.0");
 assert.equal(claude.version, version);
 assert.equal(grok.version, version);
 assert.equal(claudeMarketplace.version, version);
@@ -104,6 +104,15 @@ assert.equal(
 );
 assert.match(read("adapters/hermes/plugin.py"), /ctx\.register_skill\("keepkeys", _SKILL\)/);
 assert.doesNotMatch(read("adapters/hermes/plugin.py"), /shell\s*=\s*True/);
+for (const helper of [
+  "plugins/keepkeys/scripts/keepkeys.swift",
+  "plugins/keepkeys/scripts/keepkeys.windows.ps1",
+  "plugins/keepkeys/scripts/keepkeys.linux.py",
+  "plugins/keepkeys/scripts/keepkeys-cli.mjs",
+  "plugins/keepkeys/scripts/platform.mjs",
+]) {
+  assert.ok(read(helper).length > 0, `${helper} is missing`);
+}
 for (const document of ["README.md", "INSTALL.md"]) {
   assert.match(read(document), new RegExp(releaseCommit, "g"));
   assert.match(read(document), new RegExp(catalogCommit, "g"));

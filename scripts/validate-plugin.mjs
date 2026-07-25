@@ -75,6 +75,33 @@ const source = readFileSync(resolve(pluginRoot, "scripts", "keepkeys.swift"));
 const expectedSourceHash = launcher.match(/^expected_source_hash="([a-f0-9]{64})"$/m)?.[1];
 assert.ok(expectedSourceHash, "launcher source-integrity digest is missing");
 assert.equal(createHash("sha256").update(source).digest("hex"), expectedSourceHash);
+for (const relative of [
+  "scripts/keepkeys-cli.mjs",
+  "scripts/keepkeys.linux.py",
+  "scripts/keepkeys.windows.ps1",
+  "scripts/platform.mjs",
+]) {
+  assert.ok(existsSync(resolve(pluginRoot, relative)), `${relative} is missing`);
+}
+const platformDispatcher = readFileSync(
+  resolve(pluginRoot, "scripts", "platform.mjs"),
+  "utf8",
+);
+for (const [constant, relative] of [
+  ["WINDOWS_HELPER_SHA256", "scripts/keepkeys.windows.ps1"],
+  ["LINUX_HELPER_SHA256", "scripts/keepkeys.linux.py"],
+]) {
+  const expected = platformDispatcher.match(
+    new RegExp(`const ${constant} =\\s*\\n?\\s*"([a-f0-9]{64})"`),
+  )?.[1];
+  assert.ok(expected, `${constant} is missing`);
+  const helper = readFileSync(resolve(pluginRoot, relative));
+  assert.equal(
+    createHash("sha256").update(helper).digest("hex"),
+    expected,
+    `${relative} failed its pinned source-integrity check`,
+  );
+}
 
 const testCases = readFileSync(resolve(root, "submission", "test-cases.md"), "utf8");
 assert.equal((testCases.match(/^## Positive /gm) ?? []).length, 5);

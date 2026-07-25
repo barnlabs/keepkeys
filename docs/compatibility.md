@@ -1,73 +1,50 @@
-# Compatibility and proof
+# Compatibility
 
-KeepKeys supports clients by packaging one native core through each client’s
-documented extension surface. “Supported” means the repository contains a
-loadable package shape, deterministic contract tests, and an installation path.
-It does not mean every upstream directory has reviewed or listed KeepKeys.
+KeepKeys 0.4 uses the same tool contract on macOS, Windows, and desktop Linux.
+Node.js 18 or newer is required by the MCP server and cross-platform launcher.
 
-## Client matrix
-
-| Client | Package surface | Shared components | Verification gate |
+| Platform | Supported baseline | Native requirements | CI proof |
 | --- | --- | --- | --- |
-| Codex | `.agents/plugins/marketplace.json` and `.codex-plugin/plugin.json` | MCP, skill, native helper | Codex manifest validation, installed-cache start, fresh-task `keepkeys_status` |
-| Grok Build | `.grok-plugin/marketplace.json`, `.grok-plugin/plugin.json`, and `${GROK_PLUGIN_ROOT}`-rooted MCP config | MCP, skill, native helper | Grok manifest validation, exact-SHA subdirectory install, plugin inventory, MCP startup |
-| Claude Code | full-SHA raw catalog and plugin manifest | MCP, skill, native helper | official marketplace/plugin validator plus catalog and source pins |
-| Oh My Pi | full-SHA raw `.omp-plugin` catalog | Claude-compatible MCP, skill, native helper | catalog equivalence, source pin, and documented plugin-root substitution contract |
-| Hermes | root `plugin.yaml` and `__init__.py` | shared JSON schemas, skill, native helper | Python registration/argument-vector tests; `hermes plugins list` when CLI is available |
-| Gemini CLI | root `gemini-extension.json` | MCP, root Agent Skill, native helper | extension manifest/link validation with the installed Gemini CLI |
-| Agent Skills clients | `skills/keepkeys/SKILL.md` | behavioral boundary; launcher fallback where supported | byte-identical skill copies and Agent Skills frontmatter checks |
+| macOS | macOS 13+, Apple silicon or Intel | Apple Command Line Tools | macOS 14, Node 18/22, Swift build, Keychain doctor |
+| Windows | Windows 10 or 11, x64 | Windows PowerShell 5.1 and .NET Framework 4.8 (included with supported Windows) | Windows Server 2025, Node 18/22, C# helper self-test, Credential Manager doctor |
+| Linux | modern x86-64 or arm64 desktop | Python 3, Tk, `secret-tool`, D-Bus user session, compatible Secret Service | Ubuntu 24.04, Node 18/22, helper self-test, disposable GNOME Keyring doctor |
 
-The current machine’s checked client versions and runtime smoke evidence belong
-in release notes or CI logs, not in this durable document.
+The Linux implementation is desktop software. Store, remove, and Run require a
+graphical user session because KeepKeys never falls back to terminal password
+entry or silent approval. `status`, `list`, and `doctor` can run without a
+display when a usable D-Bus Secret Service session exists.
 
-## Platform
+Common Linux packages:
 
-KeepKeys 0.3.0 supports macOS 13 or newer on Apple silicon and Intel Macs. The
-native helper depends on AppKit, Security.framework, and CryptoKit. Node.js 18+
-and Apple Command Line Tools are required.
+| Distribution | Packages |
+| --- | --- |
+| Debian / Ubuntu | `libsecret-tools python3-tk` |
+| Fedora | `libsecret python3-tkinter` |
+| Arch Linux | `libsecret tk` |
 
-Windows, Linux, iOS, browser-only clients, remote agents without local GUI
-access, and shared/team vaults are not supported. A client may understand MCP or
-Agent Skills and still be unsupported if it cannot launch the bundled local
-helper and present macOS UI.
+GNOME Keyring implements Secret Service directly. KDE users need a KWallet
+configuration that exposes the freedesktop Secret Service interface. A locked
+vault may show its own desktop unlock prompt.
 
-## Shared invariant
+## Client surfaces
 
-Every adapter must preserve all of these:
+The bundled Codex, Grok Build, Claude Code, Oh My Pi, Gemini CLI, Hermes, and
+Agent Skills adapters share the same schemas and helper dispatch. Individual
+client plugin installers may have their own OS restrictions; KeepKeys' local
+runtime itself is cross-platform.
 
-1. `keepkeys_store` accepts only friendly name, variable name, and description.
-2. No adapter adds a plaintext `secret`, `value`, reveal, copy, or export field.
-3. Commands are fixed argument vectors; no adapter composes or invokes a shell.
-4. The native helper owns Keychain access, secure entry, confirmation, execution,
-   deletion, and redaction.
-5. An unavailable or malformed adapter fails closed instead of substituting
-   `.env`, clipboard, chat, or shell-profile storage.
+## Fail-closed behavior
 
-`./scripts/validate-adapters.mjs` checks version alignment, catalog equivalence,
-paths, schemas, skill identity, and the absence of shell execution in the Hermes
-bridge. `./scripts/test` adds behavior-level MCP and Hermes coverage.
+KeepKeys reports a setup error and performs no credential mutation when:
 
-## Directory listings
+- the current OS is not macOS, Windows, or Linux;
+- the required native vault is unavailable;
+- a graphical secret-entry or approval surface cannot open;
+- a helper source integrity check fails;
+- a program path is relative, missing, a directory, or a blocked shell;
+- metadata or a protected value changes after approval;
+- an executable or detected script entrypoint changes after review;
+- output exceeds a configured adapter or stream bound.
 
-Official public catalogs have separate human and policy review. Repository
-publication alone does not establish:
-
-- OpenAI/Codex directory approval;
-- xAI Grok Build marketplace inclusion;
-- Anthropic marketplace inclusion;
-- OMP community promotion;
-- Hermes community promotion; or
-- Gemini CLI extension-gallery inclusion.
-
-The repository is installable without those listings. BarnLabs will describe a
-listing as “official” only after the owning platform confirms it.
-
-## Source trust
-
-Codex, Grok Build, and Gemini CLI accept the reviewed functional commit
-directly. Claude Code and OMP install an immutable raw catalog by its full commit
-SHA; that catalog pins the plugin subdirectory to the reviewed functional SHA.
-Hermes’ native installer follows a branch, so the supported KeepKeys route first
-checks out the functional commit in detached mode and installs from that local
-Git checkout. The convenient mutable `owner/repo` route is not the documented
-credential-use path.
+No unsupported configuration falls back to plaintext files, plugin settings,
+terminal input, cloud storage, or a process-wide persistent environment.

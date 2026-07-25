@@ -1,40 +1,75 @@
 # Privacy and data handling
 
-KeepKeys has no account, analytics, telemetry, cloud vault, advertising identifier, crash-reporting service, or network request of its own.
+KeepKeys has no account, cloud service, telemetry, analytics, advertising,
+tracking, or BarnLabs-operated credential store. All runtime work is local to
+the user's device.
 
 ## Data inventory
 
-| Data | Location | Returned to the agent? | Retention |
+| Data | Location | Visible to agent | Retention |
 | --- | --- | --- | --- |
-| Secret value | macOS Keychain; transient process memory during store/use | No | Until the user removes the Keychain item |
-| Environment-variable name | Encoded in the Keychain item's metadata | Yes, for store/list and in the approval window | Until removal/replacement |
-| Description | Encoded in the Keychain item's metadata | Yes, for store/list and in the approval window | Until removal/replacement |
-| Friendly name | Keychain account attribute | Yes, for store/list/use/remove | Until removal |
-| Command purpose/path/arguments/cwd/hash | Native approval UI and transient process memory | Supplied by the agent before approval | Not persisted by KeepKeys |
-| Child stdout/stderr | Transient bounded buffers | Yes, after redaction | Not persisted by KeepKeys |
-| Compiled helper and build-input hash | User-owned cache | Version/status only | Until cache removal or rebuild |
+| Secret value | macOS Keychain, Windows Credential Manager, or Linux Secret Service; transient helper/target memory during store/use | No | Until native confirmed removal |
+| Friendly name | Native-vault metadata | Yes when stored, listed, used, or removed | Until removal |
+| Variable name | Native-vault metadata | Yes when stored, listed, or displayed for use | Until replacement/removal |
+| Description | Native-vault metadata | Yes when stored, listed, or displayed for use | Until replacement/removal |
+| Run purpose, path, arguments, cwd, hashes | Native approval window and transient helper memory | Yes; proposed by agent | Not persisted by KeepKeys |
+| Bounded redacted stdout/stderr | MCP or Hermes result | Yes | Controlled by the host client |
+| Compiled macOS helper cache | `~/Library/Caches/net.barnlabs.keepkeys` | Not credential data | Until cache removal |
 
-## Network behavior
+Linux Secret Service attributes and labels, macOS Keychain attributes, and
+Windows Credential Manager metadata are not treated as secret values. Keep
+names and descriptions minimal and operationally useful.
 
-KeepKeys itself opens no sockets and calls no remote service. An approved child program may use the network; its behavior is outside KeepKeys and is shown as part of the command request.
+## Collection and transfer
+
+The agent supplies name, variable, description, and a concrete command request.
+The user enters the value into the native KeepKeys window. KeepKeys does not
+read the clipboard automatically.
+
+- macOS transfers the value directly between AppKit, Security.framework, and
+  the approved child environment.
+- Windows transfers it between WPF, the Credential Manager API, and the
+  approved child environment. Mutable byte arrays are cleared where practical.
+- Linux transfers it from Tk to `secret-tool` over standard input, from Secret
+  Service through `secret-tool lookup` over standard output, and then to the
+  approved child environment. It is never placed in process arguments.
+
+The approved executable and descendants receive the value. They may access the
+network, files, logs, or other processes according to their own behavior and OS
+permissions. KeepKeys does not inspect or control those destinations.
 
 ## Logs and diagnostics
 
-The helper writes one JSON result to standard output and errors as bounded messages. It does not log Keychain payloads, native form contents, process environments, or raw child output. The `doctor` command generates its own temporary value, verifies a write/read/delete round trip, and deletes the test item.
+KeepKeys emits one JSON result to standard output. It does not intentionally log
+secure-field contents, vault value payloads, child environments, or raw
+unbounded output. Errors identify the failed local boundary without including a
+value.
 
-## Metadata visibility
-
-The active agent task can call `keepkeys_list` to receive friendly names,
-environment-variable names, and descriptions without a native confirmation.
-This is intentional so future tasks can select the correct credential easily.
-The plugin skill limits listing to an explicit user request or metadata needed
-for the current authorized task. Do not put account identifiers, customer data,
-or unnecessary private details in a KeepKeys description.
+`keepkeys_doctor` generates a random temporary credential, verifies native-vault
+create/update/list/read/delete behavior, and removes it before success. It
+never reads an existing user credential.
 
 ## Deletion
 
-`keepkeys_remove` requires a native confirmation and deletes the complete named Keychain item—value and metadata—through Security.framework. Uninstalling the plugin or deleting its compiled cache does not silently delete Keychain items. KeepKeys does not claim forensic overwriting of storage managed internally by macOS.
+`keepkeys_remove` requires a native destructive-action confirmation and deletes
+the complete named record:
 
-## macOS and backups
+- one Keychain item on macOS;
+- paired metadata and value Credential Manager records on Windows;
+- one Secret Service item on Linux.
 
-Records use `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` and disable Keychain synchronization for the item. KeepKeys does not provide independent backup or recovery. Users remain responsible for the underlying service’s key rotation and recovery process.
+Uninstalling a client integration does not silently delete credentials.
+Operating-system vaults control physical storage, backups, journaling, and
+remnants; KeepKeys promises logical deletion through the supported API, not
+forensic overwrite.
+
+## Storage policy and recovery
+
+macOS records are non-synchronizing and device-only. Windows records use
+`CRED_PERSIST_LOCAL_MACHINE`, scoped to the user's local machine. Linux storage
+and synchronization behavior is determined by the selected Secret Service
+provider; KeepKeys itself adds no sync.
+
+KeepKeys provides no independent backup, recovery, escrow, sharing, rotation, or
+account reset. Users remain responsible for the underlying service's credential
+recovery and revocation process.

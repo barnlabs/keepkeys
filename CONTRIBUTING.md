@@ -7,7 +7,9 @@ KeepKeys stays small because every additional capability expands a credential bo
 1. Describe the user problem and why the existing store/list/use/remove tools cannot solve it.
 2. Check [docs/threat-model.md](docs/threat-model.md).
 3. Keep the plugin as the product. Do not add a standalone app, cloud vault, account system, telemetry service, updater, or raw-secret retrieval path.
-4. Preserve one native core. A new client integration must be a thin adapter to the shared schema/helper, not a second credential implementation.
+4. Preserve the one shared contract and dispatcher. A new client integration
+   must be a thin adapter; a new operating system needs a threat-modeled native
+   vault and human-gate backend.
 5. Discuss changes to storage, command execution, tool schemas, native prompts, permissions, or distribution before implementing them.
 
 ## Development
@@ -19,7 +21,12 @@ KeepKeys stays small because every additional capability expands a credential bo
 ./scripts/doctor
 ```
 
-Tests must use generated synthetic markers. Never use a fixture that resembles a live credential. `test` must remain headless: it cannot open a native window, read a user Keychain item, or require the plugin to be installed.
+On Windows, use the corresponding `scripts\bootstrap.ps1`, `check.ps1`,
+`test.ps1`, and `doctor.ps1` commands.
+
+Tests must use generated synthetic markers. Never use a fixture that resembles
+a live credential. `test` must remain headless: it cannot open a native window,
+read an existing user vault item, or require the plugin to be installed.
 
 ## Pull requests
 
@@ -29,6 +36,7 @@ Tests must use generated synthetic markers. Never use a fixture that resembles a
 - Update submission test cases if visible plugin behavior changes.
 - Add adapter validation and installation documentation for every newly supported client.
 - Explain exact verification and remaining risk.
-- Do not include generated cache binaries, `.env` files, logs, Keychain exports, or screenshots containing field values.
+- Do not include generated cache binaries, `.env` files, logs, credential-vault
+  exports, or screenshots containing field values.
 
 Security reports follow [SECURITY.md](SECURITY.md), not public issues or pull requests.

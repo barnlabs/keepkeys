@@ -2,7 +2,7 @@
   {
     "name": "keepkeys_store",
     "title": "Store a secret in KeepKeys",
-    "description": "Open the native KeepKeys window to collect a secret outside chat and store it in macOS Keychain. This tool never accepts or returns the secret value.",
+    "description": "Open the native KeepKeys window to collect a secret outside chat and store it in the operating system's secure credential vault. This tool never accepts or returns the secret value.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -155,8 +155,8 @@
   },
   {
     "name": "keepkeys_doctor",
-    "title": "Verify KeepKeys Keychain access",
-    "description": "Perform a temporary macOS Keychain write/read/delete round trip using a generated test value. No user credential is read.",
+    "title": "Verify KeepKeys secure-vault access",
+    "description": "Perform a temporary operating-system vault write/read/delete round trip using a generated test value. No user credential is read.",
     "inputSchema": {
       "type": "object",
       "properties": {},

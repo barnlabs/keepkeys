@@ -7,13 +7,14 @@ identity.
 ## Decision principles
 
 1. The no-plaintext-retrieval boundary wins over convenience.
-2. One native core and thin client adapters win over divergent implementations.
+2. One agent contract, one dispatcher, and narrowly scoped native backends win
+   over divergent client implementations.
 3. A small, verified capability wins over broad vault or automation features.
 4. Client support is claimed only with a documented package surface and proof.
 5. Security findings are handled privately before public discussion.
 
 Maintainers may accept routine documentation, test, adapter, and accessibility
-changes through normal review. Changes to Keychain storage, native approval,
+changes through normal review. Changes to native-vault storage, native approval,
 command execution, output redaction, deletion semantics, tool schemas, or release
 trust require the release gates in [SECURITY.md](SECURITY.md).
 

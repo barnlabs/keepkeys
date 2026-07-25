@@ -11,6 +11,7 @@ import {
   createRequestHandler,
   helperArguments,
 } from "./server.mjs";
+import { helperInvocation } from "../scripts/platform.mjs";
 
 test("tool schemas never accept a plaintext secret", () => {
   for (const tool of TOOLS) {
@@ -84,7 +85,7 @@ test("MCP handler returns structured helper output", async () => {
   const calls = [];
   const handler = createRequestHandler(async (name, args) => {
     calls.push({ name, args });
-    return { status: "ok", platform: "macOS", version: "0.3.0" };
+    return { status: "ok", platform: "macOS", version: "0.4.0" };
   });
   const response = await handler({
     jsonrpc: "2.0",
@@ -96,9 +97,59 @@ test("MCP handler returns structured helper output", async () => {
   assert.deepEqual(response.result.structuredContent, {
     status: "ok",
     platform: "macOS",
-    version: "0.3.0",
+    version: "0.4.0",
   });
 });
+
+test("platform dispatch keeps one argv contract across macOS, Windows, and Linux", () => {
+  const helperArgs = ["status"];
+  const macOS = helperInvocation(helperArgs, {
+    platform: "darwin",
+    environment: {},
+    home: "/Users/example",
+  });
+  assert.match(macOS.command, /scripts[/\\]keepkeys$/);
+  assert.deepEqual(macOS.args, helperArgs);
+  assert.equal(macOS.env.HOME, "/Users/example");
+
+  const windows = helperInvocation(helperArgs, {
+    platform: "win32",
+    environment: {
+      SystemRoot: "C:\\Windows",
+      USERPROFILE: "C:\\Users\\example",
+      LOCALAPPDATA: "C:\\Users\\example\\AppData\\Local",
+    },
+    home: "C:\\Users\\example",
+  });
+  assert.match(windows.command, /powershell\.exe$/i);
+  assert.deepEqual(windows.args.slice(-2), [
+    expectWindowsScript(windows.args.at(-2)),
+    "status",
+  ]);
+  assert.equal(windows.env.USERPROFILE, "C:\\Users\\example");
+
+  const linux = helperInvocation(helperArgs, {
+    platform: "linux",
+    environment: {
+      DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/1000/bus",
+      DISPLAY: ":0",
+    },
+    home: "/home/example",
+  });
+  assert.equal(linux.command, "python3");
+  assert.match(linux.args[0], /keepkeys\.linux\.py$/);
+  assert.equal(linux.args[1], "status");
+  assert.equal(
+    linux.env.DBUS_SESSION_BUS_ADDRESS,
+    "unix:path=/run/user/1000/bus",
+  );
+  assert.equal(linux.env.DISPLAY, ":0");
+});
+
+function expectWindowsScript(value) {
+  assert.match(value, /keepkeys\.windows\.ps1$/i);
+  return value;
+}
 
 test("stdio server starts when the plugin path contains a symlink", () => {
   const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -128,7 +179,7 @@ test("stdio server starts when the plugin path contains a symlink", () => {
     assert.equal(result.status, 0, result.stderr);
     const response = JSON.parse(result.stdout.trim());
     assert.equal(response.result.serverInfo.name, "keepkeys");
-    assert.equal(response.result.serverInfo.version, "0.3.0");
+    assert.equal(response.result.serverInfo.version, "0.4.0");
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });
   }

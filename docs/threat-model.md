@@ -2,102 +2,192 @@
 
 ## Security objective
 
-KeepKeys lets a supported local agent use a user-selected secret without placing
-the plaintext value in the model prompt, adapter arguments/results, plugin
-metadata, repository, persistent environment, or shell command.
+KeepKeys lets a supported local agent cause one user-approved process to use one
+named secret without placing the plaintext value in the model prompt, tool
+arguments or results, plugin metadata, repository, persistent environment,
+terminal, clipboard, or plaintext file.
+
+This is scoped delegation, not containment after delegation. The approved
+program and its descendants receive the value.
 
 ## Assets
 
-- secret value;
-- stored environment-variable name and description;
-- friendly name and command-purpose metadata;
-- integrity of the native helper, MCP server, approval dialog, and target executable;
-- user intent for each store, overwrite, remove, and run action.
+- secret values;
+- friendly names, variable names, descriptions, and command purposes;
+- user intent for store, replacement, deletion, and each use;
+- integrity of the plugin source, dispatcher, native helper, approval window,
+  target executable, and optional script entrypoint;
+- availability and correctness of the native credential vault;
+- bounded command output returned to an agent.
 
-## Trust boundaries
+## Roles and trust boundaries
 
-| Boundary | Control |
+| Role or boundary | Trust and control |
 | --- | --- |
-| Conversation → adapter | The shared tool schemas contain no plaintext-secret field. The skill forbids asking for or reconstructing a value. |
-| Adapter → native helper | MCP or the Hermes bridge spawns a fixed repository-relative launcher with an argument array, no shell, and a minimal environment. The launcher re-executes the helper with only system `PATH` and the current home directory. |
-| Native entry → Keychain | The agent supplies name, variable, and description; `NSSecureTextField` collects only the value. Security.framework stores one non-synchronizing, device-local generic-password item. |
-| Keychain → command | The native helper reads the record only after preparing a concrete request and the user approves it once. |
-| Request → executable | Absolute path, resolved symlinks, executable check, fixed arguments, working directory, and SHA-256 are shown. The hash is checked again immediately before launch. |
-| Parent → child | The environment is cleared, then one stored variable is added. `Process` invokes the executable directly; common shells and environment-dump programs are rejected. |
-| Child output → agent | Output is bounded and exact/common encodings of the secret are redacted before JSON reaches an adapter. If either stream exceeds its bound, that entire stream is replaced by a fixed omission marker. |
-| Plugin source → compiled helper | The launcher fails closed unless the Swift source matches its pinned SHA-256 digest. A user-owned non-symlink cache compiles that source; a hash of the source plus launcher/build recipe triggers rebuilds. |
+| User | Trusted to enter a value locally and judge the displayed one-time request. |
+| Agent/client | Untrusted with plaintext. It can propose metadata and a command through fixed schemas. |
+| MCP/Hermes adapter | Trusted code boundary. It validates arguments, selects one bundled backend, uses no shell, and returns bounded JSON. |
+| Native helper | Trusted secret-bearing boundary. It owns secure entry, vault access, approval, fingerprints, child environment, and redaction. |
+| OS credential vault | Trusted for per-user at-rest protection and its own lock/unlock policy. |
+| Approved executable | Trusted only for this action. It and descendants can read, transform, persist, or transmit the secret. |
+| Same-user malware / administrator | Out of the defended boundary. It can inspect memory, replace local code, automate UI, or access the signed-in vault. |
 
-## Adversaries and abuse cases
+## Cross-platform controls
 
-### Prompt injection or compromised agent asks for plaintext
+### Conversation to helper
 
-There is no retrieval tool. Store accepts only name, variable, and description metadata. Use returns bounded command output, not a credential field.
+No input schema includes `secret`, `value`, or an equivalent plaintext field.
+The behavioral skill forbids asking for the value. Store carries only name,
+variable, and description. There is no plaintext retrieval action.
 
-### Agent enumerates credential metadata
+The MCP server and Hermes adapter form argument arrays and start a
+repository-relative helper with `shell=false`. The dispatcher keeps only
+session variables needed for the selected native desktop/vault.
 
-`keepkeys_list` deliberately returns names, variable names, and descriptions
-without a second native prompt so a future authorized task can find the correct
-credential. The skill permits listing only on an explicit request or when
-necessary for the current task. Users should keep descriptions minimal because
-the active agent task can read this metadata.
+### Native entry to vault
 
-### Agent attempts `/usr/bin/env`, a shell, or misleading command
+- macOS uses `NSSecureTextField` and a non-synchronizing
+  `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` Keychain item.
+- Windows uses WPF `PasswordBox`. Metadata and value are separate generic
+  Credential Manager records, so listing and pre-approval lookup never request
+  the value record.
+- Linux uses a native Tk password field and separate metadata/value Secret
+  Service items. It pipes the value directly to `secret-tool store`; the value
+  is never an argument, environment variable, terminal input, or file.
 
-The helper rejects common shells and environment-dump programs. Every allowed request still requires native approval showing the canonical executable, arguments, purpose, variable name, working directory, and hash.
+All three paths require 8–2048 UTF-8 bytes and clear mutable buffers where their
+runtime provides a reliable operation. Swift, .NET strings, Python strings,
+GUI controls, vault APIs, and target-process environments can retain copies;
+KeepKeys does not claim complete zeroization.
 
-### Approved target prints or encodes the secret
+### Vault to command
 
-KeepKeys redacts the exact value plus common base64, hexadecimal, URL-encoded, and JSON-escaped forms. A stream that exceeds 1 MiB is omitted completely so truncation cannot expose a partial encoded value. This is defense in depth, not a data-loss-prevention guarantee. An approved program can transform, transmit, persist, fork with, or otherwise disclose its environment. Only approve a target you intend to trust.
+The helper validates metadata, prepares the exact request, and obtains native
+one-time approval before reading the protected value. It then reloads or
+rechecks metadata. Windows reads only `meta/*` before approval and reads the
+paired `secret/*` record after approval. Linux label search returns metadata;
+lookup happens after approval. macOS requests Keychain attributes first and
+value data afterward. Linux `secret-tool search` prints only the paired metadata
+item payload; KeepKeys never searches the protected-value service.
 
-### Executable changes between review and launch
+### Request to executable
 
-KeepKeys fingerprints the resolved file, displays the hash, and recomputes it immediately before `Process.run`. A same-user attacker may still win a narrow time-of-check/time-of-use race. Stronger descriptor-bound execution is not portable through Foundation `Process`.
+KeepKeys requires an absolute direct executable path, resolves it, rejects
+common shells and environment-dump or dynamic script-host programs, and shows
+its SHA-256. Interpreters and common network-capable clients receive explicit
+risk labels. When an interpreter's script entrypoint can be identified, that
+file receives a second hash.
 
-### Another same-user process reads Keychain
+The executable and optional entrypoint are hashed again immediately before
+launch. A same-user attacker may still win a narrow path or filesystem
+time-of-check/time-of-use race. KeepKeys does not claim descriptor-bound
+execution on every supported OS.
 
-macOS Keychain provides at-rest storage and application access controls, but a compromised signed-in session or administrator can interact with Keychain, automate approval UI, inspect process memory, replace plugin files, debug processes, or capture keystrokes. KeepKeys does not claim same-user sandbox isolation.
+### Parent to child
 
-### Secret remains in memory
+The target is launched without a shell. The child environment begins empty and
+receives only the one approved variable. OS loader state, process architecture,
+and implementation-defined runtime state may exist outside the user-visible
+environment map. Descendants may inherit the secret.
 
-The value necessarily exists in the secure text field, Swift strings/data, Security.framework call, Keychain response, `Process` environment, target process, and possibly descendants. Swift and Foundation do not provide a complete zeroization guarantee for copied strings. KeepKeys minimizes lifetime and never deliberately logs the value, but does not claim memory-forensic resistance.
+### Child output to agent
 
-### Cache replacement
+stdout and stderr are drained concurrently into separate 1 MiB bounded
+captures. A stream that exceeds the bound is replaced in full with a fixed
+omission marker. KeepKeys replaces exact, Base64, hexadecimal, URL-encoded, and
+JSON-escaped representations before returning JSON.
 
-The launcher rejects a symlink cache root, checks current-user ownership, uses mode `0700`, builds in a private temporary directory, and atomically replaces the helper. A process already acting as the same user can still replace source or cache content and is outside the defended boundary.
+Redaction cannot detect arbitrary splitting, encryption, compression, hashing,
+steganography, network transmission, file writes, IPC, screenshots, or
+side-channels. It is defense in depth, never a data-loss-prevention guarantee.
 
-### Tool timeout
+## Platform-specific abuse cases
 
-The MCP server and Hermes bridge launch the helper in a dedicated process group.
-If the 15-minute local approval/command limit expires or helper output violates
-the adapter bound, the adapter sends `SIGKILL` to that group before returning an
-error. A target that deliberately creates a new session or process group can
-escape group cleanup and is treated as an untrusted approved-target behavior.
+### macOS source or cache replacement
 
-### Client adapter changes semantics
+The launcher rejects symlinked source/cache files, requires a current-user-owned
+mode-0700 cache, verifies the Swift source against a pinned SHA-256, builds in a
+private temporary directory, and replaces the compiled helper only after
+success. A process already acting as the same user can still replace plugin
+files and is outside the boundary.
 
-Client packages are deliberately declarative or thin. The canonical JSON schema
-is shared by MCP and Hermes; validation requires identical skills for root and
-bundled distributions. A compromised client or modified installed plugin can
-still misdescribe tool intent, change source, or bypass the skill. The native
-store/run/remove windows remain the final user gate, and source pinning plus the
-launcher digest reduces—but does not eliminate—installed-source tampering.
+### Windows paired-record interruption
+
+A crash can occur between Credential Manager writes. Replacement snapshots the
+old pair, writes the value and metadata, and attempts rollback on failure.
+Doctor verifies create, update, enumerate, read, and deletion. An unclean
+process termination at the exact inter-write boundary can still leave an orphan
+record; listing ignores orphan value records and a later approved store/remove
+repairs the named pair.
+
+### Linux Secret Service diversity
+
+The freedesktop specification does not mandate a uniform at-rest algorithm,
+master password, or per-application access-control model. KeepKeys requires a
+compatible provider and inherits its security policy. Item attributes and
+labels are explicitly non-secret metadata. The value crosses the local D-Bus
+and a `secret-tool` pipe; it never crosses the agent protocol.
+
+KeepKeys refuses to use a plaintext keyring fallback and refuses secret entry
+when no graphical session is available.
+
+### Vault unlock prompts
+
+The native Keychain, Credential Manager, or Secret Service may apply additional
+OS policy or display its own unlock/authentication prompt. KeepKeys does not
+bypass or suppress it. Cancellation or vault failure returns an error without
+launching the command.
+
+### Prompt injection or compromised agent
+
+The agent can ask for metadata enumeration or propose a misleading purpose,
+path, or arguments. It cannot invoke a value-retrieval tool because none
+exists. Store, replacement, removal, and Run retain native human gates.
+Metadata remains visible to the active agent when list is authorized, so
+descriptions should be useful but minimal.
+
+### Approved target disclosure
+
+Approval is authority to deliver the secret to the displayed executable, not a
+claim that the executable is safe. Network-capable tools can transmit it;
+interpreters can run arbitrary code; child processes inherit it. Users must
+approve only the target and action they intend.
+
+### Timeout and process-tree cleanup
+
+Adapters enforce a 15-minute default timeout and terminate the helper process
+tree. A malicious target may detach into another session or exploit OS-specific
+process behavior to escape cleanup. That is treated as approved-target risk.
+
+### Supply-chain or client compromise
+
+Source-pinned installation, helper source digests, shared schema tests, minimal
+dependencies, and cross-platform CI reduce risk. They do not defend against a
+malicious plugin checkout, compromised client process, compromised CI/release
+account, or altered operating system.
 
 ## Explicit non-goals
 
-- protection from root, administrator, malware, keyloggers, debuggers, injected code, or a compromised macOS account;
-- secret confinement after delivery to an approved process;
-- encoded/fragmented/steganographic output detection;
-- remote, shared, synchronized, backup, recovery, or team-vault storage;
-- Windows, Linux, iOS, or web support in version 0.3;
-- absolute security claims.
+- protection from root/administrator, malware, keyloggers, debuggers, injected
+  code, or a compromised signed-in account;
+- confinement after delivery to an approved executable;
+- general output DLP or network egress control;
+- team sharing, cloud synchronization, backup, recovery, or rotation;
+- browser, mobile, server, or headless approval support;
+- absolute, “unbreakable,” or formal-verification claims.
 
 ## Required regression invariants
 
-1. No adapter input schema accepts `secret`, `value`, or equivalent plaintext.
-2. No tool or CLI action retrieves a plaintext value for the model.
-3. An agent can pre-fill metadata, but secret entry occurs in native UI and Keychain only.
-4. Run requires one native approval and direct absolute executable invocation.
-5. The child starts from an empty environment plus one stored variable.
-6. Cancellation performs no store, delete, or launch.
-7. Captured output is bounded and exact/common representations are redacted.
-8. Tests never touch user credentials; `doctor` creates and removes its own generated item.
+1. No adapter input accepts plaintext secret material.
+2. No tool or helper action retrieves plaintext for the model.
+3. Secret entry occurs only in native GUI, never chat or terminal.
+4. Listing and pre-approval flow use metadata without loading the protected
+   value.
+5. Run requires one-time native approval for an exact request.
+6. The helper invokes a direct absolute executable without a shell.
+7. The child environment contains only the approved secret variable.
+8. Executable and detected entrypoint hashes are rechecked after approval.
+9. Cancellation performs no store, delete, or launch.
+10. Output is bounded and common representations are redacted.
+11. Doctor uses only a generated temporary credential and removes it.
+12. Missing UI or native-vault prerequisites fail closed.

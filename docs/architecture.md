@@ -1,42 +1,28 @@
 # Architecture
 
-KeepKeys is one native secrets core with thin client adapters:
+KeepKeys is a local secret-use broker for desktop coding agents. It has one
+agent-facing contract and three native security backends:
 
 ```text
-Codex / Grok Build / Claude Code / Oh My Pi / Gemini CLI
-  │  MCP over stdio
-  ├───────────────┐
-  │               │
-  │         Hermes plugin
-  │               │  Python bridge
-  └───────┬───────┘
-          │  shared schemas + fixed argv, no shell
-          ▼
-Native helper (Swift/AppKit/Security.framework)
-  ├─ secure entry / approval UI
-  ├─ macOS Keychain
-  └─ one direct child process
+Codex · Grok Build · Claude Code · Oh My Pi · Gemini CLI
+                         │
+                    MCP over stdio
+                         │
+Hermes ── Python bridge ─┤
+                         ▼
+             fixed cross-platform dispatcher
+                │          │          │
+              macOS      Windows     Linux
+             AppKit/WPF/Tk native human gates
+                │          │          │
+             Keychain   Credential   Secret
+                        Manager       Service
 ```
 
-## Adapter layer
+## Stable agent contract
 
-Codex, Grok Build, Claude Code, OMP, and Gemini manifests start
-`plugins/keepkeys/mcp/server.mjs`. The MCP server loads the canonical tool
-definitions from `mcp/tools.json`. Each client receives the same six schemas and
-the same bundled behavioral skill.
-
-Client-specific MCP manifests root the same server at the directory token each
-host defines. Grok uses `${GROK_PLUGIN_ROOT}`, Claude and OMP use
-`${CLAUDE_PLUGIN_ROOT}`, Gemini uses `${extensionPath}`, and Codex resolves its
-local plugin root. This keeps installed plugins independent of the shell's
-current working directory.
-
-Hermes installs the repository root as a plugin. Its Python bridge loads the same
-`tools.json`, translates `inputSchema` to Hermes’ `parameters` field, and maps
-validated arguments directly to the same launcher. It does not read Keychain,
-show UI, handle secret values, invoke a shell, or reimplement redaction.
-
-Every adapter exposes only:
+Every supported client loads the canonical definitions in
+`plugins/keepkeys/mcp/tools.json`. The six operations are:
 
 - `keepkeys_store`
 - `keepkeys_list`
@@ -45,38 +31,105 @@ Every adapter exposes only:
 - `keepkeys_status`
 - `keepkeys_doctor`
 
-No runtime adapter has a package dependency install or plaintext retrieval
-route.
+There is deliberately no `get`, `show`, `copy`, `reveal`, `export`, or generic
+command tool. Store accepts a friendly name, an environment-variable name, and
+a description, but no secret value. The helper emits one bounded JSON result.
 
-## Native layer
+The Node MCP server and Hermes adapter validate the same limits and build the
+same fixed argument vector. Neither constructs a shell command. The platform
+dispatcher preserves only the minimum OS session variables required to reach
+the native vault and desktop, then launches exactly one bundled backend:
 
-`plugins/keepkeys/scripts/keepkeys` first verifies `keepkeys.swift` against the SHA-256 digest pinned in the launcher, then compiles it into a private user cache on first use or when either the Swift source or launcher/build recipe changes. The Swift helper uses AppKit for local prompts, Security.framework for Keychain, CryptoKit for executable fingerprints, and Foundation `Process` for direct execution.
+| Platform | Backend | Secure storage | Human interface |
+| --- | --- | --- | --- |
+| macOS 13+ | compiled Swift | Security.framework Keychain | AppKit secure text and approval windows |
+| Windows 10/11 | Windows PowerShell + compiled in-memory C# | Windows Credential Manager | WPF `PasswordBox` and approval windows |
+| desktop Linux | Python 3 | freedesktop Secret Service through `secret-tool` | native Tk password and approval windows |
 
-The plugin is macOS-only in 0.3. This is deliberate: a credential plugin should
-not claim a platform until its native storage, prompts, build, and failure
-behavior can be verified on that platform.
+`scripts/keepkeys-cli.mjs` provides the same dispatch for skills-only packages
+and direct local diagnostics.
 
-## Storage record
+## Platform records
 
-The Keychain service is `net.barnlabs.keepkeys`. The friendly name is the account attribute. One versioned metadata payload in `kSecAttrGeneric` stores:
+### macOS
 
-```json
-{
-  "version": 1,
-  "variable": "SERVICE_API_TOKEN",
-  "description": "Publishes approved service releases"
-}
+The Keychain service is `net.barnlabs.keepkeys`. The friendly name is the
+account attribute. A versioned JSON payload in `kSecAttrGeneric` stores the
+variable and description. The value is the same non-synchronizing,
+`WhenUnlockedThisDeviceOnly` generic-password item. Metadata listing requests
+attributes only and does not request value data.
+
+The POSIX launcher pins the Swift source SHA-256, compiles it with Apple
+Command Line Tools into a current-user-owned, non-symlink cache, and rebuilds
+when the source or build recipe changes.
+
+### Windows
+
+Each friendly name owns two generic Credential Manager records:
+
+```text
+net.barnlabs.keepkeys/meta/<name>    variable + description; empty blob
+net.barnlabs.keepkeys/secret/<name>  protected value; no user metadata
 ```
 
-The raw secret is the same Keychain item's protected value data. An add/update changes the metadata and value together, while listing reads attributes without retrieving value data. Friendly names remain visible Keychain metadata and are treated accordingly.
+Listing and pre-approval lookup enumerate only `meta/*`. The `secret/*` record
+is read after one-time approval. Replacement snapshots the old pair, writes
+the new secret and metadata, and attempts a full rollback if either write
+fails. Removal deletes both records after one native confirmation.
 
-## Command flow
+The bundled PowerShell helper compiles its small P/Invoke and bounded-process
+runner in memory with the system C# compiler. It does not write a helper
+assembly, secret file, or generated script.
 
-1. The agent sends friendly name, purpose, absolute program path, fixed arguments, and optional absolute working directory.
-2. The helper canonicalizes the executable and directory, rejects control characters, rejects common shells/environment dumps, and hashes the executable.
-3. The helper reads the Keychain record to display the stored variable name.
-4. A native alert shows the exact request and requires **Allow once**.
-5. The hash is rechecked.
-6. A child process starts with an empty environment plus the stored variable.
-7. Concurrent bounded readers drain stdout/stderr to avoid pipe deadlock.
-8. Exact/common secret representations are redacted before one JSON result returns.
+### Linux
+
+KeepKeys requires a Secret Service provider in the signed-in desktop session,
+such as GNOME Keyring or a compatible KWallet service. Each friendly name owns
+two items:
+
+```text
+service=net.barnlabs.keepkeys.metadata  encoded variable + description
+service=net.barnlabs.keepkeys.secret    protected value
+```
+
+`secret-tool search` is used only against the metadata service. Although the
+command prints that item's payload, the payload contains only agent-visible
+metadata; it never searches the protected-value service. After approval,
+`secret-tool lookup` transfers the value item through an anonymous pipe into
+the helper. Store transfers both payloads to `secret-tool store` through
+standard input. No credential value is placed in argv, an environment variable,
+a temporary file, or a terminal prompt.
+
+KeepKeys fails closed when `secret-tool`, a D-Bus user session, a Secret Service
+provider, Python Tk support, or a graphical session is absent.
+
+## Command-use flow
+
+1. The agent supplies the friendly name, plain-language purpose, absolute
+   program path, argument array, and optional absolute working directory.
+2. The native helper validates lengths and control characters, resolves the
+   executable, rejects shells and environment-dump tools, and computes
+   SHA-256.
+3. Interpreters and common network-capable programs receive a higher-visibility
+   risk label. A detected script entrypoint is fingerprinted separately.
+4. The helper reads only validated metadata and opens the native one-time
+   approval window.
+5. After approval, it reads the protected value and rechecks metadata.
+6. It recomputes the executable and optional entrypoint hashes.
+7. It launches the program directly, with an empty child environment plus the
+   one approved variable.
+8. Concurrent bounded readers drain stdout and stderr. If either exceeds
+   1 MiB, that entire stream is replaced with an omission marker.
+9. Exact, Base64, hexadecimal, URL-encoded, and JSON-escaped representations of
+   the value are redacted before JSON reaches the adapter.
+
+Output redaction is defense in depth. An approved process and its descendants
+receive the credential and can transform, persist, or transmit it.
+
+## Build and verification
+
+The repository exercises shared contracts on macOS, Windows, and Ubuntu for
+Node.js 18 and 22. Native jobs compile and round-trip a temporary credential
+through macOS Keychain, Windows Credential Manager, and a disposable Linux
+Secret Service session. The temporary value is generated during the job and
+removed before success.

@@ -12,12 +12,31 @@ if [ "$node_major" -lt 18 ]; then
   exit 1
 fi
 
-if [ "$(uname -s)" != "Darwin" ]; then
-  printf '%s\n' "KeepKeys 0.3 development requires macOS." >&2
-  exit 1
-fi
-
-/usr/bin/xcrun --find swiftc >/dev/null
-
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-"$root/plugins/keepkeys/scripts/keepkeys" --build-only
+case "$(uname -s)" in
+  Darwin)
+    /usr/bin/xcrun --find swiftc >/dev/null
+    "$root/plugins/keepkeys/scripts/keepkeys" --build-only
+    ;;
+  Linux)
+    command -v python3 >/dev/null 2>&1 || {
+      printf '%s\n' "Python 3 is required for the KeepKeys Linux helper." >&2
+      exit 1
+    }
+    command -v secret-tool >/dev/null 2>&1 || {
+      printf '%s\n' "secret-tool is required. Install your distribution's libsecret-tools package." >&2
+      exit 1
+    }
+    python3 -c 'import tkinter' >/dev/null 2>&1 || {
+      printf '%s\n' "Python Tk support is required (commonly the python3-tk package)." >&2
+      exit 1
+    }
+    python3 "$root/plugins/keepkeys/scripts/keepkeys.linux.py" --self-test >/dev/null
+    ;;
+  *)
+    printf '%s\n' "Use scripts/bootstrap.ps1 on Windows." >&2
+    exit 1
+    ;;
+esac
+
+printf '%s\n' "KeepKeys development prerequisites are ready."

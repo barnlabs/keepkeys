@@ -1,6 +1,6 @@
 {
   "name": "keepkeys",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "KeepKeys stores local secrets outside chat and lets Grok use them through approval-gated commands.",
   "author": {
     "name": "BarnLabs",
@@ -12,7 +12,9 @@
   "keywords": [
     "KeepKeys",
     "secrets",
-    "keychain",
+    "credential-vault",
+    "windows",
+    "linux",
     "agents",
     "mcp"
   ],

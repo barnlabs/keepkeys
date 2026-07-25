@@ -1,6 +1,6 @@
 {
   "name": "keepkeys",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Store local secrets outside chat and let your agent use them through approval-gated commands.",
   "author": {
     "name": "BarnLabs",
@@ -12,6 +12,10 @@
   "keywords": [
     "secrets",
     "keychain",
+    "credential-manager",
+    "secret-service",
+    "windows",
+    "linux",
     "agents",
     "mcp",
     "developer-tools"
@@ -21,12 +25,12 @@
   "interface": {
     "displayName": "KeepKeys",
     "shortDescription": "Local secrets for approved agent commands",
-    "longDescription": "KeepKeys opens a native secure-entry prompt, stores named secrets in macOS Keychain, and lets your agent use them only through commands you review and approve. Secret values are never returned to the model.",
+    "longDescription": "KeepKeys opens a native secure-entry prompt, stores named secrets in the operating system credential vault, and lets your agent use them only through commands you review and approve. Secret values are never returned to the model.",
     "developerName": "BarnLabs",
     "category": "Productivity",
     "capabilities": [
       "Native secret entry",
-      "macOS Keychain storage",
+      "Native macOS, Windows, and Linux vaults",
       "Approval-gated command use"
     ],
     "websiteURL": "https://github.com/barnlabs/keepkeys",

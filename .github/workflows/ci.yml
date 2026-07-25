@@ -14,21 +14,70 @@ concurrency:
 
 jobs:
   verify:
-    name: Verify on Node.js ${{ matrix.node-version }}
-    runs-on: macos-14
+    name: ${{ matrix.os }} / Node.js ${{ matrix.node-version }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
+        os: [macos-14, ubuntu-24.04, windows-2025]
         node-version: ["18", "22"]
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: ${{ matrix.node-version }}
-      - run: ./scripts/check
-      - run: ./scripts/test
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      - if: runner.os != 'Windows'
+        run: ./scripts/check
+      - if: runner.os != 'Windows'
+        run: ./scripts/test
+      - if: runner.os == 'Windows'
+        shell: powershell
+        run: .\scripts\check.ps1
+      - if: runner.os == 'Windows'
+        shell: powershell
+        run: .\scripts\test.ps1
+
+  native-vault:
+    name: Native vault / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04, windows-2025]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      - if: runner.os == 'macOS'
+        run: ./scripts/doctor
+      - if: runner.os == 'Windows'
+        shell: powershell
+        run: .\scripts\doctor.ps1
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes dbus-x11 gnome-keyring libsecret-tools python3-tk
+          ./scripts/linux-ci-doctor
+
+  package:
+    name: Reproducible packages
+    runs-on: macos-14
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: "22"
       - run: ./scripts/package-submission
       - run: ./scripts/package-release
-      - run: unzip -l dist/keepkeys-skills-0.3.0.zip
-      - run: unzip -l dist/keepkeys-0.3.0-source.zip
+      - run: unzip -l dist/keepkeys-skills-0.4.0.zip
+      - run: unzip -l dist/keepkeys-0.4.0-source.zip

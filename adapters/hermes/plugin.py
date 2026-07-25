@@ -6,12 +6,13 @@ import json
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
+import sys
 from typing import Any
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 _PLUGIN_ROOT = _REPOSITORY_ROOT / "plugins" / "keepkeys"
-_LAUNCHER = _PLUGIN_ROOT / "scripts" / "keepkeys"
 _TOOL_SPEC = _PLUGIN_ROOT / "mcp" / "tools.json"
 _SKILL = _PLUGIN_ROOT / "skills" / "keepkeys" / "SKILL.md"
 _MAX_OUTPUT_BYTES = 2 * 1024 * 1024
@@ -85,25 +86,123 @@ def _helper_arguments(tool_name: str, raw_args: Any) -> list[str]:
 
 
 def _run_helper(tool_name: str, args: Any) -> dict[str, Any]:
-    command = [str(_LAUNCHER), *_helper_arguments(tool_name, args)]
+    helper_arguments = _helper_arguments(tool_name, args)
+    node = shutil.which("node")
+    if node is None:
+        raise RuntimeError("KeepKeys requires Node.js 18 or newer.")
+    environment: dict[str, str] = {
+        "KEEPKEYS_CALLED_FROM_MCP": "1",
+        "KEEPKEYS_PLUGIN_ROOT": str(_PLUGIN_ROOT),
+        "KEEPKEYS_ASSETS_DIR": str(_PLUGIN_ROOT / "assets"),
+    }
+    if sys.platform == "darwin":
+        environment.update(
+            {
+                "HOME": str(Path.home()),
+                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+            }
+        )
+        for key in ("LANG", "LC_ALL", "TMPDIR"):
+            if value := os.environ.get(key):
+                environment[key] = value
+    elif sys.platform == "win32":
+        system_root = os.environ.get("SystemRoot", r"C:\Windows")
+        environment.update(
+            {
+                "USERPROFILE": os.environ.get("USERPROFILE", str(Path.home())),
+                "SystemRoot": system_root,
+                "WINDIR": os.environ.get("WINDIR", system_root),
+                "PATH": os.pathsep.join(
+                    [
+                        str(Path(system_root) / "System32"),
+                        str(
+                            Path(system_root)
+                            / "System32"
+                            / "WindowsPowerShell"
+                            / "v1.0"
+                        ),
+                    ]
+                ),
+            }
+        )
+        for key in (
+            "APPDATA",
+            "LOCALAPPDATA",
+            "TEMP",
+            "TMP",
+            "USERNAME",
+            "USERDOMAIN",
+        ):
+            if value := os.environ.get(key):
+                environment[key] = value
+    elif sys.platform.startswith("linux"):
+        environment.update(
+            {
+                "HOME": str(Path.home()),
+                "PATH": "/usr/local/bin:/usr/bin:/bin",
+            }
+        )
+        for key in (
+            "DBUS_SESSION_BUS_ADDRESS",
+            "DISPLAY",
+            "LANG",
+            "LC_ALL",
+            "WAYLAND_DISPLAY",
+            "XAUTHORITY",
+            "XDG_CURRENT_DESKTOP",
+            "XDG_RUNTIME_DIR",
+            "XDG_SESSION_TYPE",
+        ):
+            if value := os.environ.get(key):
+                environment[key] = value
+    else:
+        raise RuntimeError(
+            f"KeepKeys does not support platform {sys.platform!r}. "
+            "Supported platforms are macOS, Windows, and Linux."
+        )
+
+    command = [
+        node,
+        str(_PLUGIN_ROOT / "scripts" / "keepkeys-cli.mjs"),
+        *helper_arguments,
+    ]
     timeout = int(os.environ.get("KEEPKEYS_TIMEOUT_SECONDS", _DEFAULT_TIMEOUT_SECONDS))
+    popen_options: dict[str, Any] = {}
+    if sys.platform == "win32":
+        popen_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        popen_options["start_new_session"] = True
     process = subprocess.Popen(
         command,
         cwd=_PLUGIN_ROOT,
-        env={
-            "HOME": str(Path.home()),
-            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
-            "KEEPKEYS_CALLED_FROM_MCP": "1",
-        },
+        env=environment,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        start_new_session=True,
+        **popen_options,
     )
     try:
         stdout, _stderr = process.communicate(timeout=max(timeout, 1))
     except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
+        if sys.platform == "win32":
+            subprocess.run(
+                [
+                    str(
+                        Path(os.environ.get("SystemRoot", r"C:\Windows"))
+                        / "System32"
+                        / "taskkill.exe"
+                    ),
+                    "/PID",
+                    str(process.pid),
+                    "/T",
+                    "/F",
+                ],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        else:
+            os.killpg(process.pid, signal.SIGKILL)
         process.communicate()
         raise RuntimeError("KeepKeys timed out and terminated the local helper process group.")
 

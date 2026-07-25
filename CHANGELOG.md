@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0 — 2026-07-24
+
+- Added native Windows support with WPF secure entry, paired metadata/value
+  Credential Manager records, approval-before-value-read, transactional
+  replacement rollback, direct process execution, and bounded redaction.
+- Added native desktop Linux support with Tk secure entry, freedesktop Secret
+  Service storage, metadata-only label search, fail-closed prerequisite checks,
+  direct process execution, and bounded redaction.
+- Hardened macOS Run so Keychain value data is not requested until after
+  one-time approval and metadata is rechecked before launch.
+- Added executable risk labels and separately fingerprinted interpreter
+  entrypoints on all three platforms.
+- Added one cross-platform dispatcher and CLI used by MCP, Hermes, and
+  skills-only packages.
+- Expanded CI to macOS, Windows, and Ubuntu across Node.js 18 and 22, with a
+  temporary native-vault round trip on every operating system.
+- Rewrote the architecture, threat model, privacy, compatibility, installation,
+  and security guidance around the three-platform boundary.
+
 ## 0.3.0 — 2026-07-24
 
 - Standardized the product as **KeepKeys** with `keepkeys` as the lowercase

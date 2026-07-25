@@ -7,21 +7,21 @@
   "plugins": [
     {
       "name": "keepkeys",
-      "description": "KeepKeys stores local macOS Keychain secrets outside chat and uses them only for commands the user reviews and approves.",
+      "description": "KeepKeys stores local secrets in the native macOS, Windows, or Linux credential vault and uses them only for commands the user reviews and approves.",
       "category": "security",
       "source": {
         "type": "local",
         "path": "./plugins/keepkeys"
       },
       "homepage": "https://github.com/barnlabs/keepkeys",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "author": {
         "name": "BarnLabs"
       },
       "keywords": [
         "KeepKeys",
         "agent secrets",
-        "macOS Keychain",
+        "native credential vault",
         "MCP",
         "credential security"
       ]

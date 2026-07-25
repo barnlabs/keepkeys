@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+ci_home=$(mktemp -d)
+ci_runtime=$(mktemp -d)
+cleanup() {
+  rm -rf "$ci_home" "$ci_runtime"
+}
+trap cleanup EXIT INT TERM
+chmod 700 "$ci_home" "$ci_runtime"
+
+export HOME="$ci_home"
+export XDG_RUNTIME_DIR="$ci_runtime"
+export KEEPKEYS_LINUX_HELPER="$root/plugins/keepkeys/scripts/keepkeys.linux.py"
+
+dbus-run-session -- sh -eu <<'INNER'
+daemon_environment=$(
+  printf '%s' 'keepkeys-ci-keyring' |
+    gnome-keyring-daemon --unlock --components=secrets
+)
+eval "$daemon_environment"
+export GNOME_KEYRING_CONTROL
+python3 "$KEEPKEYS_LINUX_HELPER" doctor
+INNER

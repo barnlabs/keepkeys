@@ -39,6 +39,10 @@ for (const relative of [
   "skills/keepkeys/SKILL.md",
   "scripts/keepkeys",
   "scripts/keepkeys.swift",
+  "scripts/keepkeys-cli.mjs",
+  "scripts/keepkeys.linux.py",
+  "scripts/keepkeys.windows.ps1",
+  "scripts/platform.mjs",
   "LICENSE",
   "PRIVACY.md",
   "TERMS.md",
@@ -68,6 +72,10 @@ for member in \
   "keepkeys/skills/keepkeys/SKILL.md" \
   "keepkeys/scripts/keepkeys" \
   "keepkeys/scripts/keepkeys.swift" \
+  "keepkeys/scripts/keepkeys-cli.mjs" \
+  "keepkeys/scripts/keepkeys.linux.py" \
+  "keepkeys/scripts/keepkeys.windows.ps1" \
+  "keepkeys/scripts/platform.mjs" \
   "keepkeys/LICENSE" \
   "keepkeys/PRIVACY.md" \
   "keepkeys/TERMS.md"

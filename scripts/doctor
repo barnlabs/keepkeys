@@ -4,4 +4,4 @@ set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
-plugins/keepkeys/scripts/keepkeys doctor
+node plugins/keepkeys/scripts/keepkeys-cli.mjs doctor

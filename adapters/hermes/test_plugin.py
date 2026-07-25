@@ -93,12 +93,12 @@ class HermesAdapterTests(unittest.TestCase):
         with patch.object(
             plugin,
             "_run_helper",
-            return_value={"status": "ok", "version": "0.3.0"},
+            return_value={"status": "ok", "version": "0.4.0"},
         ):
             result = plugin._handler_for("keepkeys_status")({})
         self.assertEqual(
             json.loads(result),
-            {"status": "ok", "version": "0.3.0"},
+            {"status": "ok", "version": "0.4.0"},
         )
 
 

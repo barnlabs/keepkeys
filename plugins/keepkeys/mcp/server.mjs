@@ -2,10 +2,10 @@
 
 import { spawn } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
-import { homedir } from "node:os";
 import { createInterface } from "node:readline";
-import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { helperInvocation, terminateProcessTree } from "../scripts/platform.mjs";
 
 const PROTOCOL_VERSION = "2025-06-18";
 const MAX_HELPER_OUTPUT = 2 * 1024 * 1024;
@@ -87,25 +87,21 @@ export function helperArguments(toolName, rawArguments) {
 }
 
 function runHelper(toolName, args) {
-  const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-  const launcher = resolve(pluginRoot, "scripts", "keepkeys");
   const helperArgs = helperArguments(toolName, args);
+  const invocation = helperInvocation(helperArgs);
   const timeoutMs = Number.parseInt(
     process.env.KEEPKEYS_TIMEOUT_MS ?? `${DEFAULT_TIMEOUT_MS}`,
     10,
   );
 
   return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(launcher, helperArgs, {
-      cwd: pluginRoot,
-      env: {
-        HOME: homedir(),
-        PATH: "/usr/bin:/bin:/usr/sbin:/sbin",
-        KEEPKEYS_CALLED_FROM_MCP: "1",
-      },
+    const child = spawn(invocation.command, invocation.args, {
+      cwd: invocation.env.KEEPKEYS_PLUGIN_ROOT,
+      env: invocation.env,
       stdio: ["ignore", "pipe", "pipe"],
       shell: false,
-      detached: true,
+      detached: process.platform !== "win32",
+      windowsHide: true,
     });
     if (child.pid) activeProcessGroups.add(child.pid);
 
@@ -124,11 +120,7 @@ function runHelper(toolName, args) {
     const append = (current, chunk) => {
       const next = Buffer.concat([current, chunk]);
       if (next.length > MAX_HELPER_OUTPUT) {
-        try {
-          process.kill(-child.pid, "SIGKILL");
-        } catch {
-          child.kill("SIGKILL");
-        }
+        terminateProcessTree(child);
         throw new Error("KeepKeys helper output exceeded the 2 MiB safety limit.");
       }
       return next;
@@ -179,11 +171,7 @@ function runHelper(toolName, args) {
     });
 
     timer = setTimeout(() => {
-      try {
-        process.kill(-child.pid, "SIGKILL");
-      } catch {
-        child.kill("SIGKILL");
-      }
+      terminateProcessTree(child);
       finish(
         rejectPromise,
         new Error(
@@ -207,7 +195,7 @@ export function createRequestHandler(helperRunner = runHelper) {
               ? params.protocolVersion
               : PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: "keepkeys", version: "0.3.0" },
+          serverInfo: { name: "keepkeys", version: "0.4.0" },
           instructions:
             "KeepKeys stores values outside chat and never exposes plaintext secrets. Use keepkeys_run only for direct commands the user intends to approve.",
         },
@@ -244,11 +232,7 @@ async function main() {
   const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
   const terminateActiveGroups = () => {
     for (const pid of activeProcessGroups) {
-      try {
-        process.kill(-pid, "SIGKILL");
-      } catch {
-        // The process group already exited.
-      }
+      terminateProcessTree({ pid, kill() {} });
     }
   };
   process.once("SIGINT", () => {

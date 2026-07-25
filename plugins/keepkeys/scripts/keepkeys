@@ -2,7 +2,7 @@
 set -eu
 
 if [ "$(/usr/bin/uname -s)" != "Darwin" ]; then
-  printf '%s\n' '{"status":"error","message":"KeepKeys 0.3 supports macOS only."}'
+  printf '%s\n' '{"status":"error","message":"This launcher is the macOS backend. KeepKeys selects its Windows and Linux backends through the MCP or Hermes adapter."}'
   exit 1
 fi
 
@@ -12,7 +12,7 @@ launcher_file="$script_dir/keepkeys"
 cache_dir="${KEEPKEYS_CACHE_DIR:-${HOME}/Library/Caches/net.barnlabs.keepkeys}"
 binary="$cache_dir/keepkeys-helper"
 hash_file="$cache_dir/build-inputs.sha256"
-expected_source_hash="2f8f5cc3ead8ad2244f7c9a892ff002726a0ef83c7e16dd6aeae270b5f0dd502"
+expected_source_hash="94c09a030f34933903f188597ebf9cd6a9e55b6fcbef78df3d694f15400bb37f"
 
 umask 077
 if [ -L "$cache_dir" ]; then
@@ -86,4 +86,5 @@ if [ "${1:-}" = "--build-only" ]; then
 fi
 
 exec /usr/bin/env -i HOME="$HOME" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+  KEEPKEYS_ASSETS_DIR="$script_dir/../assets" \
   "$binary" "$@"
