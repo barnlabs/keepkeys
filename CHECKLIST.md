@@ -25,20 +25,20 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 
 ## Production baseline — 0.4.1
 
-- [ ] **Secret-use boundary is closed.**
+- [x] **Secret-use boundary is closed.**
   - Implementer context: shared schema, native store/list/remove/run paths,
     redaction, and no-retrieval invariant.
   - Required tests: schema rejection of value fields; native validation tests;
     synthetic scoped-child test; secret-pattern scan; threat-model diff.
   - Acceptance: no plaintext input/output path and no pre-approval protected
     read on any platform.
-- [ ] **macOS, Windows, and Linux native backends are proven.**
+- [x] **macOS, Windows, and Linux native backends are proven.**
   - Implementer context: AppKit/Keychain, WPF/Credential Manager, and
     Tk/Secret Service parity.
   - Required tests: headless helper suites plus generated add/list/update/read/
     delete/cleanup doctors on `macos-14`, `windows-2025`, and `ubuntu-24.04`.
   - Acceptance: every OS job green in one public CI run.
-- [ ] **Seven host surfaces match their published contracts.**
+- [x] **Seven host surfaces match their published contracts.**
   - Implementer context: Codex, Grok Build/Grok Code, Claude Code, Oh My Pi,
     Hermes, Gemini CLI, and Agent Skills, all delegating to the same core.
   - Required tests: manifest parsing, canonical tool-schema/skill equality,
@@ -46,7 +46,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     install pins, and primary-source compatibility review.
   - Acceptance: structural PASS for every host; runtime smoke testing is
     separately budgeted where a host must be installed or authenticated.
-- [ ] **Install and deliberate update paths are safe and maintainable.**
+- [x] **Install and deliberate update paths are safe and maintainable.**
   - Implementer context: immutable source commit `F`, catalog commit `C`,
     checksummed archives, stable `update.json`, and explicit user-run update
     check.
@@ -54,14 +54,14 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     origin, response-size bound, package contents, checksums, stale-pin scan.
   - Acceptance: update discovery never auto-installs and always returns
     reviewable immutable commits.
-- [ ] **GitHub and brand surfaces are production quality.**
+- [x] **GitHub and brand surfaces are production quality.**
   - Implementer context: Keykeeper assets, README, repository description and
     topics, issue/PR templates, security policy, design and governance docs.
   - Required tests: asset existence/dimensions, link scan, community-profile
     inventory, cross-platform language scan, public raw-file checks.
   - Acceptance: public repository is coherent, searchable, and honest about
     boundaries and limitations.
-- [ ] **Independent adversarial release review passed.**
+- [x] **Independent adversarial release review passed.**
   - Implementer context: complete 0.4.1 diff and public evidence.
   - Required tests: dedicated read-only Codex review, project rules from
     `AGENTS.md`, regression suite, final public CI, and serious-finding
@@ -71,11 +71,20 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 
 ### Release evidence
 
-- Functional source commit (`F`): pending
-- Catalog commit (`C`): pending
-- Documentation/update commit: pending
-- Public CI run: pending
-- Independent reviewer verdict: pending
+- Functional source commit (`F`):
+  `62b2eb87f913abe3c109823c2d315e95bea432af`
+- Catalog commit (`C`):
+  `bc82f993c0f8d9912fc1e0b0b1f14b233766559b`
+- Documentation/update commit:
+  `f388304aad4f92c03fcb4e1494120f50ce60d74b`
+- Public CI run:
+  [30138907979](https://github.com/barnlabs/keepkeys/actions/runs/30138907979)
+  — macOS, Windows, and Linux Node 18/22; all three native-vault doctors;
+  reproducible packages; and `Release gate` passed.
+- Independent reviewer verdict: `PASS` on repair cycle 2; no unresolved P0/P1
+  defect. Reviewer reopened the exact `F → C → docs` chain and the public CI
+  evidence after the implementer repaired strict argument validation, Linux
+  dispatcher integrity, and immutable OMP contract evidence.
 - Rollback: reinstall the prior reviewed functional commit; native-vault
   records are not removed by plugin rollback.
 
