@@ -1,10 +1,5 @@
 # Install KeepKeys
 
-> **0.4.2 release candidate:** the pins below become the stable installation
-> only after the public macOS/Windows/Linux matrix, Release gate, and independent
-> review are recorded in [CHECKLIST.md](CHECKLIST.md). Until then,
-> [`update.json`](update.json) continues to advertise 0.4.1 as stable.
-
 KeepKeys supports macOS, Windows, and desktop Linux. Every client integration
 uses the same tool schema and platform dispatcher.
 

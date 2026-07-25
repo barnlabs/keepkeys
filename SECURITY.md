@@ -4,8 +4,8 @@
 
 | Version | Status |
 | --- | --- |
-| `0.4.2` | Release candidate pending public cross-platform and independent review evidence |
-| `0.4.1` | Current stable source release; macOS, Windows, and desktop Linux |
+| `0.4.2` | Current stable source release; macOS, Windows, and desktop Linux |
+| `0.4.1` | Supported for critical security fixes |
 | `0.3.x` | Supported for critical security fixes |
 | `0.2.x` | Supported for critical security fixes |
 | `0.1.x` | Supported for critical security fixes |

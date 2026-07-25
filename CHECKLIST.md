@@ -23,7 +23,7 @@ findings to the same implementer, repair only those failures, rerun regression
 checks, and send the new diff to the same reviewer. Default to two repair
 cycles. Check the box only after reviewer `PASS` and root integration proof.
 
-## Production baseline — 0.4.1
+## Production baseline — 0.4.2
 
 - [x] **Secret-use boundary is closed.**
   - Implementer context: shared schema, native store/list/remove/run paths,
@@ -62,7 +62,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   - Acceptance: public repository is coherent, searchable, and honest about
     boundaries and limitations.
 - [x] **Independent adversarial release review passed.**
-  - Implementer context: complete 0.4.1 diff and public evidence.
+  - Implementer context: complete 0.4.2 diff and public evidence.
   - Required tests: dedicated read-only Codex review, project rules from
     `AGENTS.md`, regression suite, final public CI, and serious-finding
     disposition.
@@ -72,19 +72,24 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### Release evidence
 
 - Functional source commit (`F`):
-  `62b2eb87f913abe3c109823c2d315e95bea432af`
+  `e5276925d390704fccdf4aaeba47280464762a1c`
 - Catalog commit (`C`):
-  `bc82f993c0f8d9912fc1e0b0b1f14b233766559b`
-- Documentation/update commit:
-  `f388304aad4f92c03fcb4e1494120f50ce60d74b`
+  `c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd`
+- Reviewed documentation candidate:
+  `eb1fbb2853d090ebbc5693a5034e63c18321705d`
 - Public CI run:
-  [30138907979](https://github.com/barnlabs/keepkeys/actions/runs/30138907979)
+  [30148884739](https://github.com/barnlabs/keepkeys/actions/runs/30148884739)
   — macOS, Windows, and Linux Node 18/22; all three native-vault doctors;
   reproducible packages; and `Release gate` passed.
-- Independent reviewer verdict: `PASS` on repair cycle 2; no unresolved P0/P1
-  defect. Reviewer reopened the exact `F → C → docs` chain and the public CI
-  evidence after the implementer repaired strict argument validation, Linux
-  dispatcher integrity, and immutable OMP contract evidence.
+- Independent reviewer verdict: `PASS` after reopening the focused repair;
+  no actionable defect. The reviewer verified the exact `F → C → docs` chain,
+  public CI, adapter UTF-8 parity, Windows case-sensitive URL handling,
+  serialized Credential Manager limits, clipboard coordinators, structured
+  Linux errors, and the tool-I/O metadata allowlist.
+- Dedicated local Codex review: no actionable regression after independently
+  rerunning `check`, `test`, submission packaging, and source packaging.
+- Stable update channel: `update.json` advertises 0.4.2 with the exact `F` and
+  `C` commits above; the release gate rejects stale 0.4.1 metadata.
 - Rollback: reinstall the prior reviewed functional commit; native-vault
   records are not removed by plugin rollback.
 

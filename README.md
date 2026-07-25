@@ -13,12 +13,8 @@
   <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-1F2D27.svg" />
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-1F2D27.svg" />
   <img alt="desktop Linux" src="https://img.shields.io/badge/Linux-desktop-1F2D27.svg" />
-  <img alt="KeepKeys 0.4.2 release candidate" src="https://img.shields.io/badge/version-0.4.2--candidate-D96C4D.svg" />
+  <img alt="KeepKeys 0.4.2" src="https://img.shields.io/badge/version-0.4.2-D96C4D.svg" />
 </p>
-
-> **Release candidate:** the 0.4.2 source and installation pins on this branch
-> remain candidates until the public macOS/Windows/Linux matrix, Release gate,
-> and independent review are recorded in [CHECKLIST.md](CHECKLIST.md).
 
 KeepKeys is the open-source, local secret-use broker for coding agents. It
 opens a native paste-and-store window, stores the value in the operating system's
