@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "barnlabs",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Open-source agent tools from BarnLabs.",
   "owner": {
     "name": "BarnLabs",
@@ -21,7 +21,7 @@
         "url": "https://github.com/barnlabs/keepkeys.git",
         "path": "plugins/keepkeys",
         "ref": "main",
-        "sha": "defa874c1a586ffa0f5dd9b94bfffd20b329a79d"
+        "sha": "a2be1ab2183cd332d1ca0c6a3eccf85b5bece6d2"
       },
       "category": "security",
       "homepage": "https://github.com/barnlabs/keepkeys",
