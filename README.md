@@ -73,12 +73,12 @@ It never falls back to a plaintext keyring, terminal password prompt, or file.
 
 | Client | Package surface | Immutable install |
 | --- | --- | --- |
-| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref 71f18b5c4bf1138dbf02e97bfc8518280655b888`<br>`codex plugin add keepkeys@barnlabs` |
-| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'barnlabs/keepkeys@71f18b5c4bf1138dbf02e97bfc8518280655b888#plugins/keepkeys' --trust` |
+| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref cb3d04709d5b34f80dce25f59a28e8f2b15aacd0`<br>`codex plugin add keepkeys@barnlabs` |
+| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'barnlabs/keepkeys@cb3d04709d5b34f80dce25f59a28e8f2b15aacd0#plugins/keepkeys' --trust` |
 | **Claude Code** | Claude plugin + pinned catalog | see [Install](INSTALL.md#claude-code) |
 | **Oh My Pi** | OMP/Claude-compatible pinned catalog | see [Install](INSTALL.md#oh-my-pi) |
 | **Hermes** | repository-root Hermes plugin | see [Install](INSTALL.md#hermes) |
-| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref 71f18b5c4bf1138dbf02e97bfc8518280655b888` |
+| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref cb3d04709d5b34f80dce25f59a28e8f2b15aacd0` |
 | **Agent Skills clients** | standard `skills/keepkeys/SKILL.md` | reviewed checkout or skills-only archive |
 
 All integrations expose the same six tools and dispatch to the same
@@ -92,8 +92,8 @@ platform-native boundary:
 - `keepkeys_doctor`
 
 Claude Code and Oh My Pi use the immutable catalog at commit
-`e003c7b1b2c5b2c439ea1cdedb7ea97fae94a9cd`; that catalog pins the functional
-plugin source at `71f18b5c4bf1138dbf02e97bfc8518280655b888`. See
+`6bc245848c5a52e1a8be19acc0866716ae340935`; that catalog pins the functional
+plugin source at `cb3d04709d5b34f80dce25f59a28e8f2b15aacd0`. See
 [INSTALL.md](INSTALL.md) for copy-paste commands and platform prerequisites.
 
 ## What the user experiences
