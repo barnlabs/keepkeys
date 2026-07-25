@@ -3,7 +3,7 @@ import CryptoKit
 import Foundation
 import Security
 
-private let keepKeysVersion = "0.4.1"
+private let keepKeysVersion = "0.4.2"
 private let keychainService = "net.barnlabs.keepkeys"
 private let maximumSecretBytes = 2_048
 private let maximumCapturedBytes = 1_048_576
@@ -17,6 +17,42 @@ private struct EntryMetadata: Codable, Equatable {
     let version: Int
     let variable: String
     let description: String
+    let provider: String?
+    let documentationURLs: [String]?
+
+    init(
+        version: Int,
+        variable: String,
+        description: String,
+        provider: String? = nil,
+        documentationURLs: [String]? = nil
+    ) {
+        self.version = version
+        self.variable = variable
+        self.description = description
+        self.provider = provider
+        self.documentationURLs = documentationURLs
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case variable
+        case description
+        case provider
+        case documentationURLs
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        version = try values.decode(Int.self, forKey: .version)
+        variable = try values.decode(String.self, forKey: .variable)
+        description = try values.decode(String.self, forKey: .description)
+        provider = try values.decodeIfPresent(String.self, forKey: .provider)
+        documentationURLs = try values.decodeIfPresent(
+            [String].self,
+            forKey: .documentationURLs
+        )
+    }
 }
 
 private struct EntrySummary {
@@ -145,8 +181,92 @@ private func validateSecret(_ value: String) throws {
     }
 }
 
+private enum StoreCaptureFailure: LocalizedError {
+    case clipboardChanged
+    case clipboardClearFailed
+    case invalidSecret
+    case replacementCancelled
+
+    var errorDescription: String? {
+        switch self {
+        case .clipboardChanged:
+            return "The clipboard changed while KeepKeys was reading it. Copy the complete key, then press Paste & Store again."
+        case .clipboardClearFailed:
+            return "KeepKeys could not clear the clipboard, so the key was not stored. Copy it again and retry."
+        case .invalidSecret:
+            return "No usable key was found on the clipboard. KeepKeys cleared it; copy the complete key, then press Paste & Store again."
+        case .replacementCancelled:
+            return "Replacement was cancelled. KeepKeys already cleared the clipboard; copy the key again if you retry."
+        }
+    }
+}
+
+private func performPasteAndStore(
+    readClipboard: () -> (value: String, version: Int),
+    currentClipboardVersion: () -> Int,
+    clearClipboard: () -> Int,
+    storeSecret: (String) throws -> Void
+) throws {
+    let captured = readClipboard()
+    var secret = captured.value
+    defer { secret = "" }
+    guard currentClipboardVersion() == captured.version else {
+        throw StoreCaptureFailure.clipboardChanged
+    }
+    guard clearClipboard() != captured.version else {
+        throw StoreCaptureFailure.clipboardClearFailed
+    }
+    do {
+        try validateSecret(secret)
+    } catch {
+        throw StoreCaptureFailure.invalidSecret
+    }
+    try storeSecret(secret)
+}
+
 private func validDescription(_ value: String) -> Bool {
     !value.isEmpty && value.utf8.count <= 240 && !hasControlCharacters(value)
+}
+
+private func validProvider(_ value: String) -> Bool {
+    !value.isEmpty && value.utf8.count <= 80 && !hasControlCharacters(value)
+}
+
+private func validDocumentationURL(_ value: String) -> Bool {
+    guard value.utf8.count <= 1_024,
+          !hasControlCharacters(value),
+          let components = URLComponents(string: value),
+          components.scheme?.lowercased() == "https",
+          components.host?.isEmpty == false,
+          components.user == nil,
+          components.password == nil
+    else {
+        return false
+    }
+    return true
+}
+
+private func validMetadata(_ metadata: EntryMetadata) -> Bool {
+    guard (metadata.version == 1 || metadata.version == 2),
+          validVariable(metadata.variable),
+          validDescription(metadata.description)
+    else {
+        return false
+    }
+    if metadata.version == 1 {
+        return true
+    }
+    guard let provider = metadata.provider,
+          let documentationURLs = metadata.documentationURLs,
+          validProvider(provider),
+          (1...3).contains(documentationURLs.count),
+          Set(documentationURLs).count == documentationURLs.count,
+          documentationURLs.reduce(0, { $0 + $1.utf8.count }) <= 1_800,
+          documentationURLs.allSatisfy(validDocumentationURL)
+    else {
+        return false
+    }
+    return true
 }
 
 private func keychainQuery(name: String) -> [String: Any] {
@@ -172,12 +292,25 @@ private enum KeychainStore {
         throw KeepKeysFailure(message: "Keychain lookup failed (OSStatus \(status)).")
     }
 
-    static func store(name: String, variable: String, description: String, secret: String) throws {
+    static func store(
+        name: String,
+        variable: String,
+        description: String,
+        provider: String,
+        documentationURLs: [String],
+        secret: String
+    ) throws {
         try validateSecret(secret)
-        guard validDescription(description) else {
-            throw KeepKeysFailure(message: "Descriptions must be one visible line of at most 240 bytes.")
+        let metadata = EntryMetadata(
+            version: 2,
+            variable: variable,
+            description: description,
+            provider: provider,
+            documentationURLs: documentationURLs
+        )
+        guard validMetadata(metadata) else {
+            throw KeepKeysFailure(message: "The agent supplied invalid KeepKeys metadata.")
         }
-        let metadata = EntryMetadata(version: 1, variable: variable, description: description)
         let encodedMetadata = try JSONEncoder().encode(metadata)
         var encodedSecret = Data(secret.utf8)
         defer { encodedSecret.resetBytes(in: 0..<encodedSecret.count) }
@@ -239,9 +372,7 @@ private enum KeychainStore {
                 message: "The Keychain item is not a supported KeepKeys record."
             )
         }
-        guard metadata.version == 1,
-              validVariable(metadata.variable),
-              validDescription(metadata.description),
+        guard validMetadata(metadata),
               let secret = String(data: secretData, encoding: .utf8)
         else {
             throw KeepKeysFailure(message: "The Keychain item has invalid KeepKeys metadata.")
@@ -263,9 +394,7 @@ private enum KeychainStore {
               let row = result as? [String: Any],
               let metadataData = row[kSecAttrGeneric as String] as? Data,
               let metadata = try? JSONDecoder().decode(EntryMetadata.self, from: metadataData),
-              metadata.version == 1,
-              validVariable(metadata.variable),
-              validDescription(metadata.description)
+              validMetadata(metadata)
         else {
             throw KeepKeysFailure(message: "The Keychain item has invalid KeepKeys metadata.")
         }
@@ -300,10 +429,9 @@ private enum KeychainStore {
             guard let name = row[kSecAttrAccount as String] as? String,
                   let metadataData = row[kSecAttrGeneric as String] as? Data,
                   let metadata = try? JSONDecoder().decode(EntryMetadata.self, from: metadataData),
-                  metadata.version == 1,
+                  validMetadata(metadata),
                   validName(name),
-                  validVariable(metadata.variable),
-                  validDescription(metadata.description)
+                  validVariable(metadata.variable)
             else {
                 return nil
             }
@@ -316,12 +444,14 @@ private enum KeychainStore {
         }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    static func entries() throws -> [[String: String]] {
+    static func entries() throws -> [[String: Any]] {
         try summaries().map { summary in
             [
                 "name": summary.name,
                 "variable": summary.metadata.variable,
                 "description": summary.metadata.description,
+                "provider": summary.metadata.provider ?? "",
+                "documentationUrls": summary.metadata.documentationURLs ?? [],
             ]
         }
     }
@@ -399,23 +529,6 @@ private func showError(_ message: String) {
     alert.runModal()
 }
 
-private func makeField(
-    frame: NSRect,
-    value: String,
-    placeholder: String,
-    accessibilityLabel: String,
-    secure: Bool = false
-) -> NSTextField {
-    let field: NSTextField = secure
-        ? NSSecureTextField(frame: frame)
-        : NSTextField(frame: frame)
-    field.stringValue = value
-    field.placeholderString = placeholder
-    field.setAccessibilityLabel(accessibilityLabel)
-    field.usesSingleLineMode = true
-    return field
-}
-
 private func makeLabel(_ title: String, frame: NSRect) -> NSTextField {
     let label = NSTextField(labelWithString: title)
     label.frame = frame
@@ -427,46 +540,97 @@ private func makeLabel(_ title: String, frame: NSRect) -> NSTextField {
 private func storeInteractively(
     suggestedName: String?,
     suggestedVariable: String?,
-    suggestedDescription: String?
+    suggestedDescription: String?,
+    suggestedProvider: String?,
+    suggestedDocumentationURLs: [String]
 ) throws
     -> [String: Any]
 {
-    activateApplication()
+    guard let suggestedName,
+          let suggestedVariable,
+          let suggestedDescription,
+          let suggestedProvider
+    else {
+        throw KeepKeysFailure(
+            message: "The agent must supply the name, variable, description, provider, and documentation before KeepKeys opens."
+        )
+    }
+    let name = suggestedName.trimmingCharacters(in: .whitespacesAndNewlines)
+    let variable = suggestedVariable.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    let description = suggestedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+    let provider = suggestedProvider.trimmingCharacters(in: .whitespacesAndNewlines)
+    let documentationURLs = suggestedDocumentationURLs.map {
+        $0.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    let metadata = EntryMetadata(
+        version: 2,
+        variable: variable,
+        description: description,
+        provider: provider,
+        documentationURLs: documentationURLs
+    )
+    guard validName(name), validMetadata(metadata) else {
+        throw KeepKeysFailure(
+            message: "The agent supplied invalid KeepKeys metadata. No clipboard data was accessed."
+        )
+    }
 
-    let container = NSView(frame: NSRect(x: 0, y: 0, width: 470, height: 245))
-    let nameField = makeField(
-        frame: NSRect(x: 0, y: 193, width: 470, height: 28),
-        value: suggestedName ?? "",
-        placeholder: "github-release",
-        accessibilityLabel: "Friendly name"
+    activateApplication()
+    let container = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 300))
+    container.addSubview(
+        makeLabel("AGENT-PREPARED CREDENTIAL", frame: NSRect(x: 0, y: 276, width: 500, height: 18))
     )
-    let variableField = makeField(
-        frame: NSRect(x: 0, y: 133, width: 470, height: 28),
-        value: suggestedVariable ?? "",
-        placeholder: "GITHUB_TOKEN",
-        accessibilityLabel: "Environment variable"
+    let summary = NSTextView(frame: NSRect(x: 0, y: 0, width: 496, height: 62))
+    summary.string = "\(name)  →  \(variable)\n\(provider)\n\(description)"
+    summary.isEditable = false
+    summary.isSelectable = true
+    summary.drawsBackground = false
+    summary.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+    summary.textColor = .labelColor
+    summary.textContainerInset = NSSize(width: 8, height: 6)
+    summary.isHorizontallyResizable = false
+    summary.textContainer?.widthTracksTextView = true
+    summary.setAccessibilityLabel("Agent-prepared credential details")
+
+    let summaryScroll = NSScrollView(
+        frame: NSRect(x: 0, y: 204, width: 500, height: 65)
     )
-    let descriptionField = makeField(
-        frame: NSRect(x: 0, y: 73, width: 470, height: 28),
-        value: suggestedDescription ?? "",
-        placeholder: "Publishes the approved production deployment",
-        accessibilityLabel: "Description"
+    summaryScroll.documentView = summary
+    summaryScroll.hasVerticalScroller = true
+    summaryScroll.hasHorizontalScroller = false
+    summaryScroll.borderType = .bezelBorder
+    container.addSubview(summaryScroll)
+
+    container.addSubview(
+        makeLabel("OFFICIAL DOCUMENTATION", frame: NSRect(x: 0, y: 177, width: 500, height: 18))
     )
-    let secretField = makeField(
-        frame: NSRect(x: 0, y: 13, width: 470, height: 28),
-        value: "",
-        placeholder: "Enter or paste the secret here",
-        accessibilityLabel: "Secret value",
-        secure: true
+    let links = NSTextView(frame: NSRect(x: 0, y: 0, width: 496, height: 82))
+    links.string = documentationURLs.map { "• \($0)" }.joined(separator: "\n")
+    links.isEditable = false
+    links.isSelectable = true
+    links.drawsBackground = false
+    links.font = NSFont.monospacedSystemFont(ofSize: 10, weight: .regular)
+    links.textColor = .linkColor
+    links.textContainerInset = NSSize(width: 8, height: 6)
+    links.setAccessibilityLabel("Official documentation links")
+
+    let documentationScroll = NSScrollView(
+        frame: NSRect(x: 0, y: 78, width: 500, height: 94)
     )
-    container.addSubview(makeLabel("Friendly name", frame: NSRect(x: 0, y: 222, width: 470, height: 18)))
-    container.addSubview(nameField)
-    container.addSubview(makeLabel("Environment variable", frame: NSRect(x: 0, y: 162, width: 470, height: 18)))
-    container.addSubview(variableField)
-    container.addSubview(makeLabel("Description", frame: NSRect(x: 0, y: 102, width: 470, height: 18)))
-    container.addSubview(descriptionField)
-    container.addSubview(makeLabel("Secret value", frame: NSRect(x: 0, y: 42, width: 470, height: 18)))
-    container.addSubview(secretField)
+    documentationScroll.documentView = links
+    documentationScroll.hasVerticalScroller = true
+    documentationScroll.borderType = .bezelBorder
+    container.addSubview(documentationScroll)
+
+    let clipboardNotice = NSTextField(
+        wrappingLabelWithString:
+            "Copy the key immediately before clicking. KeepKeys clears the current clipboard after reading it, but same-user software or clipboard history may still observe it. The value never enters chat or a tool call."
+    )
+    clipboardNotice.frame = NSRect(x: 0, y: 0, width: 500, height: 54)
+    clipboardNotice.font = NSFont.systemFont(ofSize: 12)
+    clipboardNotice.textColor = .secondaryLabelColor
+    clipboardNotice.setAccessibilityLabel("Clipboard privacy notice")
+    container.addSubview(clipboardNotice)
 
     while true {
         let alert = NSAlert()
@@ -475,74 +639,63 @@ private func storeInteractively(
             systemSymbolName: "key.fill",
             accessibilityDescription: "KeepKeys"
         )
-        alert.messageText = "You type the key. The agent never sees it."
+        alert.messageText = "Your key goes straight to Keychain."
         alert.informativeText =
-            "Review the reusable name and variable, then enter only the secret value. It stays in this Mac's Keychain."
+            "The agent prepared everything else. You only copy the key and approve the paste."
         alert.accessoryView = container
-        alert.addButton(withTitle: "Store in Keychain")
+        alert.addButton(withTitle: "Paste & Store")
         alert.addButton(withTitle: "Cancel")
 
         let response = alert.runModal()
         if response != .alertFirstButtonReturn {
-            secretField.stringValue = ""
             return ["status": "cancelled", "message": "Secret storage was cancelled."]
         }
-
-        let name = nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        let variable = variableField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            .uppercased()
-        let description = descriptionField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        let secret = secretField.stringValue
-
-        guard validName(name) else {
-            showError(
-                "Use 1–128 ASCII letters, digits, periods, underscores, or hyphens, beginning with a letter."
-            )
-            continue
-        }
-        guard validVariable(variable) else {
-            showError(
-                "Use an uppercase environment-variable name that is not a shell, loader, runtime, or path-control variable."
-            )
-            continue
-        }
-        guard validDescription(description) else {
-            showError("Use a one-line description of at most 240 bytes.")
-            continue
-        }
         do {
-            try validateSecret(secret)
-        } catch {
-            showError(error.localizedDescription)
+            let pasteboard = NSPasteboard.general
+            try performPasteAndStore(
+                readClipboard: {
+                    let version = pasteboard.changeCount
+                    return (pasteboard.string(forType: .string) ?? "", version)
+                },
+                currentClipboardVersion: { pasteboard.changeCount },
+                clearClipboard: { pasteboard.clearContents() },
+                storeSecret: { secret in
+                    if try KeychainStore.exists(name: name) {
+                        let overwrite = NSAlert()
+                        overwrite.alertStyle = .critical
+                        overwrite.messageText = "Replace '\(name)'?"
+                        overwrite.informativeText =
+                            "This permanently replaces the existing KeepKeys value and variable name."
+                        overwrite.addButton(withTitle: "Replace")
+                        overwrite.addButton(withTitle: "Cancel")
+                        if overwrite.runModal() != .alertFirstButtonReturn {
+                            throw StoreCaptureFailure.replacementCancelled
+                        }
+                    }
+                    try KeychainStore.store(
+                        name: name,
+                        variable: variable,
+                        description: description,
+                        provider: provider,
+                        documentationURLs: documentationURLs,
+                        secret: secret
+                    )
+                }
+            )
+        } catch let error as StoreCaptureFailure {
+            if let message = error.errorDescription {
+                showError(message)
+            }
             continue
         }
-
-        if try KeychainStore.exists(name: name) {
-            let overwrite = NSAlert()
-            overwrite.alertStyle = .critical
-            overwrite.messageText = "Replace '\(name)'?"
-            overwrite.informativeText =
-                "This permanently replaces the existing KeepKeys value and variable name."
-            overwrite.addButton(withTitle: "Replace")
-            overwrite.addButton(withTitle: "Cancel")
-            if overwrite.runModal() != .alertFirstButtonReturn {
-                continue
-            }
-        }
-
-        try KeychainStore.store(
-            name: name,
-            variable: variable,
-            description: description,
-            secret: secret
-        )
-        secretField.stringValue = ""
         return [
             "status": "ok",
             "message": "Stored '\(name)' in macOS Keychain.",
             "name": name,
             "variable": variable,
             "description": description,
+            "provider": provider,
+            "documentationUrls": documentationURLs,
         ]
     }
 }
@@ -649,6 +802,8 @@ private func approveRun(_ request: RunRequest, metadata: EntryMetadata) -> Bool 
     } else {
         entrypointDetails = ""
     }
+    let provider = metadata.provider ?? "(legacy record)"
+    let documentationURLs = metadata.documentationURLs ?? []
     let details = """
     Risk
     \(request.risk.title)
@@ -663,6 +818,12 @@ private func approveRun(_ request: RunRequest, metadata: EntryMetadata) -> Bool 
 
     Description
     \(metadata.description)
+
+    Provider
+    \(provider)
+
+    Official documentation
+    \(documentationURLs.isEmpty ? "(legacy record)" : documentationURLs.joined(separator: "\n"))
 
     Executable
     \(request.program.path)
@@ -877,6 +1038,18 @@ private func parseOption(_ args: [String], name: String) throws -> String? {
     return args[valueIndex]
 }
 
+private func parseOptions(_ args: [String], name: String) throws -> [String] {
+    var values: [String] = []
+    for index in args.indices where args[index] == name {
+        let valueIndex = args.index(after: index)
+        guard valueIndex < args.endIndex, !args[valueIndex].hasPrefix("--") else {
+            throw KeepKeysFailure(message: "\(name) requires a value.")
+        }
+        values.append(args[valueIndex])
+    }
+    return values
+}
+
 private func parseRun(_ args: [String]) throws -> RunRequest {
     guard let separator = args.firstIndex(of: "--") else {
         throw KeepKeysFailure(message: "Run requests require '--' before the executable.")
@@ -963,6 +1136,8 @@ private func runDoctor() throws -> [String: Any] {
         name: name,
         variable: "KEEPKEYS_DOCTOR",
         description: "Temporary KeepKeys Keychain verification",
+        provider: "BarnLabs",
+        documentationURLs: ["https://github.com/barnlabs/keepkeys"],
         secret: firstSecret
     )
     var firstLoad = try KeychainStore.load(name: name)
@@ -976,6 +1151,8 @@ private func runDoctor() throws -> [String: Any] {
         name: name,
         variable: "KEEPKEYS_DOCTOR_UPDATED",
         description: "Updated temporary KeepKeys verification",
+        provider: "BarnLabs",
+        documentationURLs: ["https://github.com/barnlabs/keepkeys/blob/main/README.md"],
         secret: secondSecret
     )
     var secondLoad = try KeychainStore.load(name: name)
@@ -983,11 +1160,15 @@ private func runDoctor() throws -> [String: Any] {
         secondLoad.secret == secondSecret
         && secondLoad.metadata.variable == "KEEPKEYS_DOCTOR_UPDATED"
         && secondLoad.metadata.description == "Updated temporary KeepKeys verification"
+        && secondLoad.metadata.provider == "BarnLabs"
+        && secondLoad.metadata.documentationURLs
+            == ["https://github.com/barnlabs/keepkeys/blob/main/README.md"]
     secondLoad.secret = ""
     let listed = try KeychainStore.entries().contains { entry in
-        entry["name"] == name
-            && entry["variable"] == "KEEPKEYS_DOCTOR_UPDATED"
-            && entry["description"] == "Updated temporary KeepKeys verification"
+        entry["name"] as? String == name
+            && entry["variable"] as? String == "KEEPKEYS_DOCTOR_UPDATED"
+            && entry["description"] as? String == "Updated temporary KeepKeys verification"
+            && entry["provider"] as? String == "BarnLabs"
     }
 
     try KeychainStore.remove(name: name)
@@ -1004,12 +1185,53 @@ private func runDoctor() throws -> [String: Any] {
 
 private func runSelfTests() throws -> [String: Any] {
     guard validName("github-release"),
+          validName("new-key"),
           !validName("../../escape"),
           validVariable("GITHUB_TOKEN"),
           !validVariable("PATH"),
-          !validVariable("DYLD_INSERT_LIBRARIES")
+          !validVariable("DYLD_INSERT_LIBRARIES"),
+          validProvider("GitHub"),
+          validDocumentationURL("https://docs.github.com/en/rest"),
+          !validDocumentationURL("http://docs.example.com")
     else {
         throw KeepKeysFailure(message: "Validation self-test failed.")
+    }
+    var successCleared = false
+    var successStored = false
+    try performPasteAndStore(
+        readClipboard: { ("synthetic-store-secret", 41) },
+        currentClipboardVersion: { 41 },
+        clearClipboard: {
+            successCleared = true
+            return 42
+        },
+        storeSecret: { value in
+            successStored = value == "synthetic-store-secret"
+        }
+    )
+    var rejectedCleared = false
+    var rejectedStored = false
+    var invalidCaptureRejected = false
+    do {
+        try performPasteAndStore(
+            readClipboard: { ("short", 51) },
+            currentClipboardVersion: { 51 },
+            clearClipboard: {
+                rejectedCleared = true
+                return 52
+            },
+            storeSecret: { _ in rejectedStored = true }
+        )
+    } catch StoreCaptureFailure.invalidSecret {
+        invalidCaptureRejected = true
+    }
+    guard successCleared,
+          successStored,
+          invalidCaptureRejected,
+          rejectedCleared,
+          !rejectedStored
+    else {
+        throw KeepKeysFailure(message: "Paste & Store boundary self-test failed.")
     }
     let marker = "synthetic-test-secret"
     let sample = "before \(marker) \(Data(marker.utf8).base64EncodedString()) after"
@@ -1032,9 +1254,11 @@ private func runSelfTests() throws -> [String: Any] {
     let environmentPrinter = URL(fileURLWithPath: "/usr/bin/env")
     var record = SecretRecord(
         metadata: EntryMetadata(
-            version: 1,
+            version: 2,
             variable: "KEEPKEYS_TEST",
-            description: "Synthetic scoped-process self-test"
+            description: "Synthetic scoped-process self-test",
+            provider: "BarnLabs",
+            documentationURLs: ["https://github.com/barnlabs/keepkeys"]
         ),
         secret: marker
     )
@@ -1060,7 +1284,7 @@ private func runSelfTests() throws -> [String: Any] {
     }
     return [
         "status": "ok",
-        "message": "KeepKeys validation, scoped-process, and redaction self-tests passed.",
+        "message": "KeepKeys validation, Paste & Store, scoped-process, and redaction self-tests passed.",
         "version": keepKeysVersion,
     ]
 }
@@ -1079,7 +1303,9 @@ private func main() {
             result = try storeInteractively(
                 suggestedName: parseOption(rest, name: "--name"),
                 suggestedVariable: parseOption(rest, name: "--variable"),
-                suggestedDescription: parseOption(rest, name: "--description")
+                suggestedDescription: parseOption(rest, name: "--description"),
+                suggestedProvider: parseOption(rest, name: "--provider"),
+                suggestedDocumentationURLs: parseOptions(rest, name: "--documentation-url")
             )
         case "list":
             result = ["status": "ok", "entries": try KeychainStore.entries()]

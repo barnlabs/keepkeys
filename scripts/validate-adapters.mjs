@@ -23,10 +23,10 @@ const tools = parse("plugins/keepkeys/mcp/tools.json");
 const update = parse("update.json");
 
 const version = codex.version;
-const releaseCommit = "62b2eb87f913abe3c109823c2d315e95bea432af";
-const catalogCommit = "bc82f993c0f8d9912fc1e0b0b1f14b233766559b";
-assert.equal(version, "0.4.1");
-assert.deepEqual(update, {
+const releaseCommit = "e5276925d390704fccdf4aaeba47280464762a1c";
+const catalogCommit = "c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd";
+assert.equal(version, "0.4.2");
+const expectedUpdate = {
   schemaVersion: 1,
   product: "KeepKeys",
   channel: "stable",
@@ -35,7 +35,8 @@ assert.deepEqual(update, {
   catalogCommit,
   installGuide: "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
   releaseNotes: "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md",
-});
+};
+assert.deepEqual(update, expectedUpdate);
 assert.equal(claude.version, version);
 assert.equal(grok.version, version);
 assert.equal(claudeMarketplace.version, version);

@@ -32,8 +32,9 @@ Every supported client loads the canonical definitions in
 - `keepkeys_doctor`
 
 There is deliberately no `get`, `show`, `copy`, `reveal`, `export`, or generic
-command tool. Store accepts a friendly name, an environment-variable name, and
-a description, but no secret value. The helper emits one bounded JSON result.
+command tool. Store accepts a friendly name, an environment-variable name, a
+description, provider, and one to three official HTTPS documentation URLs, but
+no secret value. The helper emits one bounded JSON result.
 
 The Node MCP server and Hermes adapter validate the same limits and build the
 same fixed argument vector. Neither constructs a shell command. The platform
@@ -42,9 +43,9 @@ the native vault and desktop, then launches exactly one bundled backend:
 
 | Platform | Backend | Secure storage | Human interface |
 | --- | --- | --- | --- |
-| macOS 13+ | compiled Swift | Security.framework Keychain | AppKit secure text and approval windows |
-| Windows 10/11 | Windows PowerShell + compiled in-memory C# | Windows Credential Manager | WPF `PasswordBox` and approval windows |
-| desktop Linux | Python 3 | freedesktop Secret Service through `secret-tool` | native Tk password and approval windows |
+| macOS 13+ | compiled Swift | Security.framework Keychain | AppKit explicit paste and approval windows |
+| Windows 10/11 | Windows PowerShell + compiled in-memory C# | Windows Credential Manager | WPF explicit paste and approval windows |
+| desktop Linux | Python 3 | freedesktop Secret Service through `secret-tool` | native Tk explicit paste and approval windows |
 
 `scripts/keepkeys-cli.mjs` provides the same dispatch for skills-only packages
 and direct local diagnostics.
@@ -55,7 +56,9 @@ and direct local diagnostics.
 
 The Keychain service is `net.barnlabs.keepkeys`. The friendly name is the
 account attribute. A versioned JSON payload in `kSecAttrGeneric` stores the
-variable and description. The value is the same non-synchronizing,
+variable, description, provider, and documentation URLs. Version-1 records
+remain readable; new stores write version 2. The value is the same
+non-synchronizing,
 `WhenUnlockedThisDeviceOnly` generic-password item. Metadata listing requests
 attributes only and does not request value data.
 
@@ -68,7 +71,7 @@ when the source or build recipe changes.
 Each friendly name owns two generic Credential Manager records:
 
 ```text
-net.barnlabs.keepkeys/meta/<name>    variable + description; empty blob
+net.barnlabs.keepkeys/meta/<name>    variable + description + provider/docs JSON
 net.barnlabs.keepkeys/secret/<name>  protected value; no user metadata
 ```
 
@@ -88,7 +91,7 @@ such as GNOME Keyring or a compatible KWallet service. Each friendly name owns
 two items:
 
 ```text
-service=net.barnlabs.keepkeys.metadata  encoded variable + description
+service=net.barnlabs.keepkeys.metadata  encoded variable + description + provider/docs
 service=net.barnlabs.keepkeys.secret    protected value
 ```
 

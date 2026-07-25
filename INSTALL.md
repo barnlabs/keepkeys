@@ -61,10 +61,10 @@ checkout:
 
 ```text
 functional plugin commit
-62b2eb87f913abe3c109823c2d315e95bea432af
+e5276925d390704fccdf4aaeba47280464762a1c
 
 Claude/OMP catalog commit
-bc82f993c0f8d9912fc1e0b0b1f14b233766559b
+c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd
 ```
 
 The catalog commit pins its plugin source to the functional commit. Review both
@@ -74,7 +74,7 @@ before installation.
 
 ```sh
 codex plugin marketplace add barnlabs/keepkeys \
-  --ref 62b2eb87f913abe3c109823c2d315e95bea432af
+  --ref e5276925d390704fccdf4aaeba47280464762a1c
 codex plugin add keepkeys@barnlabs
 ```
 
@@ -89,7 +89,7 @@ plugin hosts.
 
 ```sh
 grok plugin install \
-  'barnlabs/keepkeys@62b2eb87f913abe3c109823c2d315e95bea432af#plugins/keepkeys' \
+  'barnlabs/keepkeys@e5276925d390704fccdf4aaeba47280464762a1c#plugins/keepkeys' \
   --trust
 grok plugin list
 grok plugin details keepkeys
@@ -102,20 +102,20 @@ The exact-SHA subdirectory install is the credential-sensitive route.
 
 ```sh
 claude plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keepkeys/bc82f993c0f8d9912fc1e0b0b1f14b233766559b/.claude-plugin/marketplace.json
+  https://raw.githubusercontent.com/barnlabs/keepkeys/c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd/.claude-plugin/marketplace.json
 claude plugin install keepkeys@barnlabs
 claude plugin list
 ```
 
 Claude Code does not expose a raw commit option for a Git marketplace checkout.
 The immutable raw catalog above pins `plugins/keepkeys` to functional commit
-`62b2eb87f913abe3c109823c2d315e95bea432af`. Start a new Claude Code session.
+`e5276925d390704fccdf4aaeba47280464762a1c`. Start a new Claude Code session.
 
 ## Oh My Pi
 
 ```sh
 omp plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keepkeys/bc82f993c0f8d9912fc1e0b0b1f14b233766559b/.omp-plugin/marketplace.json
+  https://raw.githubusercontent.com/barnlabs/keepkeys/c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd/.omp-plugin/marketplace.json
 omp plugin install keepkeys@barnlabs
 omp plugin list
 ```
@@ -128,19 +128,19 @@ bundled MCP server. Start a new OMP session.
 Hermes installs the repository root. Use a detached reviewed checkout:
 
 ```sh
-git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.4.1
-git -C keepkeys-0.4.1 checkout --detach \
-  62b2eb87f913abe3c109823c2d315e95bea432af
-hermes plugins install "file://$(cd keepkeys-0.4.1 && pwd)" --enable
+git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.4.2
+git -C keepkeys-0.4.2 checkout --detach \
+  e5276925d390704fccdf4aaeba47280464762a1c
+hermes plugins install "file://$(cd keepkeys-0.4.2 && pwd)" --enable
 hermes plugins list
 ```
 
 On Windows PowerShell:
 
 ```powershell
-git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.4.1
-git -C keepkeys-0.4.1 checkout --detach 62b2eb87f913abe3c109823c2d315e95bea432af
-$path = (Resolve-Path .\keepkeys-0.4.1).Path
+git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.4.2
+git -C keepkeys-0.4.2 checkout --detach e5276925d390704fccdf4aaeba47280464762a1c
+$path = (Resolve-Path .\keepkeys-0.4.2).Path
 hermes plugins install "file://$path" --enable
 hermes plugins list
 ```
@@ -152,7 +152,7 @@ Hermes plugins are opt-in. If installed without `--enable`, run
 
 ```sh
 gemini extensions install https://github.com/barnlabs/keepkeys \
-  --ref 62b2eb87f913abe3c109823c2d315e95bea432af
+  --ref e5276925d390704fccdf4aaeba47280464762a1c
 gemini extensions list
 ```
 
@@ -185,16 +185,23 @@ The agent supplies:
 
 - a stable friendly name;
 - the environment-variable name expected by the target program;
-- a one-line description that will still make sense in a future task.
+- a one-line description that will still make sense in a future task;
+- the credential provider;
+- one to three researched official HTTPS documentation links, preferring
+  AI-readable references when the provider publishes them.
 
-KeepKeys pre-fills those fields. **Type only the key** into the native password
-field. Never paste it into the conversation.
+KeepKeys validates and displays those fields read-only. Copy the credential
+from its provider, then press **Paste & Store**. The native helper reads the
+clipboard only after that click, clears the current clipboard immediately, and
+stores the value directly in the OS vault. Same-user software or clipboard
+history may still observe a shared clipboard value, so copy only when the
+window is ready and click immediately. Never paste it into the conversation.
 
 For use, ask for a concrete direct command. The native approval surface shows:
 
 - risk class;
 - purpose;
-- friendly name, variable, and description;
+- friendly name, variable, description, provider, and documentation links;
 - canonical executable and SHA-256;
 - detected script entrypoint and its SHA-256, when applicable;
 - every argument;
@@ -210,7 +217,7 @@ macOS or Linux:
 ```sh
 git clone https://github.com/barnlabs/keepkeys.git
 cd keepkeys
-git checkout --detach 62b2eb87f913abe3c109823c2d315e95bea432af
+git checkout --detach e5276925d390704fccdf4aaeba47280464762a1c
 ./scripts/bootstrap
 ./scripts/check
 ./scripts/test
@@ -222,7 +229,7 @@ Windows:
 ```powershell
 git clone https://github.com/barnlabs/keepkeys.git
 Set-Location keepkeys
-git checkout --detach 62b2eb87f913abe3c109823c2d315e95bea432af
+git checkout --detach e5276925d390704fccdf4aaeba47280464762a1c
 .\scripts\bootstrap.ps1
 .\scripts\check.ps1
 .\scripts\test.ps1

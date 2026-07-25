@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>You type the key once. Your agent can use it, never retrieve it.</strong>
+  <strong>You paste once. Your key stays out of chat and tool payloads.</strong>
 </p>
 
 <p align="center">
@@ -13,17 +13,18 @@
   <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-1F2D27.svg" />
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-1F2D27.svg" />
   <img alt="desktop Linux" src="https://img.shields.io/badge/Linux-desktop-1F2D27.svg" />
-  <img alt="KeepKeys 0.4.1" src="https://img.shields.io/badge/version-0.4.1-D96C4D.svg" />
+  <img alt="KeepKeys 0.4.2" src="https://img.shields.io/badge/version-0.4.2-D96C4D.svg" />
 </p>
 
 KeepKeys is the open-source, local secret-use broker for coding agents. It
-opens a native secure-entry window, stores the value in the operating system's
+opens a native paste-and-store window, stores the value in the operating system's
 credential vault, and gives the agent one narrow capability: run a specific
 command with one named secret after you review the exact request.
 
 There is no `get`, `show`, `copy`, reveal, or export tool. Friendly names,
-environment-variable names, and descriptions remain reusable for future tasks;
-the plaintext value does not.
+environment-variable names, descriptions, providers, and official
+documentation links remain reusable for future tasks; the plaintext value does
+not.
 
 ## Why KeepKeys exists
 
@@ -36,8 +37,8 @@ KeepKeys is deliberately narrower:
 | Property | KeepKeys |
 | --- | --- |
 | At-rest storage | macOS Keychain, Windows Credential Manager, or Linux Secret Service |
-| Secret entry | Native password field, never chat or terminal |
-| Agent API | Store metadata, list metadata, remove, and approval-gated Run |
+| Secret entry | Explicit native **Paste & Store**, never chat or terminal |
+| Agent API | Research and store metadata, list metadata, remove, and approval-gated Run |
 | Plaintext retrieval | No tool or helper action |
 | Authorization | One native **Allow once** decision per command |
 | Process scope | Empty child environment plus one approved variable |
@@ -46,16 +47,16 @@ KeepKeys is deliberately narrower:
 | Output | Concurrent 1 MiB bounds and common-representation redaction |
 | Service model | Local, offline, no KeepKeys account, cloud, daemon, or telemetry |
 
-The distinction is simple: KeepKeys gives an agent use of a credential, not
-possession of it.
+The distinction is simple: KeepKeys provides approval-gated use without adding
+a reveal operation to the agent protocol.
 
 ## Native on all three desktop platforms
 
 | Operating system | Secure store | Native human gate |
 | --- | --- | --- |
-| **macOS 13+** | Security.framework Keychain; device-only and non-synchronizing | AppKit secure text, replacement, removal, and command approval |
-| **Windows 10/11** | paired metadata/value records in Windows Credential Manager | branded WPF `PasswordBox`, replacement, removal, and command approval |
-| **desktop Linux** | paired metadata/value items in freedesktop Secret Service | branded Tk password, replacement, removal, and command approval |
+| **macOS 13+** | Security.framework Keychain; device-only and non-synchronizing | AppKit explicit clipboard paste, replacement, removal, and command approval |
+| **Windows 10/11** | paired metadata/value records in Windows Credential Manager | branded WPF explicit clipboard paste, replacement, removal, and command approval |
+| **desktop Linux** | paired metadata/value items in freedesktop Secret Service | branded Tk explicit clipboard paste, replacement, removal, and command approval |
 
 Listing and the approval screen read only metadata. The protected value is
 loaded after **Allow once**, metadata is checked again, and executable hashes
@@ -68,12 +69,12 @@ It never falls back to a plaintext keyring, terminal password prompt, or file.
 
 | Client | Package surface | Immutable install |
 | --- | --- | --- |
-| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref 62b2eb87f913abe3c109823c2d315e95bea432af`<br>`codex plugin add keepkeys@barnlabs` |
-| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'barnlabs/keepkeys@62b2eb87f913abe3c109823c2d315e95bea432af#plugins/keepkeys' --trust` |
+| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref e5276925d390704fccdf4aaeba47280464762a1c`<br>`codex plugin add keepkeys@barnlabs` |
+| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'barnlabs/keepkeys@e5276925d390704fccdf4aaeba47280464762a1c#plugins/keepkeys' --trust` |
 | **Claude Code** | Claude plugin + pinned catalog | see [Install](INSTALL.md#claude-code) |
 | **Oh My Pi** | OMP/Claude-compatible pinned catalog | see [Install](INSTALL.md#oh-my-pi) |
 | **Hermes** | repository-root Hermes plugin | see [Install](INSTALL.md#hermes) |
-| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref 62b2eb87f913abe3c109823c2d315e95bea432af` |
+| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref e5276925d390704fccdf4aaeba47280464762a1c` |
 | **Agent Skills clients** | standard `skills/keepkeys/SKILL.md` | reviewed checkout or skills-only archive |
 
 All integrations expose the same six tools and dispatch to the same
@@ -87,19 +88,22 @@ platform-native boundary:
 - `keepkeys_doctor`
 
 Claude Code and Oh My Pi use the immutable catalog at commit
-`bc82f993c0f8d9912fc1e0b0b1f14b233766559b`; that catalog pins the functional
-plugin source at `62b2eb87f913abe3c109823c2d315e95bea432af`. See
+`c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd`; that catalog pins the functional
+plugin source at `e5276925d390704fccdf4aaeba47280464762a1c`. See
 [INSTALL.md](INSTALL.md) for copy-paste commands and platform prerequisites.
 
 ## What the user experiences
 
 Store:
 
-1. The agent supplies a friendly name such as `github-release`, a variable such
-   as `GITHUB_TOKEN`, and a useful one-line description.
-2. KeepKeys pre-fills all three.
-3. The user types only the key into the branded native password field.
-4. The operating system vault stores it.
+1. The agent gathers any missing non-secret context, researches official
+   credential documentation, and chooses the name, environment variable,
+   description, provider, and one to three official HTTPS documentation links.
+2. KeepKeys validates that metadata before opening and displays it read-only.
+3. The user copies the key from the provider and presses **Paste & Store**.
+4. Only that click lets the native helper read the clipboard. It immediately
+   clears the current clipboard, then the operating-system vault stores the
+   value without returning it through the agent protocol.
 
 Run:
 
@@ -119,7 +123,9 @@ credentials.
 KeepKeys does:
 
 - keep plaintext out of model prompts, tool inputs/results, plugin metadata,
-  argv, persistent environment, clipboard automation, and plaintext files;
+  argv, persistent environment, and plaintext files;
+- read the system clipboard only after **Paste & Store** and clear its current
+  contents immediately after capture;
 - pin native helper sources and fail closed on integrity mismatch;
 - block common shells, environment dumpers, and Windows dynamic script hosts;
 - classify common network clients and interpreters visibly;
@@ -132,6 +138,9 @@ KeepKeys does not:
 - make an approved executable safe;
 - confine a credential after delivery to that process or its descendants;
 - detect arbitrary encryption, splitting, file writes, IPC, or network egress;
+- prevent same-user software, a coding host with unrestricted local-command
+  execution, or operating-system clipboard history from observing a value
+  while it is on the shared clipboard;
 - protect against malware, a compromised signed-in account, administrator/root,
   debuggers, keyloggers, or modified local plugin code;
 - promise forensic erasure inside operating-system-managed storage;

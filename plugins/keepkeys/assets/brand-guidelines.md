@@ -51,6 +51,7 @@ Preserve the original crop, expression, coat, scarf, and visible ring. Do not
 stretch, mirror, recolor, add dramatic shadows, place text over the face or keys,
 or make the character ominous or comic.
 
-Prefer “local secrets for agents” and “use, never retrieve.” Never claim that
-KeepKeys is unbreakable, guarantees secrecy, or securely erases native-vault
-storage at the forensic layer.
+Prefer “local secrets for agents” and “keys stay out of chat and tool
+payloads.” Never imply that the shared system clipboard is isolated from other
+same-user software. Never claim that KeepKeys is unbreakable, guarantees
+secrecy, or securely erases native-vault storage at the forensic layer.

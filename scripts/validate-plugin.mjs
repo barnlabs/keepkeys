@@ -10,6 +10,12 @@ import { TOOLS } from "../plugins/keepkeys/mcp/server.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pluginRoot = resolve(root, "plugins", "keepkeys");
+const agentRules = readFileSync(resolve(root, "AGENTS.md"), "utf8");
+assert.match(
+  agentRules,
+  /provider names, documentation links/,
+  "Agent metadata allowlist must cover provider names and documentation links",
+);
 const attributes = readFileSync(resolve(root, ".gitattributes"), "utf8");
 assert.match(
   attributes,
@@ -70,7 +76,13 @@ for (const tool of TOOLS) {
 
 const storeTool = TOOLS.find((tool) => tool.name === "keepkeys_store");
 assert.ok(storeTool, "keepkeys_store is missing");
-assert.deepEqual(storeTool.inputSchema.required, ["name", "variable", "description"]);
+assert.deepEqual(storeTool.inputSchema.required, [
+  "name",
+  "variable",
+  "description",
+  "provider",
+  "documentation_urls",
+]);
 
 const skill = readFileSync(
   resolve(pluginRoot, "skills", "keepkeys", "SKILL.md"),
@@ -78,9 +90,125 @@ const skill = readFileSync(
 ).replaceAll("\r\n", "\n");
 assert.match(skill, /^---\nname: keepkeys\n/m);
 assert.match(skill, /Never ask the user to paste, type, dictate, attach, or expose a secret in chat/);
+assert.match(skill, /Paste & Store/);
+assert.match(skill, /AI-readable official\s+documentation/);
 
 const launcher = readFileSync(resolve(pluginRoot, "scripts", "keepkeys"), "utf8");
 const source = readFileSync(resolve(pluginRoot, "scripts", "keepkeys.swift"));
+const sourceText = source.toString("utf8");
+const windowsHelper = readFileSync(
+  resolve(pluginRoot, "scripts", "keepkeys.windows.ps1"),
+  "utf8",
+);
+const linuxHelper = readFileSync(
+  resolve(pluginRoot, "scripts", "keepkeys.linux.py"),
+  "utf8",
+);
+for (const [platform, helper, trigger] of [
+  ["macOS", sourceText, "pasteboard.string(forType: .string)"],
+  ["Windows", windowsHelper, "[Windows.Clipboard]::GetText()"],
+  ["Linux", linuxHelper, "window.clipboard_get()"],
+]) {
+  assert.match(helper, /Paste & Store/, `${platform} is missing the explicit paste action`);
+  assert.ok(helper.includes(trigger), `${platform} is missing click-gated clipboard access`);
+  assert.doesNotMatch(
+    helper,
+    /NSSecureTextField|Windows\.Controls\.PasswordBox|secret=True/,
+    `${platform} still exposes manual secret entry`,
+  );
+}
+for (const [platform, helper, clearAction] of [
+  ["macOS", sourceText, "pasteboard.clearContents()"],
+  ["Windows", windowsHelper, "[Windows.Clipboard]::Clear()"],
+  ["Linux", linuxHelper, "window.clipboard_clear()"],
+]) {
+  assert.ok(
+    helper.includes(clearAction),
+    `${platform} must clear the current clipboard immediately after capture`,
+  );
+}
+for (const [platform, helper, captureThenClearThenValidate] of [
+  [
+    "macOS",
+    sourceText,
+    /let captured = readClipboard\(\)[\s\S]{0,500}clearClipboard\(\)[\s\S]{0,500}validateSecret\(secret\)/,
+  ],
+  [
+    "Windows",
+    windowsHelper,
+    /\$candidateSecret = & \$ReadClipboard[\s\S]{0,400}& \$ClearClipboard[\s\S]{0,400}Assert-KeepKeysSecret \$candidateSecret/,
+  ],
+  [
+    "Linux",
+    linuxHelper,
+    /window\.clipboard_get\(\)[\s\S]{0,300}window\.clipboard_clear\(\)[\s\S]{0,300}validate_secret\(value\)/,
+  ],
+]) {
+  assert.match(
+    helper,
+    captureThenClearThenValidate,
+    `${platform} must clear even clipboard text that secret validation rejects`,
+  );
+}
+for (const [platform, helper] of [
+  ["macOS", sourceText],
+  ["Windows", windowsHelper],
+]) {
+  assert.match(
+    helper,
+    /Paste & Store boundary self-test failed/,
+    `${platform} must behaviorally test successful and rejected clipboard capture`,
+  );
+}
+assert.match(
+  sourceText,
+  /let summaryScroll = NSScrollView/,
+  "macOS Store metadata must remain fully reviewable",
+);
+assert.match(
+  windowsHelper,
+  /SystemParameters\]::WorkArea/,
+  "Windows native windows must stay within the scaled work area",
+);
+assert.match(
+  windowsHelper,
+  /Windows\.Controls\.ScrollViewer/,
+  "Windows Store metadata must remain reviewable on compact displays",
+);
+assert.match(
+  windowsHelper,
+  /HashSet\[string\]\]::new\([\s\S]{0,100}StringComparer\]::Ordinal/,
+  "Windows documentation URL uniqueness must use ordinal case-sensitive comparison",
+);
+assert.match(
+  windowsHelper,
+  /\$Script:MaximumMetadataBytes = 2560/,
+  "Windows metadata must respect Credential Manager's 2560-byte blob limit",
+);
+assert.match(
+  windowsHelper,
+  /\$serializedMetadata = ConvertTo-KeepKeysMetadataBytes \$Provider \$DocumentationUrls[\s\S]{0,120}\[Array\]::Clear/,
+  "Windows must size-check serialized metadata before opening the Store UI",
+);
+assert.match(
+  windowsHelper,
+  /Credential Manager metadata-size self-test failed/,
+  "Windows must regress serialized metadata expansion beyond the vault limit",
+);
+assert.match(
+  linuxHelper,
+  /winfo_screenheight\(\)/,
+  "Linux native windows must stay within the screen work area",
+);
+assert.match(
+  linuxHelper,
+  /self\.tk\.Canvas/,
+  "Linux Store metadata must scroll while actions stay visible",
+);
+for (const helper of [sourceText, windowsHelper, linuxHelper]) {
+  assert.match(helper, /new-key/, "valid new-key regression is missing");
+  assert.match(helper, /https:\/\/docs\./, "documentation URL validation test is missing");
+}
 const expectedSourceHash = launcher.match(/^expected_source_hash="([a-f0-9]{64})"$/m)?.[1];
 assert.ok(expectedSourceHash, "launcher source-integrity digest is missing");
 assert.equal(createHash("sha256").update(source).digest("hex"), expectedSourceHash);

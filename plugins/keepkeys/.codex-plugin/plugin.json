@@ -1,7 +1,7 @@
 {
   "name": "keepkeys",
-  "version": "0.4.1",
-  "description": "Store local secrets outside chat and let your agent use them through approval-gated commands.",
+  "version": "0.4.2",
+  "description": "Paste local secrets into the native OS vault and let your agent use them through approval-gated commands.",
   "author": {
     "name": "BarnLabs",
     "url": "https://github.com/barnlabs"
@@ -25,11 +25,12 @@
   "interface": {
     "displayName": "KeepKeys",
     "shortDescription": "Local secrets for approved agent commands",
-    "longDescription": "KeepKeys opens a native secure-entry prompt, stores named secrets in the operating system credential vault, and lets your agent use them only through commands you review and approve. Secret values are never returned to the model.",
+    "longDescription": "KeepKeys lets the agent prepare names, variables, descriptions, providers, and official documentation links. You press Paste & Store to put the clipboard value directly into the operating-system credential vault, then approve each command that may use it. Secret values are never returned to the model.",
     "developerName": "BarnLabs",
     "category": "Productivity",
     "capabilities": [
-      "Native secret entry",
+      "Explicit Paste & Store",
+      "Agent-researched official documentation",
       "Native macOS, Windows, and Linux vaults",
       "Approval-gated command use"
     ],

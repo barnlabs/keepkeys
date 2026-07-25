@@ -14,7 +14,7 @@
         "path": "./plugins/keepkeys"
       },
       "homepage": "https://github.com/barnlabs/keepkeys",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "author": {
         "name": "BarnLabs"
       },

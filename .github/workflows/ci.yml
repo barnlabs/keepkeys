@@ -79,8 +79,8 @@ jobs:
           node-version: "22"
       - run: ./scripts/package-submission
       - run: ./scripts/package-release
-      - run: unzip -l dist/keepkeys-skills-0.4.1.zip
-      - run: unzip -l dist/keepkeys-0.4.1-source.zip
+      - run: unzip -l dist/keepkeys-skills-0.4.2.zip
+      - run: unzip -l dist/keepkeys-0.4.2-source.zip
 
   release-gate:
     name: Release gate

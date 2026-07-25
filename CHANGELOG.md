@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.4.2 — 2026-07-25
+
+- Replaced editable store metadata and password typing with one explicit
+  **Paste & Store** action; the native helper reads the clipboard only after
+  that click and clears the current clipboard immediately after capture.
+- Validates all agent-prepared metadata before any native window opens, closing
+  the invalid-name correction loop and regressing the valid `new-key` case.
+- Added agent-researched provider and official HTTPS documentation links to the
+  cross-platform tool, vault-metadata, list, and UI contracts.
+- Preserves existing version-1 macOS and Linux metadata records while writing
+  version-2 metadata for new credentials.
+- Added positive, negative, and cross-platform parity tests for documentation
+  links, clipboard-trigger language, and agent-owned fields.
+- Hardened post-approval Windows metadata rechecks, compact-display scrolling,
+  malformed metadata handling, and version-1 Linux rollback after adversarial
+  review.
+- Made the shared-clipboard limitation explicit, added compact-screen Linux
+  scrolling, and made long macOS metadata fully reviewable.
+- Added executable macOS and Windows Paste & Store boundary tests for successful
+  capture plus rejected input that must clear the clipboard and skip storage.
+- Made malformed Linux documentation URLs fail through structured JSON and
+  excluded local build/cache artifacts from source packages.
+- Aligned MCP and Hermes provider validation with native UTF-8 byte limits,
+  enforced Windows Credential Manager's serialized metadata ceiling before UI,
+  and preserved case-distinct official documentation URLs.
+
 ## 0.4.1 — 2026-07-24
 
 - Added a deliberate, strict-schema update checker that reports immutable

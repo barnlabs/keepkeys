@@ -12,6 +12,8 @@ the user's device.
 | Friendly name | Native-vault metadata | Yes when stored, listed, used, or removed | Until removal |
 | Variable name | Native-vault metadata | Yes when stored, listed, or displayed for use | Until replacement/removal |
 | Description | Native-vault metadata | Yes when stored, listed, or displayed for use | Until replacement/removal |
+| Provider and official documentation URLs | Native-vault metadata | Yes when stored, listed, or displayed | Until replacement/removal |
+| Clipboard value | Shared operating-system clipboard plus transient native-helper memory after explicit **Paste & Store** | Not through KeepKeys; same-user software may observe it | Helper clears the current clipboard immediately after capture; OS history or another process may retain a prior copy |
 | Run purpose, path, arguments, cwd, hashes | Native approval window and transient helper memory | Yes; proposed by agent | Not persisted by KeepKeys |
 | Bounded redacted stdout/stderr | MCP or Hermes result | Yes | Controlled by the host client |
 | Compiled macOS helper cache | `~/Library/Caches/net.barnlabs.keepkeys` | Not credential data | Until cache removal |
@@ -19,19 +21,28 @@ the user's device.
 
 Linux Secret Service attributes and labels, macOS Keychain attributes, and
 Windows Credential Manager metadata are not treated as secret values. Keep
-names and descriptions minimal and operationally useful.
+names, descriptions, provider names, and documentation links minimal,
+official, and operationally useful.
 
 ## Collection and transfer
 
-The agent supplies name, variable, description, and a concrete command request.
-The user enters the value into the native KeepKeys window. KeepKeys does not
-read the clipboard automatically.
+The agent supplies name, variable, description, provider, one to three official
+HTTPS documentation links, and a concrete command request. The user copies the
+credential from its provider and presses **Paste & Store** in the native
+KeepKeys window. The helper reads the clipboard only in direct response to that
+click and immediately clears the current clipboard. It does not monitor, poll,
+or inspect the clipboard in the background, and KeepKeys exposes no
+clipboard-reading tool. A coding host with unrestricted same-user command
+execution can use operating-system clipboard APIs independently of KeepKeys, so
+users should copy only when the Store window is ready and click immediately.
 
-- macOS transfers the value directly between AppKit, Security.framework, and
-  the approved child environment.
-- Windows transfers it between WPF, the Credential Manager API, and the
-  approved child environment. Mutable byte arrays are cleared where practical.
-- Linux transfers it from Tk to `secret-tool` over standard input, from Secret
+- macOS transfers the value between AppKit's pasteboard API,
+  Security.framework, and the approved child environment.
+- Windows transfers it between WPF's clipboard API, the Credential Manager API,
+  and the approved child environment. Mutable byte arrays are cleared where
+  practical.
+- Linux transfers it from Tk's clipboard API to `secret-tool` over standard
+  input, from Secret
   Service through `secret-tool lookup` over standard output, and then to the
   approved child environment. It is never placed in process arguments.
 
@@ -62,7 +73,7 @@ the complete named record:
 
 - one Keychain item on macOS;
 - paired metadata and value Credential Manager records on Windows;
-- one Secret Service item on Linux.
+- paired metadata and value Secret Service items on Linux.
 
 Uninstalling a client integration does not silently delete credentials.
 Operating-system vaults control physical storage, backups, journaling, and

@@ -50,6 +50,11 @@ class HermesAdapterTests(unittest.TestCase):
                     "name": "github-release",
                     "variable": "GITHUB_TOKEN",
                     "description": "Publishes approved BarnLabs releases",
+                    "provider": "GitHub",
+                    "documentation_urls": [
+                        "https://docs.github.com/en/rest",
+                        "https://github.com/github/rest-api-description",
+                    ],
                 },
             ),
             [
@@ -60,6 +65,12 @@ class HermesAdapterTests(unittest.TestCase):
                 "GITHUB_TOKEN",
                 "--description",
                 "Publishes approved BarnLabs releases",
+                "--provider",
+                "GitHub",
+                "--documentation-url",
+                "https://docs.github.com/en/rest",
+                "--documentation-url",
+                "https://github.com/github/rest-api-description",
             ],
         )
 
@@ -97,6 +108,8 @@ class HermesAdapterTests(unittest.TestCase):
                     "name": "demo",
                     "variable": "DEMO_TOKEN",
                     "description": "Synthetic test metadata",
+                    "provider": "Example",
+                    "documentation_urls": ["https://docs.example.com/api"],
                     "secret": "synthetic-only-not-a-credential",
                 },
             ),
@@ -106,6 +119,8 @@ class HermesAdapterTests(unittest.TestCase):
                     "name": "demo",
                     "variable": "DEMO_TOKEN",
                     "description": "Synthetic test metadata",
+                    "provider": "Example",
+                    "documentation_urls": ["https://docs.example.com/api"],
                     "value": "synthetic-only-not-a-credential",
                 },
             ),
@@ -138,16 +153,74 @@ class HermesAdapterTests(unittest.TestCase):
             {"error": "Tool arguments contain an unsupported field."},
         )
 
+    def test_store_rejects_insecure_documentation_links(self) -> None:
+        with self.assertRaisesRegex(ValueError, "documentation_urls"):
+            plugin._helper_arguments(
+                "keepkeys_store",
+                {
+                    "name": "new-key",
+                    "variable": "SECRET_KEY",
+                    "description": "Credential for future approved agent commands",
+                    "provider": "Example",
+                    "documentation_urls": ["http://docs.example.com/api"],
+                },
+            )
+
+    def test_store_enforces_native_provider_utf8_byte_boundary(self) -> None:
+        base = {
+            "name": "new-key",
+            "variable": "SECRET_KEY",
+            "description": "Credential for future approved agent commands",
+            "documentation_urls": ["https://docs.example.com/api"],
+        }
+        plugin._helper_arguments(
+            "keepkeys_store",
+            {
+                **base,
+                "provider": "鍵" * 26,
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "at most 80 UTF-8 bytes"):
+            plugin._helper_arguments(
+                "keepkeys_store",
+                {
+                    **base,
+                    "provider": "鍵" * 27,
+                },
+            )
+
+    def test_store_rejects_non_string_documentation_links_structurally(self) -> None:
+        for documentation_urls in ([{}], [[]]):
+            with self.subTest(documentation_urls=documentation_urls):
+                result = plugin._handler_for("keepkeys_store")(
+                    {
+                        "name": "new-key",
+                        "variable": "SECRET_KEY",
+                        "description": "Credential for future approved agent commands",
+                        "provider": "Example",
+                        "documentation_urls": documentation_urls,
+                    }
+                )
+                self.assertEqual(
+                    json.loads(result),
+                    {
+                        "error": (
+                            "documentation_urls must contain one to three "
+                            "distinct HTTPS URLs."
+                        )
+                    },
+                )
+
     def test_handler_returns_json_without_helper_exception_details(self) -> None:
         with patch.object(
             plugin,
             "_run_helper",
-            return_value={"status": "ok", "version": "0.4.1"},
+            return_value={"status": "ok", "version": "0.4.2"},
         ):
             result = plugin._handler_for("keepkeys_status")({})
         self.assertEqual(
             json.loads(result),
-            {"status": "ok", "version": "0.4.1"},
+            {"status": "ok", "version": "0.4.2"},
         )
 
 

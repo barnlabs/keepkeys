@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -24,16 +25,32 @@ class LinuxBackendTests(unittest.TestCase):
             name="github-release",
             variable="GITHUB_TOKEN",
             description="Publishes an approved release",
+            provider="GitHub",
+            documentation_urls=("https://docs.github.com/en/rest",),
         )
         label = keepkeys_linux.encode_label(metadata)
         self.assertEqual(keepkeys_linux.decode_label(label), metadata)
         self.assertNotIn("synthetic-secret-value", label)
+
+    def test_legacy_metadata_can_be_restored_without_upgrading_its_label(self) -> None:
+        metadata = keepkeys_linux.Metadata(
+            name="legacy-key",
+            variable="LEGACY_TOKEN",
+            description="Existing version-one record",
+        )
+        with patch.object(keepkeys_linux, "run_secret_tool") as secret_tool:
+            keepkeys_linux.store_metadata(metadata, allow_legacy=True)
+        stored_label = secret_tool.call_args.kwargs["secret_input"]
+        self.assertTrue(stored_label.startswith(keepkeys_linux.LABEL_PREFIX_V1))
+        self.assertEqual(keepkeys_linux.decode_label(stored_label), metadata)
 
     def test_search_parses_only_valid_keepkeys_labels(self) -> None:
         valid = keepkeys_linux.Metadata(
             name="demo",
             variable="DEMO_TOKEN",
             description="Synthetic test credential",
+            provider="Example",
+            documentation_urls=("https://docs.example.com/api",),
         )
         output = (
             "[/org/freedesktop/secrets/collection/login/1]\n"
@@ -68,6 +85,17 @@ class LinuxBackendTests(unittest.TestCase):
             ],
         )
 
+    def test_malformed_v2_documentation_items_fail_closed(self) -> None:
+        payload = base64.urlsafe_b64encode(
+            b'{"name":"demo","variable":"DEMO_TOKEN","description":"d",'
+            b'"provider":"Example","documentationUrls":[1]}'
+        ).decode("ascii").rstrip("=")
+        self.assertIsNone(
+            keepkeys_linux.decode_label(
+                keepkeys_linux.LABEL_PREFIX_V2 + payload
+            )
+        )
+
     def test_common_secret_representations_are_redacted(self) -> None:
         marker = "synthetic-test-secret"
         encoded = base64.b64encode(marker.encode()).decode()
@@ -80,6 +108,73 @@ class LinuxBackendTests(unittest.TestCase):
         self.assertTrue(keepkeys_linux.valid_variable("SERVICE_API_TOKEN"))
         for value in ("PATH", "LD_PRELOAD", "PYTHONPATH", "NODE_OPTIONS"):
             self.assertFalse(keepkeys_linux.valid_variable(value), value)
+
+    def test_store_metadata_contract_accepts_new_key_and_https_docs(self) -> None:
+        metadata = keepkeys_linux.Metadata(
+            name="new-key",
+            variable="SECRET_KEY",
+            description="Credential for future approved agent commands",
+            provider="Example",
+            documentation_urls=("https://docs.example.com/api",),
+        )
+        keepkeys_linux.validate_metadata(metadata)
+        with self.assertRaises(keepkeys_linux.KeepKeysError):
+            keepkeys_linux.validate_metadata(
+                keepkeys_linux.Metadata(
+                    name="new-key",
+                    variable="SECRET_KEY",
+                    description="Credential for future approved agent commands",
+                    provider="Example",
+                    documentation_urls=("http://docs.example.com/api",),
+                )
+            )
+
+    def test_malformed_documentation_url_returns_structured_error_before_ui(self) -> None:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(MODULE_PATH),
+                "store",
+                "--name",
+                "test-key",
+                "--variable",
+                "TEST_KEY",
+                "--description",
+                "Test credential",
+                "--provider",
+                "Example",
+                "--documentation-url",
+                "https://[",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 1)
+        self.assertEqual(completed.stderr, "")
+        self.assertNotIn("Traceback", completed.stdout)
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["status"], "error")
+        self.assertIn("documentation", payload["message"].lower())
+
+    def test_store_dialog_has_no_window_wide_return_clipboard_trigger(self) -> None:
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        self.assertNotIn(
+            'window.bind("<Return>", lambda _event: submit())',
+            source,
+        )
+        self.assertIn(
+            'store_button.bind("<Return>", lambda _event: store_button.invoke())',
+            source,
+        )
+        self.assertIn("window.clipboard_clear()", source)
+        self.assertIn("winfo_screenheight()", source)
+        self.assertIn("self.tk.Canvas", source)
+        capture = source.index("value = window.clipboard_get()")
+        clear = source.index("window.clipboard_clear()", capture)
+        validate = source.index("validate_secret(value)", clear)
+        self.assertLess(capture, clear)
+        self.assertLess(clear, validate)
 
     def test_truncated_stream_is_omitted_in_full(self) -> None:
         capture = keepkeys_linux.Capture()

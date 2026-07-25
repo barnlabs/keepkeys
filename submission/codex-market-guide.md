@@ -1,7 +1,7 @@
 # Publish KeepKeys in the Codex plugin directory
 
 This is the handoff for the BarnLabs publisher. It follows the official OpenAI
-plugin submission workflow reviewed on 2026-07-24 and keeps account-owned
+plugin submission workflow reviewed on 2026-07-25 and keeps account-owned
 attestations with a human publisher.
 
 ## Choose the correct submission type
@@ -38,12 +38,12 @@ From a reviewed checkout:
 ./scripts/check
 ./scripts/test
 ./scripts/package-submission
-shasum -a 256 -c dist/keepkeys-skills-0.4.1.zip.sha256
+(cd dist && shasum -a 256 -c keepkeys-skills-0.4.2.zip.sha256)
 ```
 
 Upload:
 
-`dist/keepkeys-skills-0.4.1.zip`
+`dist/keepkeys-skills-0.4.2.zip`
 
 The packaging gate verifies that the archive has the plugin manifest, skill,
 native helper sources, launcher, brand assets, policies, and executable bit. It
@@ -79,7 +79,7 @@ reveals, exports, synchronizes, or remotely stores secrets.
 
 Enter all eight cases in [test-cases.md](test-cases.md):
 
-- five positive cases covering native entry, metadata listing, approved direct
+- five positive cases covering explicit native paste, metadata listing, approved direct
   use, cancellation, and confirmed removal;
 - three negative cases covering a pasted secret, plaintext retrieval, and
   environment-dump or shell use.
@@ -99,7 +99,7 @@ Verify the rendered listing:
   Service prerequisite;
 - the local-only, no-account, no-telemetry, and no-plaintext-retrieval
   boundaries are present;
-- release notes say 0.4.1;
+- release notes say 0.4.2;
 - every URL resolves to the public BarnLabs repository;
 - the upload is the freshly checksummed skills archive.
 
@@ -124,4 +124,3 @@ them.
 - [Build plugins](https://developers.openai.com/plugins/build/plugins)
 - [Submit plugins](https://developers.openai.com/plugins/deploy/submission)
 - [Plugin submission portal](https://platform.openai.com/plugins)
-
