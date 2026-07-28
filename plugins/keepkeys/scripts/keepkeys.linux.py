@@ -112,6 +112,10 @@ class KeepKeysError(Exception):
     """Expected user-facing helper failure."""
 
 
+class PortalStorageUncertainError(KeepKeysError):
+    """A portal write whose rollback could not prove the final vault state."""
+
+
 @dataclass(frozen=True)
 class Metadata:
     name: str
@@ -138,8 +142,8 @@ def emit(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, separators=(",", ":"), sort_keys=True), flush=True)
 
 
-def fail(message: str) -> NoReturn:
-    emit({"status": "error", "message": message})
+def fail(message: str, **details: Any) -> NoReturn:
+    emit({"status": "error", "message": message, **details})
     raise SystemExit(1)
 
 
@@ -365,9 +369,7 @@ def search_metadata(name: str | None = None) -> list[Metadata]:
     ]
     if name is not None:
         arguments.extend(["name", name])
-    result = run_secret_tool(arguments, required=False)
-    if result.returncode != 0:
-        return []
+    result = run_secret_tool(arguments)
     output = result.stdout.decode("utf-8", errors="replace")
     entries: dict[str, Metadata] = {}
     for raw_line in output.splitlines():
@@ -389,21 +391,6 @@ def lookup_secret(name: str) -> str:
         raise KeepKeysError("The Secret Service item is not valid UTF-8.") from error
     validate_secret(secret)
     return secret
-
-
-def lookup_secret_optional(name: str) -> str | None:
-    result = run_secret_tool(
-        ["lookup", "service", SECRET_SERVICE, "name", name],
-        required=False,
-    )
-    if result.returncode != 0:
-        return None
-    try:
-        secret = result.stdout.decode("utf-8")
-        validate_secret(secret)
-        return secret
-    except (UnicodeDecodeError, KeepKeysError):
-        return None
 
 
 def store_value(name: str, secret: str) -> None:
@@ -444,6 +431,43 @@ def clear_item(service: str, name: str) -> bool:
         required=False,
     )
     return result.returncode == 0
+
+
+def clear_native_portal_test_record(name: str) -> None:
+    failures: list[BaseException] = []
+    for service in (METADATA_SERVICE, SECRET_SERVICE):
+        try:
+            if not clear_item(service, name):
+                failures.append(
+                    KeepKeysError(
+                        "Secret Service did not remove a temporary portal item."
+                    )
+                )
+        except (
+            KeepKeysError,
+            OSError,
+            subprocess.SubprocessError,
+        ) as error:
+            failures.append(error)
+    if not failures:
+        try:
+            if search_metadata(name):
+                failures.append(
+                    KeepKeysError(
+                        "Temporary portal metadata remained after cleanup."
+                    )
+                )
+        except (
+            KeepKeysError,
+            OSError,
+            subprocess.SubprocessError,
+        ) as error:
+            failures.append(error)
+    if failures:
+        raise KeepKeysError(
+            "The temporary native portal Secret Service cleanup could not "
+            "be confirmed."
+        ) from failures[0]
 
 
 def remove_secret(name: str) -> bool:
@@ -1155,7 +1179,7 @@ def store_record(
             "Start a new phone intake and review the replacement warning."
         )
     previous_secret = (
-        lookup_secret_optional(final_metadata.name)
+        lookup_secret(final_metadata.name)
         if previous_metadata is not None
         else None
     )
@@ -1207,7 +1231,7 @@ def store_record(
         ) as rollback_error:
             rollback_errors.append(rollback_error)
         if rollback_errors:
-            raise KeepKeysError(
+            raise PortalStorageUncertainError(
                 f"Secret Service failed during storage and rollback. Remove "
                 f"'{final_metadata.name}' from KeepKeys before retrying."
             ) from rollback_errors[0]
@@ -1335,6 +1359,7 @@ def action_portal_commit(arguments: list[str]) -> dict[str, Any]:
                 "The stored KeepKeys name changed after the phone page opened. "
                 "Start a new phone intake and review the replacement warning."
             )
+            record_created = False
             try:
                 if native_self_test_value == "round-trip":
                     result = store_record(
@@ -1342,6 +1367,7 @@ def action_portal_commit(arguments: list[str]) -> dict[str, Any]:
                         secret,
                         expected_existing=False,
                     )
+                    record_created = True
                     verified = (
                         result.get("status") == "ok"
                         and lookup_secret(metadata.name) == secret
@@ -1353,6 +1379,7 @@ def action_portal_commit(arguments: list[str]) -> dict[str, Any]:
                         secret,
                         expected_existing=False,
                     )
+                    record_created = True
                     rejected = False
                     try:
                         store_record(
@@ -1370,8 +1397,6 @@ def action_portal_commit(arguments: list[str]) -> dict[str, Any]:
                         and search_metadata(metadata.name) == [metadata]
                     )
                 else:
-                    clear_item(METADATA_SERVICE, metadata.name)
-                    clear_item(SECRET_SERVICE, metadata.name)
                     rejected = False
                     try:
                         store_record(
@@ -1386,16 +1411,14 @@ def action_portal_commit(arguments: list[str]) -> dict[str, Any]:
                     verified = (
                         rejected
                         and not search_metadata(metadata.name)
-                        and lookup_secret_optional(metadata.name) is None
                     )
             finally:
-                clear_item(METADATA_SERVICE, metadata.name)
-                clear_item(SECRET_SERVICE, metadata.name)
+                if record_created:
+                    clear_native_portal_test_record(metadata.name)
                 race_secret = ""
             if (
                 not verified
                 or search_metadata(metadata.name)
-                or lookup_secret_optional(metadata.name) is not None
             ):
                 raise KeepKeysError(
                     "The temporary native portal Secret Service scenario or "
@@ -1622,6 +1645,12 @@ def main(arguments: list[str]) -> None:
         else:
             raise KeepKeysError(f"Unknown KeepKeys action '{action}'.")
         emit(result)
+    except PortalStorageUncertainError as error:
+        fail(
+            str(error),
+            storageState="uncertain",
+            cleanupKind="native-rollback",
+        )
     except KeepKeysError as error:
         fail(str(error))
     except (OSError, subprocess.SubprocessError) as error:

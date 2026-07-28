@@ -558,7 +558,15 @@ export function createPortalServer({
         safeSendJson(
           response,
           500,
-          stored
+          error?.storageState === "uncertain"
+            ? {
+                status: "error",
+                stored: null,
+                storageState: "uncertain",
+                message:
+                  "KeepKeys could not confirm whether the key remained after native-vault rollback failed. Check the connected host and remove this name before retrying.",
+              }
+            : stored
             ? {
                 status: "error",
                 stored: true,
@@ -951,6 +959,23 @@ export async function withPortalCommitLock(
   return result;
 }
 
+export function nativeCommitError(parsed) {
+  if (
+    parsed?.status === "error" &&
+    parsed?.storageState === "uncertain" &&
+    parsed?.cleanupKind === "native-rollback"
+  ) {
+    const cleanupError = new Error(
+      "KeepKeys could not confirm the native-vault state after rollback failed.",
+    );
+    cleanupError.name = "CleanupError";
+    cleanupError.cleanupKind = "native-rollback";
+    cleanupError.storageState = "uncertain";
+    return cleanupError;
+  }
+  return new Error("KeepKeys could not store the submitted key.");
+}
+
 async function commitToNativeVault(
   metadata,
   replacing,
@@ -1005,7 +1030,7 @@ async function commitToNativeVault(
           if (nativeSelfTestScenario && typeof parsed?.message === "string") {
             throw new Error(parsed.message);
           }
-          throw new Error("KeepKeys could not store the submitted key.");
+          throw nativeCommitError(parsed);
         }
         return parsed;
       } finally {

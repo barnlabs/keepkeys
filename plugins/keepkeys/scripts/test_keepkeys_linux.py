@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import base64
-from io import BytesIO
+from io import BytesIO, StringIO
 import importlib.util
 import json
 from pathlib import Path
@@ -85,6 +85,31 @@ class LinuxBackendTests(unittest.TestCase):
                 keepkeys_linux.METADATA_SERVICE,
             ],
         )
+
+    def test_search_metadata_propagates_secret_service_failure(self) -> None:
+        completed = subprocess.CompletedProcess(
+            args=["secret-tool"],
+            returncode=1,
+            stdout=b"",
+            stderr=b"synthetic unavailable",
+        )
+        with (
+            patch.object(
+                keepkeys_linux,
+                "require_linux_runtime",
+                return_value="/usr/bin/secret-tool",
+            ),
+            patch.object(
+                keepkeys_linux.subprocess,
+                "run",
+                return_value=completed,
+            ),
+            self.assertRaisesRegex(
+                keepkeys_linux.KeepKeysError,
+                "Secret Service rejected",
+            ),
+        ):
+            keepkeys_linux.search_metadata("demo")
 
     def test_malformed_v2_documentation_items_fail_closed(self) -> None:
         payload = base64.urlsafe_b64encode(
@@ -297,15 +322,105 @@ class LinuxBackendTests(unittest.TestCase):
             self.assertRaisesRegex(
                 keepkeys_linux.KeepKeysError,
                 "failed during storage and rollback",
-            ),
+            ) as raised,
         ):
             keepkeys_linux.store_record(metadata, "synthetic_secret")
+        self.assertIsInstance(
+            raised.exception,
+            keepkeys_linux.PortalStorageUncertainError,
+        )
         self.assertEqual(
             clear_item.call_args_list,
             [
                 call(keepkeys_linux.SECRET_SERVICE, "demo"),
                 call(keepkeys_linux.METADATA_SERVICE, "demo"),
             ],
+        )
+
+    def test_existing_record_lookup_failure_prevents_phone_write(self) -> None:
+        metadata = keepkeys_linux.Metadata(
+            name="demo",
+            variable="DEMO_TOKEN",
+            description="Synthetic test credential",
+            provider="Example",
+            documentation_urls=("https://docs.example.com/api",),
+        )
+        with (
+            patch.object(
+                keepkeys_linux,
+                "search_metadata",
+                return_value=[metadata],
+            ),
+            patch.object(
+                keepkeys_linux,
+                "lookup_secret",
+                side_effect=keepkeys_linux.KeepKeysError(
+                    "Synthetic Secret Service lookup failure."
+                ),
+            ),
+            patch.object(keepkeys_linux, "store_value") as store_value,
+            patch.object(keepkeys_linux, "store_metadata") as store_metadata,
+            self.assertRaisesRegex(
+                keepkeys_linux.KeepKeysError,
+                "lookup failure",
+            ),
+        ):
+            keepkeys_linux.store_record(
+                metadata,
+                "synthetic_secret",
+                expected_existing=True,
+            )
+        store_value.assert_not_called()
+        store_metadata.assert_not_called()
+
+    def test_native_portal_cleanup_requires_both_deletions(self) -> None:
+        with (
+            patch.object(
+                keepkeys_linux,
+                "clear_item",
+                side_effect=[False, True],
+            ) as clear_item,
+            patch.object(
+                keepkeys_linux,
+                "search_metadata",
+            ) as search_metadata,
+            self.assertRaisesRegex(
+                keepkeys_linux.KeepKeysError,
+                "cleanup could not be confirmed",
+            ),
+        ):
+            keepkeys_linux.clear_native_portal_test_record("demo")
+        self.assertEqual(
+            clear_item.call_args_list,
+            [
+                call(keepkeys_linux.METADATA_SERVICE, "demo"),
+                call(keepkeys_linux.SECRET_SERVICE, "demo"),
+            ],
+        )
+        search_metadata.assert_not_called()
+
+    def test_portal_rollback_uncertainty_is_structured(self) -> None:
+        output = StringIO()
+        with (
+            patch.object(
+                keepkeys_linux,
+                "action_store",
+                side_effect=keepkeys_linux.PortalStorageUncertainError(
+                    "Synthetic rollback uncertainty."
+                ),
+            ),
+            patch.object(keepkeys_linux.sys, "stdout", output),
+            self.assertRaises(SystemExit),
+        ):
+            keepkeys_linux.main(["store"])
+        self.assertEqual(
+            json.loads(output.getvalue()),
+            {
+                "status": "error",
+                "message": "Synthetic rollback uncertainty.",
+                "storageState": "uncertain",
+                "cleanupKind": "native-rollback",
+            },
         )
 
     def test_malformed_documentation_url_returns_structured_error_before_ui(self) -> None:

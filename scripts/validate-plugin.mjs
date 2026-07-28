@@ -323,6 +323,31 @@ assert.match(
   "Linux paired writes must report failed rollback deletions",
 );
 assert.match(
+  linuxHelper,
+  /def search_metadata\([\s\S]*?result = run_secret_tool\(arguments\)\s+output =/,
+  "Linux metadata lookup failures must propagate instead of becoming absence",
+);
+assert.match(
+  linuxHelper,
+  /class PortalStorageUncertainError[\s\S]*?storageState="uncertain",\s+cleanupKind="native-rollback"/,
+  "Linux rollback uncertainty must cross the native portal boundary",
+);
+assert.match(
+  linuxHelper,
+  /def clear_native_portal_test_record[\s\S]*?if not clear_item\(service, name\)[\s\S]*?if failures:/,
+  "Linux native portal tests must reject failed cleanup deletions",
+);
+assert.match(
+  portalSource,
+  /parsed\?\.storageState === "uncertain"[\s\S]*?cleanupError\.storageState = "uncertain"/,
+  "portal commit handling must retain native rollback uncertainty",
+);
+assert.match(
+  portalSource,
+  /storageState: "uncertain"[\s\S]*?could not confirm whether the key remained/,
+  "the phone must not claim uncertain native rollback discarded the key",
+);
+assert.match(
   portalSource,
   /millisecondsUntilExpiry\(expiresAt\)/,
   "portal cleanup must be scheduled from the advertised expiry",

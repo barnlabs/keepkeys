@@ -16,6 +16,7 @@ import {
   closePortalServer,
   createPortalServer,
   millisecondsUntilExpiry,
+  nativeCommitError,
   parsePortalMetadata,
   portalStartupProcessOptions,
   renderPortalHtml,
@@ -889,6 +890,51 @@ test("native commit failure makes the phone session terminal", async (context) =
   assert.equal(reused.status, 410);
 });
 
+test("native rollback uncertainty never claims the value was discarded", async (context) => {
+  const path = "/keepkeys/store/uncertain-rollback";
+  const expectedOrigin = "https://device.example.ts.net";
+  const server = createPortalServer({
+    metadata,
+    replacing: false,
+    path,
+    cookieToken: "uncertain-rollback-cookie",
+    expectedOrigin,
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    commitSecret: async () => {
+      throw nativeCommitError({
+        status: "error",
+        storageState: "uncertain",
+        cleanupKind: "native-rollback",
+      });
+    },
+  });
+  context.after(() => server.close());
+  const base = await listen(server);
+  const page = await fetch(`${base}${path}`, {
+    headers: { "Tailscale-User-Login": "owner@example.com" },
+  });
+  const cookie = (page.headers.get("set-cookie") ?? "").split(";")[0];
+
+  const failed = await fetch(`${base}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8",
+      Cookie: cookie,
+      Origin: expectedOrigin,
+      "Tailscale-User-Login": "owner@example.com",
+    },
+    body: "synthetic_secret",
+  });
+  assert.equal(failed.status, 500);
+  assert.deepEqual(await failed.json(), {
+    status: "error",
+    stored: null,
+    storageState: "uncertain",
+    message:
+      "KeepKeys could not confirm whether the key remained after native-vault rollback failed. Check the connected host and remove this name before retrying.",
+  });
+});
+
 test("the first valid POST atomically claims the one-time session", async (context) => {
   let calls = 0;
   let commitStartedResolve;
@@ -1058,6 +1104,29 @@ test("settled helper cleanup failures remain available to portal teardown", asyn
     state,
   );
   await assert.rejects(tracked, { name: "CleanupError" });
+  assert.equal(state.active, undefined);
+  assert.equal(state.cleanupError, cleanupError);
+});
+
+test("native rollback uncertainty remains available to portal teardown", async () => {
+  const cleanupError = nativeCommitError({
+    status: "error",
+    storageState: "uncertain",
+    cleanupKind: "native-rollback",
+  });
+  const state = {
+    active: undefined,
+    cleanupError: undefined,
+  };
+  const tracked = trackPortalCommit(
+    Promise.reject(cleanupError),
+    state,
+  );
+  await assert.rejects(tracked, {
+    name: "CleanupError",
+    cleanupKind: "native-rollback",
+    storageState: "uncertain",
+  });
   assert.equal(state.active, undefined);
   assert.equal(state.cleanupError, cleanupError);
 });
