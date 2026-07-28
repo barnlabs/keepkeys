@@ -152,6 +152,11 @@ compatible provider and inherits its security policy. Item attributes and
 labels are explicitly non-secret metadata. The value crosses the local D-Bus
 and a `secret-tool` pipe; it never crosses the agent protocol.
 
+Linux replacement snapshots the prior value and metadata. If either
+`secret-tool store` call raises a KeepKeys error, operating-system error,
+timeout, or other subprocess failure, KeepKeys attempts to restore the complete
+previous pair before returning the failure.
+
 KeepKeys refuses to use a plaintext keyring fallback and refuses secret entry
 when no graphical session is available.
 
@@ -238,10 +243,14 @@ until the exact generated path is absent. Route absence without process exit,
 or process exit without route absence, is a cleanup failure; failure of one
 proof cannot stop KeepKeys from awaiting the other. Metadata and Tailscale
 startup operations share an abort signal and both settle before startup failure
-is returned. Serve output is drained but not retained after readiness. Expiry
-teardown is scheduled from the timestamp advertised to the user, including
-time spent starting Serve. A pre-existing listener conflict fails closed rather
-than changing another Tailscale Serve configuration.
+is returned. A successful vault write does not produce a browser success
+response until the owned Serve process exits and the exact path is absent. If
+that cleanup fails, the response says the key was stored and reports cleanup
+failure. Unconfirmed native-helper termination remains a teardown failure after
+the commit promise settles. Serve output is drained but not retained after
+readiness. Expiry teardown is scheduled from the timestamp advertised to the
+user, including time spent starting Serve. A pre-existing listener conflict
+fails closed rather than changing another Tailscale Serve configuration.
 
 ### Approved target disclosure
 

@@ -17,7 +17,10 @@ one-use Tailscale Serve page on the connected computer. A user in the same
 tailnet reviews the non-secret metadata, pastes the key, and submits it directly
 to the computer's native vault. The page binds to one Tailscale identity and
 browser session, checks origin and request size, and closes after one
-submission or expiry. KeepKeys never enables Tailscale Funnel.
+submission or expiry. UTF-8 byte limits are enforced in the page script and
+server. After a vault write, the page shows success only after the owned Serve
+process stops and the exact route is gone; a cleanup failure is shown
+separately from a failed vault write. KeepKeys never enables Tailscale Funnel.
 
 The release preserves the immutable-commit update checker, three native
 backends, and packages for Grok Build/Grok Code, Claude Code, Oh My Pi, Hermes,

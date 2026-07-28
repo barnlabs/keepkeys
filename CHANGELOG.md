@@ -24,6 +24,15 @@
 - Cancel and await both metadata and Tailscale startup operations after either
   fails, await Serve termination even when route verification fails, and stop
   retaining Serve output after its readiness message.
+- Hold the phone success response until the owned Serve process and exact route
+  are gone. If storage succeeds but that cleanup fails, the page says the key
+  was stored and reports the cleanup failure instead of showing a false
+  success.
+- Preserve unconfirmed native-helper termination as a teardown failure after
+  the helper promise settles, and roll back Linux value writes when the
+  following metadata subprocess times out or otherwise fails.
+- Enforce the 8-byte minimum with UTF-8 byte counting in JavaScript and on the
+  server instead of an HTML character-count minimum.
 - Made the no-script form fail closed: controls remain disabled and the
   password field has no serializable HTML name until the safe JavaScript POST
   path is active.

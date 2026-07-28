@@ -253,6 +253,16 @@ assert.match(
   /<form id="store-form" method="post">[\s\S]*?<fieldset id="store-controls" disabled>[\s\S]*?<input id="secret" type="password"/,
   "phone intake must keep the no-script form disabled and must not name the secret input",
 );
+assert.doesNotMatch(
+  portalSource,
+  /\sminlength=/,
+  "phone intake must not apply a character-count minimum to a UTF-8 byte limit",
+);
+assert.match(
+  portalSource,
+  /new TextEncoder\(\)\.encode\(input\.value\)\.byteLength/,
+  "phone intake must enforce its client-side limit in UTF-8 bytes",
+);
 assert.match(
   portalSource,
   /portalStartupProcessOptions\([\s\S]*?detached: false/,
@@ -282,6 +292,21 @@ assert.match(
   portalSource,
   /const cleanupResults = await Promise\.allSettled\(\[\s+stopProcess,\s+Promise\.resolve\(\)\.then\(verifyRouteRemoved\)/,
   "Serve cleanup must await both process exit and route verification",
+);
+assert.match(
+  portalSource,
+  /const result = await commitSecret\(secret, abortSignal\);[\s\S]*?stored = true;[\s\S]*?await finalizeSuccess\(\);[\s\S]*?safeSendJson\(\s+response,\s+200,/,
+  "phone success must wait for owned Serve cleanup",
+);
+assert.match(
+  portalSource,
+  /if \(error\?\.name === "CleanupError"\) state\.cleanupError = error;[\s\S]*?if \(commitState\.cleanupError\)/,
+  "native-helper cleanup failures must survive commit settlement",
+);
+assert.match(
+  linuxHelper,
+  /except \(\s+KeepKeysError,\s+OSError,\s+subprocess\.SubprocessError,\s+\) as write_error:[\s\S]*?except \(\s+KeepKeysError,\s+OSError,\s+subprocess\.SubprocessError,\s+\) as rollback_error:/,
+  "Linux paired writes must roll back subprocess and operating-system failures",
 );
 assert.match(
   portalSource,

@@ -10,7 +10,7 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 MODULE_PATH = Path(__file__).with_name("keepkeys.linux.py")
 SPEC = importlib.util.spec_from_file_location("keepkeys_linux", MODULE_PATH)
@@ -223,6 +223,47 @@ class LinuxBackendTests(unittest.TestCase):
         self.assertEqual(stored_metadata.name, "demo")
         self.assertNotIn("secret", result)
         self.assertNotIn("value", result)
+
+    def test_metadata_subprocess_failure_rolls_back_the_new_value(self) -> None:
+        metadata = keepkeys_linux.Metadata(
+            name="demo",
+            variable="DEMO_TOKEN",
+            description="Synthetic test credential",
+            provider="Example",
+            documentation_urls=("https://docs.example.com/api",),
+        )
+        timeout = subprocess.TimeoutExpired(
+            cmd=["secret-tool", "store"],
+            timeout=30,
+        )
+        with (
+            patch.object(
+                keepkeys_linux,
+                "search_metadata",
+                return_value=[],
+            ),
+            patch.object(keepkeys_linux, "store_value") as store_value,
+            patch.object(
+                keepkeys_linux,
+                "store_metadata",
+                side_effect=timeout,
+            ),
+            patch.object(
+                keepkeys_linux,
+                "clear_item",
+                return_value=True,
+            ) as clear_item,
+            self.assertRaises(subprocess.TimeoutExpired),
+        ):
+            keepkeys_linux.store_record(metadata, "synthetic_secret")
+        store_value.assert_called_once_with("demo", "synthetic_secret")
+        self.assertEqual(
+            clear_item.call_args_list,
+            [
+                call(keepkeys_linux.SECRET_SERVICE, "demo"),
+                call(keepkeys_linux.METADATA_SERVICE, "demo"),
+            ],
+        )
 
     def test_malformed_documentation_url_returns_structured_error_before_ui(self) -> None:
         completed = subprocess.run(

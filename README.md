@@ -121,9 +121,10 @@ Store from a phone:
    **Paste & Store**.
 4. The page sends the value through the private tailnet to the connected
    computer, where the native helper writes it to the operating-system vault.
-   The listener, native helper process tree, and Serve route then close.
-   KeepKeys reports cleanup failure unless both process exit and exact route
-   removal are confirmed.
+   KeepKeys stops the owned Serve process and confirms exact route removal
+   before the browser can show **Stored**. The localhost listener then closes.
+   If the vault write succeeds but Serve cleanup fails, the page says the key
+   was stored and reports the cleanup failure.
 
 Phone intake requires Tailscale 1.52 or newer, MagicDNS, tailnet HTTPS, and a
 phone signed into the same tailnet. See the
@@ -151,7 +152,8 @@ KeepKeys does:
 - keep the optional phone page inside the user's tailnet, bind it to one
   Tailscale identity and browser cookie, serialize same-name commits, and close
   it after one authenticated submission attempt or at the advertised
-  ten-minute expiry, with both Serve-process and exact-route verification;
+  ten-minute expiry, withholding browser success until both Serve-process and
+  exact-route verification pass;
 - read the system clipboard only after **Paste & Store** and clear its current
   contents immediately after capture;
 - pin native helper sources and fail closed on integrity mismatch;

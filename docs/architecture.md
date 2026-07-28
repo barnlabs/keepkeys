@@ -78,9 +78,11 @@ ten-minute session. The session:
    those bytes through redirected stdin to the selected native helper;
 8. requires that helper to verify its direct parent is Node executing the exact
    bundled `keepkeys-portal.mjs`;
-9. closes every localhost connection, aborts an in-flight helper, gracefully
-    signals the portal process group, waits for the owned Serve child, and
-    queries Tailscale until the exact route is absent.
+9. after a successful native write, stops the owned Serve process and queries
+   Tailscale until the exact route is absent before the browser receives its
+   success response;
+10. closes every localhost connection and aborts any in-flight helper during
+    terminal or expiry cleanup.
 
 The browser page has no external scripts, styles, images, analytics, or
 network destinations. Its form starts disabled, and the password input has no
@@ -90,7 +92,10 @@ only the explicit same-origin text POST. The per-name lock spans the native
 existence recheck and write, so concurrent sessions cannot both accept a stale
 replacement state. The session never runs Tailscale Funnel and never changes
 unrelated Serve configuration. After Serve reports readiness, KeepKeys drains
-but no longer retains its later process output.
+but no longer retains its later process output. If the key is stored but Serve
+cleanup fails, the response distinguishes that state from a failed vault write
+and the portal exits with a cleanup failure. An unconfirmed native-helper
+termination remains attached to teardown even after the commit promise settles.
 
 ## Platform records
 
@@ -143,7 +148,9 @@ metadata; it never searches the protected-value service. After approval,
 `secret-tool lookup` transfers the value item through an anonymous pipe into
 the helper. Store transfers both payloads to `secret-tool store` through
 standard input. No credential value is placed in argv, an environment variable,
-a temporary file, or a terminal prompt.
+a temporary file, or a terminal prompt. Replacement snapshots the old pair and
+rolls it back when either write raises a KeepKeys error, operating-system error,
+timeout, or other subprocess failure.
 
 KeepKeys fails closed when `secret-tool`, a D-Bus user session, a Secret Service
 provider, Python Tk support, or a graphical session is absent.

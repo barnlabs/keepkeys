@@ -255,7 +255,7 @@ export function renderPortalHtml({ metadata, replacing, nonce, expiresAt }) {
     <form id="store-form" method="post">
       <fieldset id="store-controls" disabled>
         <label for="secret">Key</label>
-        <input id="secret" type="password" minlength="8" maxlength="2048" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+        <input id="secret" type="password" maxlength="2048" autocomplete="off" autocapitalize="none" spellcheck="false" required>
         <button id="store-button" type="submit">Paste &amp; Store</button>
         <p id="status" role="status" aria-live="polite"></p>
       </fieldset>
@@ -276,6 +276,10 @@ export function renderPortalHtml({ metadata, replacing, nonce, expiresAt }) {
       button.disabled = true;
       status.textContent = "Storing…";
       try {
+        const byteLength = new TextEncoder().encode(input.value).byteLength;
+        if (byteLength < 8 || byteLength > 2048) {
+          throw new Error("Keys must contain 8-2048 UTF-8 bytes.");
+        }
         const response = await fetch(window.location.href, {
           method: "POST",
           credentials: "same-origin",
@@ -362,6 +366,7 @@ export function createPortalServer({
   expectedOrigin,
   expiresAt,
   commitSecret,
+  finalizeSuccess = async () => {},
   abortSignal,
   onTerminal = () => {},
 }) {
@@ -531,8 +536,11 @@ export function createPortalServer({
       const secret = Buffer.concat(chunks, byteCount);
       for (const value of chunks) value.fill(0);
       chunks.length = 0;
+      let stored = false;
       try {
         const result = await commitSecret(secret, abortSignal);
+        stored = true;
+        await finalizeSuccess();
         safeSendJson(
           response,
           200,
@@ -549,11 +557,19 @@ export function createPortalServer({
         safeSendJson(
           response,
           500,
-          {
-            status: "error",
-            message:
-              "KeepKeys could not store this key. The value was discarded. Start a new phone intake and try again.",
-          },
+          stored
+            ? {
+                status: "error",
+                stored: true,
+                message:
+                  "The key was stored, but KeepKeys could not verify that its private Tailscale route closed. Stop the owned KeepKeys Serve route before using this link again.",
+              }
+            : {
+                status: "error",
+                stored: false,
+                message:
+                  "KeepKeys could not store this key. The value was discarded. Start a new phone intake and try again.",
+              },
           nonce,
         );
       } finally {
@@ -1143,6 +1159,19 @@ export async function stopOwnedServeProcess(
   }
 }
 
+export function trackPortalCommit(operation, state) {
+  const tracked = operation
+    .catch((error) => {
+      if (error?.name === "CleanupError") state.cleanupError = error;
+      throw error;
+    })
+    .finally(() => {
+      if (state.active === tracked) state.active = undefined;
+    });
+  state.active = tracked;
+  return tracked;
+}
+
 async function startPortalSession(argumentsValue) {
   const metadata = parsePortalMetadata(argumentsValue);
   const nativeSelfTest = process.env[PORTAL_TAILNET_TEST_FLAG] === "1";
@@ -1162,34 +1191,38 @@ async function startPortalSession(argumentsValue) {
   let serveProcess;
   let expiryTimer;
   let cleanupPromise;
-  let activeCommit;
+  let stopOwnedServePromise;
+  const commitState = {
+    active: undefined,
+    cleanupError: undefined,
+  };
   let stoppingOwnedProcessGroup = false;
   const commitController = new AbortController();
-  const stopOwnedServe = async () => {
-    if (!serveProcess) return;
-    await stopOwnedServeProcess(
-      serveProcess,
-      () => verifyServePathRemoved(tailscale, path),
-      {
-        signalProcessGroup: () => {
-          stoppingOwnedProcessGroup = true;
-          process.kill(-process.pid, "SIGTERM");
+  const stopOwnedServe = () => {
+    if (!serveProcess) return Promise.resolve();
+    if (!stopOwnedServePromise) {
+      stopOwnedServePromise = stopOwnedServeProcess(
+        serveProcess,
+        () => verifyServePathRemoved(tailscale, path),
+        {
+          signalProcessGroup: () => {
+            stoppingOwnedProcessGroup = true;
+            process.kill(-process.pid, "SIGTERM");
+          },
         },
-      },
-    );
+      );
+    }
+    return stopOwnedServePromise;
   };
   const cleanup = () => {
     if (cleanupPromise) return cleanupPromise;
     cleanupPromise = (async () => {
       if (expiryTimer) clearTimeout(expiryTimer);
       commitController.abort();
-      let commitCleanupError;
-      if (activeCommit) {
+      if (commitState.active) {
         try {
-          await activeCommit;
-        } catch (error) {
-          if (error?.name === "CleanupError") commitCleanupError = error;
-        }
+          await commitState.active;
+        } catch {}
       }
       const cleanupResults = await Promise.allSettled([
         closePortalServer(server),
@@ -1198,7 +1231,9 @@ async function startPortalSession(argumentsValue) {
       const cleanupFailures = cleanupResults
         .filter((result) => result.status === "rejected")
         .map((result) => result.reason);
-      if (commitCleanupError) cleanupFailures.unshift(commitCleanupError);
+      if (commitState.cleanupError) {
+        cleanupFailures.unshift(commitState.cleanupError);
+      }
       if (cleanupFailures.length > 0) {
         throw new AggregateError(
           cleanupFailures,
@@ -1237,6 +1272,7 @@ async function startPortalSession(argumentsValue) {
     expectedOrigin,
     expiresAt,
     abortSignal: commitController.signal,
+    finalizeSuccess: stopOwnedServe,
     commitSecret: (secret, signal) => {
       const operation = commitToNativeVault(
         metadata,
@@ -1245,11 +1281,7 @@ async function startPortalSession(argumentsValue) {
         signal,
         { nativeSelfTest },
       );
-      const tracked = operation.finally(() => {
-        if (activeCommit === tracked) activeCommit = undefined;
-      });
-      activeCommit = tracked;
-      return tracked;
+      return trackPortalCommit(operation, commitState);
     },
     onTerminal: () => {
       setTimeout(() => {

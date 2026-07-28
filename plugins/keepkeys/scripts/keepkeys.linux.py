@@ -1162,7 +1162,11 @@ def store_record(
     try:
         store_value(final_metadata.name, secret)
         store_metadata(final_metadata)
-    except KeepKeysError as write_error:
+    except (
+        KeepKeysError,
+        OSError,
+        subprocess.SubprocessError,
+    ) as write_error:
         try:
             if previous_secret is None:
                 clear_item(SECRET_SERVICE, final_metadata.name)
@@ -1178,7 +1182,11 @@ def store_record(
                         and not previous_metadata.documentation_urls
                     ),
                 )
-        except KeepKeysError as rollback_error:
+        except (
+            KeepKeysError,
+            OSError,
+            subprocess.SubprocessError,
+        ) as rollback_error:
             raise KeepKeysError(
                 f"Secret Service failed during storage and rollback. Remove "
                 f"'{final_metadata.name}' from KeepKeys before retrying."

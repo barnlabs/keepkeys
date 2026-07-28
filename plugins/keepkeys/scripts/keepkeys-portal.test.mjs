@@ -23,6 +23,7 @@ import {
   runProcess,
   serveStatusContainsPath,
   stopOwnedServeProcess,
+  trackPortalCommit,
   waitForServeReady,
   withPortalCommitLock,
 } from "./keepkeys-portal.mjs";
@@ -141,7 +142,9 @@ test("portal HTML escapes metadata and loads no third-party resources", () => {
   assert.match(html, /<form id="store-form" method="post">/u);
   assert.match(html, /<fieldset id="store-controls" disabled>/u);
   assert.doesNotMatch(html, /<input[^>]*\sname=/u);
+  assert.doesNotMatch(html, /\sminlength=/u);
   assert.match(html, /controls\.disabled = false/u);
+  assert.match(html, /new TextEncoder\(\)\.encode\(input\.value\)\.byteLength/u);
   assert.match(html, /This form is disabled and will not submit a key/u);
   assert.doesNotMatch(html, /https:\/\/(?!example\.com)/u);
 });
@@ -467,7 +470,8 @@ test("portal requires Tailscale identity, same-origin cookie, and one use", asyn
   });
   assert.equal(wrongOrigin.status, 403);
 
-  const secret = "synthetic_secret";
+  const secret = "🔑🔐";
+  assert.equal(Buffer.byteLength(secret, "utf8"), 8);
   const storedResponse = await fetch(`${base}${path}`, {
     method: "POST",
     headers: {
@@ -490,6 +494,102 @@ test("portal requires Tailscale identity, same-origin cookie, and one use", asyn
     headers: { "Tailscale-User-Login": "owner@example.com" },
   });
   assert.equal(reused.status, 410);
+});
+
+test("phone success waits for owned Serve cleanup confirmation", async (context) => {
+  let finalizeStartedResolve;
+  const finalizeStarted = new Promise((resolvePromise) => {
+    finalizeStartedResolve = resolvePromise;
+  });
+  let releaseFinalize;
+  const finalizeGate = new Promise((resolvePromise) => {
+    releaseFinalize = resolvePromise;
+  });
+  const path = "/keepkeys/store/deferred-success";
+  const expectedOrigin = "https://device.example.ts.net";
+  const server = createPortalServer({
+    metadata,
+    replacing: false,
+    path,
+    cookieToken: "deferred-success-cookie",
+    expectedOrigin,
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    commitSecret: async () => ({ status: "ok" }),
+    finalizeSuccess: async () => {
+      finalizeStartedResolve();
+      await finalizeGate;
+    },
+  });
+  context.after(() => server.close());
+  const base = await listen(server);
+  const page = await fetch(`${base}${path}`, {
+    headers: { "Tailscale-User-Login": "owner@example.com" },
+  });
+  const cookie = (page.headers.get("set-cookie") ?? "").split(";")[0];
+  let responseSettled = false;
+  const submission = fetch(`${base}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8",
+      Cookie: cookie,
+      Origin: expectedOrigin,
+      "Tailscale-User-Login": "owner@example.com",
+    },
+    body: "synthetic_secret",
+  }).finally(() => {
+    responseSettled = true;
+  });
+  await finalizeStarted;
+  await delay(25);
+  assert.equal(responseSettled, false);
+  releaseFinalize();
+  assert.equal((await submission).status, 200);
+});
+
+test("post-store Serve cleanup failures are visible to the phone", async (context) => {
+  let terminalResolve;
+  const terminal = new Promise((resolvePromise) => {
+    terminalResolve = resolvePromise;
+  });
+  const path = "/keepkeys/store/cleanup-failure";
+  const expectedOrigin = "https://device.example.ts.net";
+  const server = createPortalServer({
+    metadata,
+    replacing: false,
+    path,
+    cookieToken: "cleanup-failure-cookie",
+    expectedOrigin,
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    commitSecret: async () => ({ status: "ok" }),
+    finalizeSuccess: async () => {
+      throw new Error("Synthetic Serve cleanup failure.");
+    },
+    onTerminal: terminalResolve,
+  });
+  context.after(() => server.close());
+  const base = await listen(server);
+  const page = await fetch(`${base}${path}`, {
+    headers: { "Tailscale-User-Login": "owner@example.com" },
+  });
+  const cookie = (page.headers.get("set-cookie") ?? "").split(";")[0];
+  const response = await fetch(`${base}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8",
+      Cookie: cookie,
+      Origin: expectedOrigin,
+      "Tailscale-User-Login": "owner@example.com",
+    },
+    body: "synthetic_secret",
+  });
+  assert.equal(response.status, 500);
+  assert.deepEqual(await response.json(), {
+    status: "error",
+    stored: true,
+    message:
+      "The key was stored, but KeepKeys could not verify that its private Tailscale route closed. Stop the owned KeepKeys Serve route before using this link again.",
+  });
+  await terminal;
 });
 
 test("portal refuses cross-identity submission and short values", async (context) => {
@@ -700,6 +800,7 @@ test("native commit failure makes the phone session terminal", async (context) =
   assert.equal(failed.status, 500);
   assert.deepEqual(await failed.json(), {
     status: "error",
+    stored: false,
     message:
       "KeepKeys could not store this key. The value was discarded. Start a new phone intake and try again.",
   });
@@ -874,6 +975,22 @@ test("helper abort surfaces an unconfirmed termination", async () => {
     name: "CleanupError",
     message: /could not confirm that the native helper stopped/u,
   });
+});
+
+test("settled helper cleanup failures remain available to portal teardown", async () => {
+  const cleanupError = new Error("Synthetic cleanup confirmation failure.");
+  cleanupError.name = "CleanupError";
+  const state = {
+    active: undefined,
+    cleanupError: undefined,
+  };
+  const tracked = trackPortalCommit(
+    Promise.reject(cleanupError),
+    state,
+  );
+  await assert.rejects(tracked, { name: "CleanupError" });
+  assert.equal(state.active, undefined);
+  assert.equal(state.cleanupError, cleanupError);
 });
 
 test("the per-name portal lock serializes independent processes", async (context) => {
