@@ -83,8 +83,14 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `3a10a89e3de30e8e4f60900fd325d128ad9f3dc3`.
 - Evidence public CI:
   [30406686042](https://github.com/barnlabs/keepkeys/actions/runs/30406686042)
-  — all 11 jobs passed on the exact evidence commit. Exact-head proof remains
-  pending.
+  — all 11 jobs passed on the exact evidence commit.
+- Proof closure commit:
+  `be6ebb8f63c6b1dcecc4a961c3ee0b6515dba828`.
+- Proof closure public CI:
+  [30406826613](https://github.com/barnlabs/keepkeys/actions/runs/30406826613)
+  — all 11 jobs passed on the exact proof closure commit. This ledger-only
+  record follows that proof; public CI and both read-only reviews must also
+  pass on this final ledger head before release closure.
 - Exact-head GitHub Codex review
   [4802351808](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4802351808)
   reopened the prior exact head for four final delivery repairs: clean up Serve
