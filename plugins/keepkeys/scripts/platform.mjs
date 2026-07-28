@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const WINDOWS_HELPER_SHA256 =
-  "a5aae17ddb5abd105add5808406a6f69c859ec3e46a92b1f762f8bdedf8fad6a";
+  "55a6c37a94cf9835153cab23048c77370bd305a6c40eada8c1502a5e60119709";
 const LINUX_HELPER_SHA256 =
   "0c0d04d22600e3bfbcf8308f7bd8dc1f839836ef3eddb60e7a1d593d39fa70d6";
 

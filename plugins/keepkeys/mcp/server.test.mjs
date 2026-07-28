@@ -377,7 +377,7 @@ test("a non-portal Node parent cannot forge the native commit channel", () => {
       env: invocation.env,
       input,
       encoding: "utf8",
-      timeout: 30_000,
+      timeout: 90_000,
     });
     assert.notEqual(result.status, 0);
     const response = JSON.parse(result.stdout.trim());

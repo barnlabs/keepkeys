@@ -1279,9 +1279,9 @@ function Test-KeepKeysPortalParent {
         )) {
             return $false
         }
-        $process = Get-CimInstance -ClassName Win32_Process -Filter (
+        $process = Get-WmiObject -Class Win32_Process -Filter (
             "ProcessId = $ParentProcessId"
-        )
+        ) -ErrorAction Stop
         if ($null -eq $process -or
             [String]::IsNullOrWhiteSpace($process.CommandLine)) {
             return $false
