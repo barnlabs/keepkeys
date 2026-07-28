@@ -75,8 +75,12 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   vault tests on macOS, Windows, and Linux. The Linux job verified a temporary
   Secret Service add, metadata list, update, read, deletion, both
   replacement-state races, and strict native cleanup.
-- Stable promotion, evidence, and exact-head proof remain pending for this
-  repaired chain.
+- Stable promotion commit (`P`):
+  `b90e8588d694e2c9186cb73d1eb3b775a802b097`.
+- Stable-promotion public CI:
+  [30401202501](https://github.com/barnlabs/keepkeys/actions/runs/30401202501)
+  — the same 11 proof jobs passed on the exact promotion commit.
+- Evidence and exact-head proof remain pending for this repaired chain.
 - Exact-head GitHub Codex review
   [4801887230](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4801887230)
   reopened the prior exact head for three Linux repairs: propagate Secret
