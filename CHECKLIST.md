@@ -73,7 +73,12 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   [30395067056](https://github.com/barnlabs/keepkeys/actions/runs/30395067056)
   passed all six Node jobs, all three native-vault jobs, reproducible packages,
   and `Release gate` on the exact `F → C → docs` candidate.
-- Stable promotion commit and public promotion matrix: pending.
+- Stable promotion commit:
+  `6ada0021905e0ea7b677b54c6ee1c7007ec103a4`.
+- Promotion public CI run:
+  [30395379321](https://github.com/barnlabs/keepkeys/actions/runs/30395379321)
+  passed all six Node jobs, all three native-vault jobs, reproducible packages,
+  and `Release gate`.
 - Exact-head GitHub Codex review
   [4801311339](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4801311339)
   reopened the prior exact head for four repairs: roll back Linux writes on
