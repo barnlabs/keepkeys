@@ -1603,6 +1603,10 @@ def main(arguments: list[str]) -> None:
     action, rest = arguments[0], arguments[1:]
     try:
         if action == "store":
+            if os.environ.pop("KEEPKEYS_SERIALIZED_STORE", "") != "1":
+                raise KeepKeysError(
+                    "KeepKeys store actions must use the shared per-name coordinator."
+                )
             result = action_store(rest)
         elif action == "_portal-commit":
             result = action_portal_commit(rest)

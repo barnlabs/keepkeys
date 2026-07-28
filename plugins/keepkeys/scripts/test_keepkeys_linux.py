@@ -6,6 +6,7 @@ import base64
 from io import BytesIO, StringIO
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -402,6 +403,10 @@ class LinuxBackendTests(unittest.TestCase):
     def test_portal_rollback_uncertainty_is_structured(self) -> None:
         output = StringIO()
         with (
+            patch.dict(
+                keepkeys_linux.os.environ,
+                {"KEEPKEYS_SERIALIZED_STORE": "1"},
+            ),
             patch.object(
                 keepkeys_linux,
                 "action_store",
@@ -443,6 +448,7 @@ class LinuxBackendTests(unittest.TestCase):
             check=False,
             capture_output=True,
             text=True,
+            env={**os.environ, "KEEPKEYS_SERIALIZED_STORE": "1"},
         )
         self.assertEqual(completed.returncode, 1)
         self.assertEqual(completed.stderr, "")

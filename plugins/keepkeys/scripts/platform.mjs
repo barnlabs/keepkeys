@@ -7,9 +7,9 @@ import { fileURLToPath } from "node:url";
 
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const WINDOWS_HELPER_SHA256 =
-  "ff66ed173effab84d8e4ce3aaf1d1ab7d01468c72c24f68bee4f4adb39b6f08d";
+  "f87439e763a2068e8b98bc7d50031674cf5f22dd31b1f41fccc8e725b382f614";
 const LINUX_HELPER_SHA256 =
-  "9dcbb1b117104ed2c372b137c072491e4a9efab00f867a93f2b2629e8c24c2f1";
+  "8ae57315c0f8a64f5e8922a7ce137f00b283c60f5cf14d9a2b43305e2726013d";
 
 function copyPresent(target, source, names) {
   for (const name of names) {
@@ -39,15 +39,27 @@ function verifiedHelper(relativePath, expectedHash) {
 }
 
 function routedInvocation(helperArguments, nativeInvocation) {
-  if (helperArguments[0] !== "portal-store") return nativeInvocation;
-  return {
-    command: process.execPath,
-    args: [
-      resolve(pluginRoot, "scripts", "keepkeys-portal.mjs"),
-      ...helperArguments.slice(1),
-    ],
-    env: nativeInvocation.env,
-  };
+  if (helperArguments[0] === "portal-store") {
+    return {
+      command: process.execPath,
+      args: [
+        resolve(pluginRoot, "scripts", "keepkeys-portal.mjs"),
+        ...helperArguments.slice(1),
+      ],
+      env: nativeInvocation.env,
+    };
+  }
+  if (helperArguments[0] === "store") {
+    return {
+      command: process.execPath,
+      args: [
+        resolve(pluginRoot, "scripts", "keepkeys-store.mjs"),
+        ...helperArguments,
+      ],
+      env: nativeInvocation.env,
+    };
+  }
+  return nativeInvocation;
 }
 
 function buildInvocation(
@@ -203,6 +215,15 @@ export function portalCommitInvocation(
   const invocation = buildInvocation(helperArguments, options, false);
   invocation.env.KEEPKEYS_PORTAL_CAPABILITY_SHA256 = capabilitySha256;
   invocation.env.KEEPKEYS_PORTAL_PARENT_PID = String(parentPid);
+  return invocation;
+}
+
+export function nativeStoreInvocation(helperArguments, options = {}) {
+  if (helperArguments[0] !== "store") {
+    throw new Error("KeepKeys rejected an invalid serialized store action.");
+  }
+  const invocation = buildInvocation(helperArguments, options, false);
+  invocation.env.KEEPKEYS_SERIALIZED_STORE = "1";
   return invocation;
 }
 

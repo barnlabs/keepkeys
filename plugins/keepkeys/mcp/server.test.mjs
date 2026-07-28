@@ -15,8 +15,10 @@ import {
 import {
   canonicalTextSha256,
   helperInvocation,
+  nativeStoreInvocation,
   portalCommitInvocation,
 } from "../scripts/platform.mjs";
+import { runSerializedStore } from "../scripts/keepkeys-store.mjs";
 
 test("tool schemas never accept a plaintext secret", () => {
   for (const tool of TOOLS) {
@@ -292,6 +294,32 @@ test("platform dispatch keeps one argv contract across macOS, Windows, and Linux
   assert.equal(linux.env.DISPLAY, ":0");
 
   for (const platform of ["darwin", "win32", "linux"]) {
+    const store = helperInvocation(["store", "--name", "demo"], {
+      platform,
+      environment:
+        platform === "win32"
+          ? { SystemRoot: "C:\\Windows", USERPROFILE: "C:\\Users\\example" }
+          : {},
+      home: platform === "win32" ? "C:\\Users\\example" : "/home/example",
+    });
+    assert.equal(store.command, process.execPath);
+    assert.match(store.args[0], /keepkeys-store\.mjs$/u);
+    assert.deepEqual(store.args.slice(1), ["store", "--name", "demo"]);
+
+    const nativeStore = nativeStoreInvocation(
+      ["store", "--name", "demo"],
+      {
+        platform,
+        environment:
+          platform === "win32"
+            ? { SystemRoot: "C:\\Windows", USERPROFILE: "C:\\Users\\example" }
+            : {},
+        home: platform === "win32" ? "C:\\Users\\example" : "/home/example",
+      },
+    );
+    assert.notEqual(nativeStore.command, process.execPath);
+    assert.equal(nativeStore.args.includes("store"), true);
+
     const portal = helperInvocation(["portal-store", "--name", "demo"], {
       platform,
       environment:
@@ -304,6 +332,96 @@ test("platform dispatch keeps one argv contract across macOS, Windows, and Linux
     assert.match(portal.args[0], /keepkeys-portal\.mjs$/u);
     assert.deepEqual(portal.args.slice(1), ["--name", "demo"]);
   }
+});
+
+test("desktop and phone stores share the same per-name lock", async (context) => {
+  const lockRoot = mkdtempSync(join(tmpdir(), "keepkeys-shared-store-lock-"));
+  context.after(() => rmSync(lockRoot, { recursive: true, force: true }));
+  let firstEnteredResolve;
+  const firstEntered = new Promise((resolvePromise) => {
+    firstEnteredResolve = resolvePromise;
+  });
+  let releaseFirst;
+  const firstGate = new Promise((resolvePromise) => {
+    releaseFirst = resolvePromise;
+  });
+  let secondEntered = false;
+  const argumentsValue = ["store", "--name", "demo-service"];
+  const first = runSerializedStore(argumentsValue, {
+    lockOptions: { lockRoot, retryMs: 10 },
+    storeRunner: async () => {
+      firstEnteredResolve();
+      await firstGate;
+      return {
+        code: 0,
+        signal: null,
+        stdout: Buffer.from('{"status":"ok"}\n'),
+        stderr: Buffer.alloc(0),
+      };
+    },
+  });
+  await firstEntered;
+  const second = runSerializedStore(argumentsValue, {
+    lockOptions: { lockRoot, retryMs: 10 },
+    storeRunner: async () => {
+      secondEntered = true;
+      return {
+        code: 0,
+        signal: null,
+        stdout: Buffer.from('{"status":"ok"}\n'),
+        stderr: Buffer.alloc(0),
+      };
+    },
+  });
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+  assert.equal(secondEntered, false);
+  releaseFirst();
+  await first;
+  await second;
+  assert.equal(secondEntered, true);
+});
+
+test("desktop stores require a valid native commit receipt", async (context) => {
+  const lockRoot = mkdtempSync(join(tmpdir(), "keepkeys-store-receipt-"));
+  context.after(() => rmSync(lockRoot, { recursive: true, force: true }));
+  const argumentsValue = ["store", "--name", "demo-service"];
+  await assert.rejects(
+    runSerializedStore(argumentsValue, {
+      lockOptions: { lockRoot },
+      storeRunner: async () => ({
+        code: 0,
+        signal: null,
+        stdout: Buffer.from("not-json"),
+        stderr: Buffer.alloc(0),
+      }),
+    }),
+    {
+      name: "CleanupError",
+      cleanupKind: "native-receipt",
+      storageState: "uncertain",
+      stored: null,
+    },
+  );
+  const cancelled = await runSerializedStore(argumentsValue, {
+    lockOptions: { lockRoot },
+    storeRunner: async () => ({
+      code: 0,
+      signal: null,
+      stdout: Buffer.from('{"status":"cancelled","message":"Cancelled."}\n'),
+      stderr: Buffer.alloc(0),
+    }),
+  });
+  assert.equal(JSON.parse(cancelled.stdout.toString()).status, "cancelled");
+  const nativeFailure = await runSerializedStore(argumentsValue, {
+    lockOptions: { lockRoot },
+    storeRunner: async () => ({
+      code: 1,
+      signal: null,
+      stdout: Buffer.from('{"status":"error","message":"Rejected."}\n'),
+      stderr: Buffer.alloc(0),
+    }),
+  });
+  assert.equal(JSON.parse(nativeFailure.stdout.toString()).status, "error");
 });
 
 test("native helper fingerprints are stable across LF and CRLF checkouts", () => {

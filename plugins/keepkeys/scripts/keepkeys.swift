@@ -1660,6 +1660,13 @@ private func main() {
         let result: [String: Any]
         switch action {
         case "store":
+            guard ProcessInfo.processInfo.environment["KEEPKEYS_SERIALIZED_STORE"] == "1"
+            else {
+                throw KeepKeysFailure(
+                    message: "KeepKeys store actions must use the shared per-name coordinator."
+                )
+            }
+            unsetenv("KEEPKEYS_SERIALIZED_STORE")
             let rest = Array(args.dropFirst())
             result = try storeInteractively(
                 suggestedName: parseOption(rest, name: "--name"),

@@ -565,8 +565,10 @@ export function createPortalServer({
                 stored: null,
                 storageState: "uncertain",
                 message:
-                  error?.cleanupKind === "native-rollback+portal-lock"
-                    ? "KeepKeys could not confirm whether the key remained after native-vault rollback failed, and it could not remove the private commit lock. Check the connected host, remove this name, and confirm the lock is gone before retrying."
+                  error?.cleanupKind?.endsWith("+portal-lock")
+                    ? "KeepKeys could not confirm the final native-vault state, and it could not remove the private commit lock. Check the connected host, remove this name, and confirm the lock is gone before retrying."
+                    : error?.cleanupKind === "native-receipt"
+                    ? "KeepKeys did not receive a valid native commit receipt, so it cannot confirm whether the key was stored. Check the connected host and remove this name before retrying."
                     : "KeepKeys could not confirm whether the key remained after native-vault rollback failed. Check the connected host and remove this name before retrying.",
               }
             : stored
@@ -728,11 +730,12 @@ export function resolveTailscaleBinary(candidates = tailscaleCandidates()) {
 export function portalStartupProcessOptions({
   cwd = homedir(),
   environment = process.env,
+  detached = true,
 } = {}) {
   return {
     cwd,
     env: environment,
-    detached: false,
+    detached,
   };
 }
 
@@ -987,7 +990,7 @@ export async function withPortalCommitLock(
     );
     cleanupError.name = "CleanupError";
     cleanupError.cleanupKind = storageUncertain
-      ? "native-rollback+portal-lock"
+      ? `${operationError.cleanupKind ?? "native"}+portal-lock`
       : "portal-lock";
     if (storageUncertain) cleanupError.storageState = "uncertain";
     cleanupError.stored =
@@ -1017,12 +1020,29 @@ export function nativeCommitError(parsed) {
   return new Error("KeepKeys could not store the submitted key.");
 }
 
-async function commitToNativeVault(
+export function missingNativeCommitReceiptError(cause) {
+  const cleanupError = new Error(
+    "KeepKeys could not confirm the native-vault state because the storage helper ended without a valid commit receipt.",
+    { cause },
+  );
+  cleanupError.name = "CleanupError";
+  cleanupError.cleanupKind = "native-receipt";
+  cleanupError.storageState = "uncertain";
+  cleanupError.stored = null;
+  return cleanupError;
+}
+
+export async function commitToNativeVault(
   metadata,
   replacing,
   secret,
   signal,
-  { nativeSelfTestScenario } = {},
+  {
+    nativeSelfTestScenario,
+    processRunner = runProcess,
+    invocationBuilder = portalCommitInvocation,
+    lockOptions,
+  } = {},
 ) {
   return withPortalCommitLock(
     metadata.name,
@@ -1048,37 +1068,47 @@ async function commitToNativeVault(
             nativeSelfTestScenario,
           );
         }
-        const invocation = portalCommitInvocation(
+        const invocation = invocationBuilder(
           helperArguments,
           { capabilitySha256, parentPid: process.pid },
         );
         if (nativeSelfTestScenario) {
           invocation.env[PORTAL_NATIVE_TEST_FLAG] = "1";
         }
-        const result = await runProcess(invocation.command, invocation.args, {
-          cwd: invocation.env.KEEPKEYS_PLUGIN_ROOT,
-          env: invocation.env,
-          input,
-          signal,
-        });
+        let result;
+        try {
+          result = await processRunner(invocation.command, invocation.args, {
+            cwd: invocation.env.KEEPKEYS_PLUGIN_ROOT,
+            env: invocation.env,
+            input,
+            signal,
+          });
+        } catch (error) {
+          throw missingNativeCommitReceiptError(error);
+        }
         let parsed;
         try {
           parsed = JSON.parse(result.stdout.toString("utf8").trim());
-        } catch {
-          throw new Error("KeepKeys received an invalid native-vault response.");
+        } catch (error) {
+          throw missingNativeCommitReceiptError(error);
         }
-        if (result.code !== 0 || parsed?.status !== "ok") {
+        if (parsed?.status === "error") {
           if (nativeSelfTestScenario && typeof parsed?.message === "string") {
             throw new Error(parsed.message);
           }
           throw nativeCommitError(parsed);
+        }
+        if (result.code !== 0 || parsed?.status !== "ok") {
+          throw missingNativeCommitReceiptError(
+            new Error("The native helper returned an inconsistent commit receipt."),
+          );
         }
         return parsed;
       } finally {
         input.fill(0);
       }
     },
-    { signal },
+    { ...lockOptions, signal },
   );
 }
 
@@ -1463,7 +1493,7 @@ async function startPortalSession(argumentsValue) {
       `http://127.0.0.1:${address.port}`,
     ],
     {
-      ...portalStartupProcessOptions(),
+      ...portalStartupProcessOptions({ detached: false }),
       stdio: ["ignore", "pipe", "pipe"],
       shell: false,
       windowsHide: true,
@@ -1473,7 +1503,8 @@ async function startPortalSession(argumentsValue) {
     await waitForServeReady(serveProcess, STARTUP_TIMEOUT_MS, () => {
       if (cleanupPromise || stoppingOwnedServe) return;
       unexpectedServeExit = true;
-      if (readyDelivered) cleanupAndExit(1);
+      launcherAbortController.abort();
+      cleanupAndExit(1);
     });
     await new Promise((resolvePromise) => setImmediate(resolvePromise));
     if (
@@ -1551,6 +1582,12 @@ async function startPortalSession(argumentsValue) {
       throw new Error(
         "KeepKeys could not return the private phone link to its launcher.",
         { cause: error },
+      );
+    }
+    if (unexpectedServeExit || childHasExited(serveProcess)) {
+      await cleanup();
+      throw new Error(
+        "Tailscale Serve exited before KeepKeys could return the private phone link.",
       );
     }
     readyDelivered = true;

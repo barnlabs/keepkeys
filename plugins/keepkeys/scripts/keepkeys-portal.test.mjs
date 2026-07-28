@@ -14,8 +14,10 @@ import {
 } from "./platform.mjs";
 import {
   closePortalServer,
+  commitToNativeVault,
   createPortalServer,
   millisecondsUntilExpiry,
+  missingNativeCommitReceiptError,
   nativeCommitError,
   parsePortalMetadata,
   portalStartupProcessOptions,
@@ -151,11 +153,23 @@ test("portal HTML escapes metadata and loads no third-party resources", () => {
   assert.doesNotMatch(html, /https:\/\/(?!example\.com)/u);
 });
 
-test("portal startup children stay in the detached portal process group", () => {
+test("startup helpers receive their own process groups while Serve stays owned", () => {
   assert.deepEqual(
     portalStartupProcessOptions({
       cwd: "/tmp/keepkeys",
       environment: { PATH: "/usr/bin" },
+    }),
+    {
+      cwd: "/tmp/keepkeys",
+      env: { PATH: "/usr/bin" },
+      detached: true,
+    },
+  );
+  assert.deepEqual(
+    portalStartupProcessOptions({
+      cwd: "/tmp/keepkeys",
+      environment: { PATH: "/usr/bin" },
+      detached: false,
     }),
     {
       cwd: "/tmp/keepkeys",
@@ -983,6 +997,87 @@ test("native rollback uncertainty never claims the value was discarded", async (
   });
 });
 
+test("a missing native commit receipt is reported as uncertain", async (context) => {
+  const temporary = await mkdtemp(resolve(tmpdir(), "keepkeys-receipt-test-"));
+  context.after(() => rm(temporary, { recursive: true, force: true }));
+  const secret = Buffer.from("synthetic_secret", "utf8");
+  context.after(() => secret.fill(0));
+  const invocationBuilder = () => ({
+    command: "synthetic-native-helper",
+    args: [],
+    env: { KEEPKEYS_PLUGIN_ROOT: temporary },
+  });
+  for (const processRunner of [
+    async () => {
+      throw new Error("Synthetic helper disconnect.");
+    },
+    async () => ({
+      code: 0,
+      stdout: Buffer.from("not-json", "utf8"),
+      stderr: Buffer.alloc(0),
+    }),
+    async () => ({
+      code: 1,
+      stdout: Buffer.from('{"status":"ok"}\n', "utf8"),
+      stderr: Buffer.alloc(0),
+    }),
+  ]) {
+    await assert.rejects(
+      commitToNativeVault(metadata, false, secret, undefined, {
+        invocationBuilder,
+        processRunner,
+        lockOptions: { lockRoot: temporary },
+      }),
+      {
+        name: "CleanupError",
+        cleanupKind: "native-receipt",
+        storageState: "uncertain",
+        stored: null,
+      },
+    );
+  }
+
+  const path = "/keepkeys/store/missing-native-receipt";
+  const expectedOrigin = "https://device.example.ts.net";
+  const server = createPortalServer({
+    metadata,
+    replacing: false,
+    path,
+    cookieToken: "missing-native-receipt-cookie",
+    expectedOrigin,
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    commitSecret: async () => {
+      throw missingNativeCommitReceiptError(
+        new Error("Synthetic helper disconnect."),
+      );
+    },
+  });
+  context.after(() => server.close());
+  const base = await listen(server);
+  const page = await fetch(`${base}${path}`, {
+    headers: { "Tailscale-User-Login": "owner@example.com" },
+  });
+  const cookie = (page.headers.get("set-cookie") ?? "").split(";")[0];
+  const failed = await fetch(`${base}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8",
+      Cookie: cookie,
+      Origin: expectedOrigin,
+      "Tailscale-User-Login": "owner@example.com",
+    },
+    body: "synthetic_secret",
+  });
+  assert.equal(failed.status, 500);
+  assert.deepEqual(await failed.json(), {
+    status: "error",
+    stored: null,
+    storageState: "uncertain",
+    message:
+      "KeepKeys did not receive a valid native commit receipt, so it cannot confirm whether the key was stored. Check the connected host and remove this name before retrying.",
+  });
+});
+
 test("native rollback uncertainty survives simultaneous lock cleanup failure", async (context) => {
   const temporary = await mkdtemp(resolve(tmpdir(), "keepkeys-uncertain-lock-"));
   context.after(() => rm(temporary, { recursive: true, force: true }));
@@ -1050,7 +1145,7 @@ test("native rollback uncertainty survives simultaneous lock cleanup failure", a
     stored: null,
     storageState: "uncertain",
     message:
-      "KeepKeys could not confirm whether the key remained after native-vault rollback failed, and it could not remove the private commit lock. Check the connected host, remove this name, and confirm the lock is gone before retrying.",
+      "KeepKeys could not confirm the final native-vault state, and it could not remove the private commit lock. Check the connected host, remove this name, and confirm the lock is gone before retrying.",
   });
 });
 
@@ -1173,6 +1268,50 @@ test("aborting a helper process prevents a delayed write", async (context) => {
       marker,
     ],
     { signal: controller.signal },
+  );
+  let helperReady = false;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    try {
+      await access(ready);
+      helperReady = true;
+      break;
+    } catch {
+      await delay(50);
+    }
+  }
+  assert.equal(helperReady, true);
+  controller.abort();
+  await assert.rejects(child, { name: "AbortError" });
+  await delay(2200);
+  await assert.rejects(access(marker));
+});
+
+test("aborting a startup helper terminates its descendants", async (context) => {
+  const temporary = await mkdtemp(resolve(tmpdir(), "keepkeys-tree-abort-"));
+  context.after(() => rm(temporary, { recursive: true, force: true }));
+  const ready = resolve(temporary, "ready");
+  const marker = resolve(temporary, "descendant-late-write");
+  const controller = new AbortController();
+  const child = runProcess(
+    process.execPath,
+    [
+      "-e",
+      [
+        "const {spawn}=require('node:child_process');",
+        "const fs=require('node:fs');",
+        "spawn(process.execPath,['-e',",
+        "\"const fs=require('node:fs');setTimeout(()=>fs.writeFileSync(process.argv[1],'wrong'),2000);setInterval(()=>{},1000)\",",
+        "process.argv[2]],{stdio:'ignore'});",
+        "fs.writeFileSync(process.argv[1],'ready');",
+        "setInterval(()=>{},1000);",
+      ].join(""),
+      ready,
+      marker,
+    ],
+    {
+      ...portalStartupProcessOptions(),
+      signal: controller.signal,
+    },
   );
   let helperReady = false;
   for (let attempt = 0; attempt < 100; attempt += 1) {

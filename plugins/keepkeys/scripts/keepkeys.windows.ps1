@@ -1805,6 +1805,14 @@ try {
     $rest = if ($args.Count -gt 1) { [string[]]$args[1..($args.Count - 1)] } else { [string[]]@() }
     switch ($action) {
         "store" {
+            $serializedStore = [string]$env:KEEPKEYS_SERIALIZED_STORE
+            $env:KEEPKEYS_SERIALIZED_STORE = $null
+            if ($serializedStore -cne "1") {
+                throw (
+                    "KeepKeys store actions must use the shared per-name " +
+                    "coordinator."
+                )
+            }
             $name = Get-KeepKeysOption $rest "--name" -Required
             $variable = (Get-KeepKeysOption $rest "--variable" -Required).ToUpperInvariant()
             $description = Get-KeepKeysOption $rest "--description" -Required

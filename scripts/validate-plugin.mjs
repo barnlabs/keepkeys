@@ -354,7 +354,7 @@ assert.match(
 );
 assert.match(
   portalSource,
-  /const storageUncertain = operationError\?\.storageState === "uncertain"[\s\S]*?"native-rollback\+portal-lock"[\s\S]*?cleanupError\.storageState = "uncertain"/,
+  /const storageUncertain = operationError\?\.storageState === "uncertain"[\s\S]*?`\$\{operationError\.cleanupKind \?\? "native"\}\+portal-lock`[\s\S]*?cleanupError\.storageState = "uncertain"/,
   "portal lock cleanup must not overwrite native rollback uncertainty",
 );
 assert.match(
@@ -369,8 +369,18 @@ assert.match(
 );
 assert.match(
   portalSource,
-  /waitForServeReady\(serveProcess,[\s\S]*?unexpectedServeExit = true[\s\S]*?childHasExited\(serveProcess\)[\s\S]*?await cleanup\(\)/,
+  /waitForServeReady\(serveProcess,[\s\S]*?unexpectedServeExit = true[\s\S]*?launcherAbortController\.abort\(\)[\s\S]*?cleanupAndExit\(1\)[\s\S]*?PORTAL_READY_ACK[\s\S]*?unexpectedServeExit \|\| childHasExited\(serveProcess\)[\s\S]*?await cleanup\(\)/,
   "the portal must stop if its foreground Serve process exits after readiness",
+);
+assert.match(
+  portalSource,
+  /missingNativeCommitReceiptError[\s\S]*?cleanupKind = "native-receipt"[\s\S]*?storageState = "uncertain"[\s\S]*?catch \(error\) \{\s+throw missingNativeCommitReceiptError\(error\);[\s\S]*?parsed\?\.status === "error"[\s\S]*?result\.code !== 0 \|\| parsed\?\.status !== "ok"[\s\S]*?missingNativeCommitReceiptError/,
+  "a missing or inconsistent native commit receipt must leave storage uncertain",
+);
+assert.match(
+  portalSource,
+  /portalStartupProcessOptions\(\{[\s\S]*?detached = true[\s\S]*?portalStartupProcessOptions\(\{ detached: false \}\)/,
+  "startup helpers need independent process groups while owned Serve stays with the portal",
 );
 assert.match(
   portalSource,
@@ -391,6 +401,27 @@ const platformDispatcher = readFileSync(
   resolve(pluginRoot, "scripts", "platform.mjs"),
   "utf8",
 );
+const serializedStore = readFileSync(
+  resolve(pluginRoot, "scripts", "keepkeys-store.mjs"),
+  "utf8",
+);
+assert.match(
+  platformDispatcher,
+  /helperArguments\[0\] === "store"[\s\S]*?keepkeys-store\.mjs[\s\S]*?nativeStoreInvocation[\s\S]*?KEEPKEYS_SERIALIZED_STORE = "1"/,
+  "desktop stores must route through the shared per-name coordinator",
+);
+assert.match(
+  serializedStore,
+  /withPortalCommitLock\([\s\S]*?storeRunner\(nativeStoreInvocation\(argumentsValue\)\)/,
+  "the desktop coordinator must use the phone portal's exact per-name lock",
+);
+for (const helper of [sourceText, windowsHelper, linuxHelper]) {
+  assert.match(
+    helper,
+    /KEEPKEYS_SERIALIZED_STORE/,
+    "native desktop stores must reject bypass of the shared coordinator",
+  );
+}
 for (const [constant, relative] of [
   ["WINDOWS_HELPER_SHA256", "scripts/keepkeys.windows.ps1"],
   ["LINUX_HELPER_SHA256", "scripts/keepkeys.linux.py"],
