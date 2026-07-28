@@ -1328,11 +1328,13 @@ export async function stopOwnedServeProcess(
         );
       }
     } catch (error) {
-      await terminateProcessTreeAndWait(
-        serveProcess,
-        platform,
-        timeoutMs,
-      );
+      if (error?.processTreeTerminated !== true) {
+        await terminateProcessTreeAndWait(
+          serveProcess,
+          platform,
+          timeoutMs,
+        );
+      }
       throw new Error(
         "KeepKeys forced Tailscale Serve to stop after graceful cleanup could not be confirmed.",
         { cause: error },

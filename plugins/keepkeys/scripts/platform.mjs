@@ -248,26 +248,138 @@ export function processHasExited(child) {
   );
 }
 
-function signalProcessTree(child, platform, signal) {
+function windowsProcessSnapshot() {
+  const result = spawnSync(
+    resolve(
+      process.env.SystemRoot ?? "C:\\Windows",
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe",
+    ),
+    [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      [
+        "$ErrorActionPreference='Stop';",
+        "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);",
+        "Get-CimInstance Win32_Process | ForEach-Object {",
+        "[Console]::Out.WriteLine(('{0},{1}' -f $_.ProcessId,$_.ParentProcessId))",
+        "}",
+      ].join(""),
+    ],
+    {
+      encoding: "utf8",
+      timeout: 5000,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  if (result.error || result.status !== 0 || typeof result.stdout !== "string") {
+    throw new Error("KeepKeys could not inspect the Windows process tree.");
+  }
+  const processes = new Map();
+  for (const line of result.stdout.replace(/^\uFEFF/u, "").split(/\r?\n/u)) {
+    if (line.length === 0) continue;
+    const [processIdText, parentProcessIdText, ...extra] = line.split(",");
+    const processId = Number.parseInt(processIdText, 10);
+    const parentProcessId = Number.parseInt(parentProcessIdText, 10);
+    if (
+      extra.length > 0 ||
+      !Number.isSafeInteger(processId) ||
+      processId < 0 ||
+      !Number.isSafeInteger(parentProcessId) ||
+      parentProcessId < 0
+    ) {
+      throw new Error("KeepKeys received an invalid Windows process snapshot.");
+    }
+    if (processId === 0) continue;
+    processes.set(processId, parentProcessId);
+  }
+  return processes;
+}
+
+function windowsOwnedTreePids(rootPids) {
+  const processes = windowsProcessSnapshot();
+  const owned = new Set(rootPids);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [processId, parentProcessId] of processes) {
+      if (owned.has(parentProcessId) && !owned.has(processId)) {
+        owned.add(processId);
+        changed = true;
+      }
+    }
+  }
+  return [...owned].filter((processId) => processes.has(processId));
+}
+
+function runWindowsTaskkill(processId, signal) {
+  const result = spawnSync(
+    resolve(
+      process.env.SystemRoot ?? "C:\\Windows",
+      "System32",
+      "taskkill.exe",
+    ),
+    [
+      "/PID",
+      `${processId}`,
+      "/T",
+      ...(signal === "SIGKILL" ? ["/F"] : []),
+    ],
+    { windowsHide: true, stdio: "ignore" },
+  );
+  return !result.error && result.status === 0;
+}
+
+function signalProcessTree(
+  child,
+  platform,
+  signal,
+  knownWindowsPids = [],
+) {
   if (!child?.pid) return { requested: true, processGroup: false };
   if (platform === "win32") {
-    const result = spawnSync(
-      resolve(
-        process.env.SystemRoot ?? "C:\\Windows",
-        "System32",
-        "taskkill.exe",
-      ),
-      [
-        "/PID",
-        `${child.pid}`,
-        "/T",
-        ...(signal === "SIGKILL" ? ["/F"] : []),
-      ],
-      { windowsHide: true, stdio: "ignore" },
-    );
+    let windowsPids;
+    try {
+      windowsPids = [
+        ...new Set([
+          child.pid,
+          ...knownWindowsPids,
+          ...windowsOwnedTreePids([child.pid, ...knownWindowsPids]),
+        ]),
+      ];
+    } catch {
+      return {
+        requested: false,
+        processGroup: false,
+        windowsPids: [child.pid, ...knownWindowsPids],
+      };
+    }
+    let requested = runWindowsTaskkill(child.pid, signal);
+    if (!requested) {
+      let remaining;
+      try {
+        remaining = windowsOwnedTreePids(windowsPids);
+      } catch {
+        return { requested: false, processGroup: false, windowsPids };
+      }
+      for (const processId of [...remaining].reverse()) {
+        requested = runWindowsTaskkill(processId, signal) || requested;
+      }
+      try {
+        if (windowsOwnedTreePids(windowsPids).length === 0) requested = true;
+      } catch {
+        return { requested: false, processGroup: false, windowsPids };
+      }
+    }
     return {
-      requested: !result.error && result.status === 0,
+      requested,
       processGroup: false,
+      windowsPids,
     };
   }
   try {
@@ -333,7 +445,42 @@ function requestGracefulTermination(child, platform, tree) {
   }
 }
 
-function waitForTermination(child, platform, timeoutMs, processGroup, message) {
+function waitForWindowsTreeExit(windowsPids, timeoutMs, message) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const deadline = Date.now() + timeoutMs;
+    const inspect = () => {
+      let livePids;
+      try {
+        livePids = windowsOwnedTreePids(windowsPids);
+      } catch (error) {
+        rejectPromise(error);
+        return;
+      }
+      if (livePids.length === 0) {
+        resolvePromise();
+        return;
+      }
+      if (Date.now() >= deadline) {
+        rejectPromise(new Error(message));
+        return;
+      }
+      setTimeout(inspect, 100);
+    };
+    inspect();
+  });
+}
+
+function waitForTermination(
+  child,
+  platform,
+  timeoutMs,
+  processGroup,
+  message,
+  windowsPids = [],
+) {
+  if (platform === "win32" && windowsPids.length > 0) {
+    return waitForWindowsTreeExit(windowsPids, timeoutMs, message);
+  }
   if (platform !== "win32" && processGroup) {
     return waitForProcessGroupExit(child.pid, timeoutMs, message);
   }
@@ -379,13 +526,19 @@ async function terminateGracefullyAndWait(
   if (!termination.requested) {
     throw new Error("KeepKeys could not request graceful process termination.");
   }
-  await waitForTermination(
-    child,
-    platform,
-    timeoutMs,
-    termination.processGroup,
-    "KeepKeys could not confirm graceful process termination.",
-  );
+  try {
+    await waitForTermination(
+      child,
+      platform,
+      timeoutMs,
+      termination.processGroup,
+      "KeepKeys could not confirm graceful process termination.",
+      termination.windowsPids,
+    );
+  } catch (error) {
+    if (termination.windowsPids) error.windowsPids = termination.windowsPids;
+    throw error;
+  }
 }
 
 export function terminateProcessGracefullyAndWait(
@@ -404,11 +557,18 @@ export async function terminateProcessTreeGracefullyAndWait(
   try {
     await terminateGracefullyAndWait(child, platform, timeoutMs, true);
   } catch (error) {
-    await terminateProcessTreeAndWait(child, platform, timeoutMs);
-    throw new Error(
+    await terminateProcessTreeAndWait(
+      child,
+      platform,
+      timeoutMs,
+      error?.windowsPids,
+    );
+    const forcedError = new Error(
       "KeepKeys forced a process tree to stop after graceful cleanup could not be confirmed.",
       { cause: error },
     );
+    forcedError.processTreeTerminated = true;
+    throw forcedError;
   }
 }
 
@@ -416,12 +576,18 @@ export async function terminateProcessTreeAndWait(
   child,
   platform = process.platform,
   timeoutMs = 5000,
+  knownWindowsPids = [],
 ) {
   if (!child?.pid) return;
   if (typeof child.once !== "function") {
     throw new Error("KeepKeys cannot confirm termination for this process.");
   }
-  const termination = signalProcessTree(child, platform, "SIGKILL");
+  const termination = signalProcessTree(
+    child,
+    platform,
+    "SIGKILL",
+    knownWindowsPids,
+  );
   if (!termination.requested) {
     throw new Error(
       "KeepKeys could not request process-tree termination or confirm exit.",
@@ -433,5 +599,6 @@ export async function terminateProcessTreeAndWait(
     timeoutMs,
     termination.processGroup,
     "KeepKeys could not confirm that the process tree exited.",
+    termination.windowsPids,
   );
 }

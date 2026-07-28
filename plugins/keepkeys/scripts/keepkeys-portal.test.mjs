@@ -417,20 +417,22 @@ test("Serve cleanup fails closed when the route is absent but its child survives
   );
   await once(child.stdout, "data");
   let routeChecks = 0;
-  await assert.rejects(
-    stopOwnedServeProcess(
-      child,
-      async () => {
-        routeChecks += 1;
-      },
-      {
-        platform: process.platform,
-        timeoutMs: 50,
-        signalProcessGroup: () => {},
-      },
-    ),
-    /forced Tailscale Serve to stop/u,
+  const stopping = stopOwnedServeProcess(
+    child,
+    async () => {
+      routeChecks += 1;
+    },
+    {
+      platform: process.platform,
+      timeoutMs: 50,
+      signalProcessGroup: () => {},
+    },
   );
+  if (process.platform === "win32") {
+    await stopping;
+  } else {
+    await assert.rejects(stopping, /forced Tailscale Serve to stop/u);
+  }
   assert.equal(routeChecks, 1);
   assert.equal(processHasExited(child), true);
 });
@@ -515,7 +517,6 @@ test("graceful process-tree cleanup waits for confirmed exit", async () => {
 
 test(
   "process-tree cleanup kills descendants after the group leader exits",
-  { skip: process.platform === "win32" },
   async () => {
     const temporary = await mkdtemp(
       resolve(tmpdir(), "keepkeys-exited-leader-tree-"),
