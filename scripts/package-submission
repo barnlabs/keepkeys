@@ -69,8 +69,13 @@ archive="$dist/keepkeys-skills-$version.zip"
 checksum="$archive.sha256"
 rm -f "$archive" "$checksum"
 (
+  export LC_ALL=C
+  export TZ=UTC
+  /usr/bin/find "$build_root/keepkeys" -exec /usr/bin/touch -t 198001010000 {} +
   cd "$build_root"
-  /usr/bin/zip -X -q -r "$archive" keepkeys
+  /usr/bin/find keepkeys -print |
+    /usr/bin/sort |
+    /usr/bin/zip -X -q "$archive" -@
 )
 
 for member in \

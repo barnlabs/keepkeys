@@ -79,6 +79,19 @@ jobs:
           node-version: "22"
       - run: ./scripts/package-submission
       - run: ./scripts/package-release
+      - name: Verify byte-for-byte reproducible rebuilds
+        shell: bash
+        run: |
+          version=$(node -p \
+            "require('./plugins/keepkeys/.codex-plugin/plugin.json').version")
+          submission="dist/keepkeys-skills-${version}.zip"
+          release="dist/keepkeys-${version}-source.zip"
+          submission_before=$(shasum -a 256 "$submission")
+          release_before=$(shasum -a 256 "$release")
+          ./scripts/package-submission >/dev/null
+          ./scripts/package-release >/dev/null
+          test "$submission_before" = "$(shasum -a 256 "$submission")"
+          test "$release_before" = "$(shasum -a 256 "$release")"
       - name: Inspect release archives
         run: |
           version=$(node -p \

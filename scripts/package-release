@@ -29,8 +29,13 @@ checksum="$archive.sha256"
 
 /bin/rm -f "$archive" "$checksum"
 (
+  export LC_ALL=C
+  export TZ=UTC
+  /usr/bin/find "$package_root" -exec /usr/bin/touch -t 198001010000 {} +
   cd "$build_root"
-  /usr/bin/zip -X -q -r "$archive" keepkeys
+  /usr/bin/find keepkeys -print |
+    /usr/bin/sort |
+    /usr/bin/zip -X -q "$archive" -@
 )
 
 for member in \
