@@ -45,16 +45,18 @@ only that listener through Tailscale Serve, and returns a ten-minute
 
 The phone and host must already be signed into the same tailnet. The page
 requires Tailscale's authenticated user header, binds its browser session to
-the first identity that opens it, checks the exact HTTPS origin and a same-site
-cookie, and accepts one submission. It shows the agent-prepared metadata and a
-replacement warning before the user presses **Paste & Store**. The local
-session passes the submitted bytes through a private redirected pipe to the
-native vault helper. The value does not enter tool input, tool output, argv, a
-file, or a BarnLabs service.
+the first identity and browser cookie that open it, checks the exact HTTPS
+origin, and accepts one authenticated submission attempt. It shows the
+agent-prepared metadata and a replacement warning before the user presses
+**Paste & Store**. The local session serializes same-name commits and passes
+the submitted bytes through a capability-framed redirected pipe to a native
+vault helper that verifies the exact bundled portal parent. The value does not
+enter tool input, tool output, argv, a file, or a BarnLabs service.
 
 The phone's clipboard remains outside KeepKeys' control. The page tells the
-user to copy only when it is ready and submit immediately. Success or expiry
-stops the listener and removes the Tailscale Serve route.
+user to copy only when it is ready and submit immediately. Submission,
+expiry, or termination stops the listener, aborts an in-flight helper, and
+removes the Tailscale Serve route.
 
 ### Use
 

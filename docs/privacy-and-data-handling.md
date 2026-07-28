@@ -15,8 +15,8 @@ network directly to that host.
 | Description | Native-vault metadata | Yes when stored, listed, or displayed for use | Until replacement/removal |
 | Provider and official documentation URLs | Native-vault metadata | Yes when stored, listed, or displayed | Until replacement/removal |
 | Clipboard value | Shared operating-system clipboard plus transient native-helper memory after explicit **Paste & Store** | Not through KeepKeys; same-user software may observe it | Helper clears the current clipboard immediately after capture; OS history or another process may retain a prior copy |
-| Phone-submitted value | Phone browser memory, phone clipboard, encrypted tailnet connection, transient localhost portal memory, redirected native-helper stdin, then the host vault | No | Portal buffers are cleared where supported after one submission; the phone OS or browser may retain a copy |
-| One-time phone URL and expiry | Tool result, active conversation, and transient portal process | Yes | Link expires after ten minutes and stops working after one successful submission |
+| Phone-submitted value | Phone browser memory, phone clipboard, encrypted tailnet connection, transient localhost portal memory, redirected native-helper stdin, then the host vault | No | Portal buffers are cleared where supported after one authenticated submission attempt; the phone OS or browser may retain a copy |
+| One-time phone URL and expiry | Tool result, active conversation, and transient portal process | Yes | Link expires after ten minutes and stops working after the first authenticated submission attempt |
 | Tailscale user login for the active page | Transient portal memory from a Tailscale Serve identity header | No | Until success, failure, or ten-minute expiry |
 | Run purpose, path, arguments, cwd, hashes | Native approval window and transient helper memory | Yes; proposed by agent | Not persisted by KeepKeys |
 | Bounded redacted stdout/stderr | MCP or Hermes result | Yes | Controlled by the host client |
@@ -44,8 +44,9 @@ When the user asks to store from a phone, KeepKeys returns a one-time
 tailnet-only URL. The phone and host must already be signed into the same
 Tailscale network. The page receives the value only after the user presses
 **Paste & Store**, forwards it to the host's native vault through a private
-redirected pipe, and closes. KeepKeys cannot clear the phone clipboard or its
-history. It never enables Tailscale Funnel, opens the page to the public
+capability-framed pipe, and closes. The native helper accepts that pipe only
+from the exact bundled portal parent. KeepKeys cannot clear the phone clipboard
+or its history. It never enables Tailscale Funnel, opens the page to the public
 internet, or sends the value to BarnLabs.
 
 - macOS transfers the value between AppKit's pasteboard API,

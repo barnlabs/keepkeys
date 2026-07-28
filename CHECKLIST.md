@@ -53,7 +53,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     three negative directory cases.
   - Acceptance: phone intake is described as a private route to the connected
     host, never as hosted storage, synchronization, or public mobile support.
-- [x] **Independent adversarial 0.5.0 review passed.**
+- [ ] **Independent adversarial 0.5.0 review and public matrix passed.**
   - Implementer context: exact diff, generated archives, local proof, public CI,
     immutable `F → C → docs` chain, and rollback.
   - Required tests: dedicated read-only Codex review, complete local regression
@@ -64,33 +64,24 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.5.0 release evidence
 
 - Functional source commit (`F`):
-  `51be557dd6e313d6cbe35235d28f75ddd9971e99`.
+  `2d4ad6f7e0f0d148421f911a71a2b4ac33b2bd70`.
 - Catalog commit (`C`):
-  `d9e7f2a6b09fd81d676013a080a2dcc40849ad96`.
-- Reviewed documentation candidate:
-  `863fc47510b8a3dab5ac045f45e14dd57a22e484`.
-- Candidate public CI run:
-  [30376229319](https://github.com/barnlabs/keepkeys/actions/runs/30376229319)
-  — macOS, Windows, and Linux Node 18/22; all three native-vault doctors;
-  two-build archive reproducibility; package inventory; and `Release gate`
-  passed.
-- Independent reviewer verdict: `PASS`; no actionable defect. The reviewer
-  reopened the exact `F → C → docs` chain, the prior failed-write terminal
-  repair, Tailscale identity and browser binding, native source fingerprints,
-  immutable pins, archive contents, executable launcher mode, and both
-  reproducible package digests.
-- Dedicated local Codex review: no actionable regression after independently
-  rerunning `check`, `test`, submission packaging, source packaging, checksum
-  verification, and archive integrity checks.
-- Stable update promotion commit:
-  `878d26f3e62581a5e85db5c33afee3fc649b9fa0`.
-- Stable-promotion public CI run:
-  [30376935891](https://github.com/barnlabs/keepkeys/actions/runs/30376935891)
-  — the same 11 proof jobs passed on the exact promotion commit, including
-  byte-for-byte rebuild checks for both release archives.
-- Stable update channel: `update.json` advertises 0.5.0 with the exact `F` and
-  `C` commits above; update discovery remains review-only and never installs
-  code.
+  `f1cc2106bf0e2f1975055b51c1e9e6663d1f610e`.
+- Reviewed documentation candidate: pending the exact docs commit and its
+  public matrix.
+- Candidate public CI run: pending on the new `F → C → docs` chain.
+- Independent reviewer verdict: `PASS` after one focused `REWORK` cycle. The
+  repaired diff closes first-browser cookie reacquisition, concurrent POST
+  claims, in-flight helper cancellation, cross-process same-name replacement,
+  and generic-Node-parent native commit forgery.
+- Dedicated local proof: `check`, 29 Node tests, Hermes and Linux unit suites,
+  macOS native self-test/status/doctor, reproducible submission/source package
+  rebuilds, archive integrity, a forged non-portal Node-parent rejection, and
+  a generated tailnet HTTPS-to-Keychain smoke all passed. The smoke removed its
+  vault record and session-owned route.
+- Stable update candidate: `update.json` advertises 0.5.0 with the exact `F`
+  and `C` commits above; public exact-head proof and promotion evidence are
+  pending.
 - Rollback: reinstall the 0.4.2 functional commit
   `e5276925d390704fccdf4aaeba47280464762a1c`; plugin rollback does not remove
   native-vault records.

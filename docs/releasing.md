@@ -50,5 +50,6 @@ metadata labels and writes version-2 labels; Windows stores version-2
 provider/documentation JSON in the non-secret metadata record.
 
 The phone portal does not change the record format. It calls a private native
-commit action over redirected standard input after the user submits a
-tailnet-only page.
+commit action over capability-framed redirected standard input after the user
+submits a tailnet-only page. The helper accepts that action only from a direct
+Node parent executing the exact bundled portal source.

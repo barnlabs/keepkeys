@@ -34,7 +34,7 @@ program and its descendants receive the value.
 | Agent/client | Untrusted with plaintext through the KeepKeys protocol. It can propose metadata and a command through fixed schemas. A host with unrestricted same-user command execution is not contained while a value is on the shared clipboard. |
 | MCP/Hermes adapter | Trusted code boundary. It validates arguments, selects one bundled backend, uses no shell, and returns bounded JSON. |
 | Native helper | Trusted secret-bearing boundary. It owns click-gated clipboard ingestion, vault access, approval, fingerprints, child environment, and redaction. |
-| Phone portal process | Trusted, temporary secret-bearing boundary. It owns the localhost listener, Tailscale identity binding, browser checks, one submitted byte buffer, and a private redirected pipe to the native helper. |
+| Phone portal process | Trusted, temporary secret-bearing boundary. It owns the localhost listener, Tailscale identity and browser binding, one submitted byte buffer, a per-name commit lock, and a capability-framed redirected pipe to the native helper. |
 | Tailscale Serve | Trusted private transport and identity boundary for phone intake. It terminates tailnet HTTPS on the host and forwards only to `127.0.0.1`. Funnel is forbidden. |
 | OS credential vault | Trusted for per-user at-rest protection and its own lock/unlock policy. |
 | Approved executable | Trusted only for this action. It and descendants can read, transform, persist, or transmit the secret. |
@@ -187,9 +187,12 @@ Tailscale Serve strips caller-supplied identity headers and adds the
 authenticated Tailscale user identity for tailnet traffic. KeepKeys rejects
 requests without that header. The first GET binds the session to one identity,
 sets a Secure, HttpOnly, SameSite=Strict cookie, and returns a page with no
-third-party resources. POST requires the same identity, exact HTTPS origin,
-cookie, content type, path, and 8-2048-byte body. The session accepts one
-successful submission and expires after ten minutes.
+third-party resources. Later GETs require both that identity and cookie, so a
+second browser under the same identity cannot acquire another session cookie.
+POST requires the same identity, exact HTTPS origin, cookie, content type,
+path, and 8-2048-byte body. The first authenticated POST claims the session
+before its body is read; malformed bodies, native failure, and successful
+storage are all terminal. The session expires after ten minutes.
 
 The URL is a short-lived capability visible to the active agent and user.
 Skill instructions forbid the agent from opening, previewing, or testing it
@@ -199,13 +202,25 @@ network-level control. A local agent host with arbitrary command execution can
 also call its own Tailscale URL and is outside KeepKeys' containment boundary,
 as it already is for the shared host clipboard.
 
-The page shows metadata and whether the name existed when the page opened. The
-native helper rechecks that existence state immediately before writing. A
-create-to-replace or replace-to-create race fails closed and requires a new
-page. The submitted bytes travel from the localhost portal process to the
-native helper through redirected stdin. They never appear in argv, a tool
-payload, a file, a log, or a persistent environment. KeepKeys clears mutable
-Node, Swift, .NET, and Python buffers where possible, but those runtimes and
+The page shows metadata and whether the name existed when the page opened. A
+per-name, user-owned exclusive lock serializes portal commits across processes
+and remains held across the native existence recheck and write. A
+create-to-replace or replace-to-create race therefore fails closed and requires
+a new page. A process crash can leave an orphaned lock file; subsequent intake
+fails closed until that file is removed from
+`~/Library/Caches/net.barnlabs.keepkeys/portal-locks` on macOS,
+`%LOCALAPPDATA%\BarnLabs\KeepKeys\portal-locks` on Windows, or
+`${XDG_RUNTIME_DIR:-~/.cache}/keepkeys/portal-locks` on Linux.
+
+The submitted bytes travel from the localhost portal process to the native
+helper through redirected stdin after a 256-bit capability frame. Public
+dispatch rejects the internal action, and every native backend requires its
+direct parent PID to be Node executing the exact bundled
+`keepkeys-portal.mjs`. These checks remove the public command shortcut; they do
+not contain same-user code injection or modified local plugin source, which are
+outside the defended boundary. The bytes never appear in argv, a tool payload,
+a file, a log, or a persistent environment. KeepKeys clears mutable Node,
+Swift, .NET, and Python buffers where possible, but those runtimes and
 operating-system APIs may retain copies.
 
 KeepKeys cannot clear the phone's clipboard or clipboard history. The page
@@ -213,9 +228,10 @@ tells the user to copy only when it is ready and submit immediately. Tailscale
 and the user's identity provider can observe normal connection and identity
 metadata; the key stays inside the encrypted connection to the host.
 
-Success, expiry, startup failure, or termination closes the listener and kills
-the foreground Serve process group. A pre-existing listener conflict fails
-closed rather than changing another Tailscale Serve configuration.
+Submission, expiry, startup failure, or termination closes the listener, aborts
+and kills an in-flight native helper process group, and kills the foreground
+Serve process group. A pre-existing listener conflict fails closed rather than
+changing another Tailscale Serve configuration.
 
 ### Approved target disclosure
 
@@ -278,10 +294,13 @@ signed update metadata.
 14. Agent-supplied names, providers, and documentation links are validated
     before native UI opens and are never editable by the user.
 15. Phone intake uses Tailscale Serve only, binds one identity and browser
-    session, accepts one bounded submission, and expires within ten minutes.
+    session, accepts one bounded authenticated submission attempt, and expires
+    within ten minutes.
 16. Phone-submitted bytes reach the native helper only through redirected
     stdin and never enter a tool payload, argv, file, log, or persistent
     environment.
-17. Portal success, expiry, startup failure, and termination remove the
-    localhost listener and foreground Serve route without resetting unrelated
-    Tailscale configuration.
+17. Phone commits serialize by name across portal processes, and native commit
+    dispatch requires a capability frame plus the exact bundled portal parent.
+18. Portal submission, expiry, startup failure, and termination remove the
+    localhost listener, in-flight native helper, and foreground Serve route
+    without resetting unrelated Tailscale configuration.

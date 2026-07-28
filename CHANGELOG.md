@@ -13,8 +13,14 @@
   backend.
 - Made both successful and failed native-vault submissions terminal so the
   session-owned listener and Serve route cannot be reused after one attempt.
+- Bound the first page open to its original browser cookie, claimed the first
+  authenticated POST before reading its body, and made malformed authenticated
+  submissions terminal.
+- Serialized same-name phone commits across portal processes and abort the
+  in-flight native helper when the session expires or terminates.
 - Sent the submitted value through redirected standard input to a private
-  native helper action, without placing it in model context, tool payloads,
+  native helper action that requires a capability frame and the exact bundled
+  portal parent, without placing the value in model context, tool payloads,
   command arguments, files, logs, or persistent environment variables.
 - Added deterministic portal tests plus a real tailnet-to-macOS-Keychain smoke
   test with a generated value and verified route, process, record, and

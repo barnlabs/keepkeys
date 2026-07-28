@@ -70,14 +70,19 @@ ten-minute session. The session:
    `/keepkeys/store/...` path;
 5. returns the tailnet HTTPS URL and expiry to the user;
 6. binds the first browser GET to one Tailscale identity and a Secure,
-   HttpOnly, SameSite=Strict cookie;
-7. accepts one same-origin POST of 8-2048 UTF-8 bytes;
-8. sends those bytes through redirected stdin to the selected native helper;
-9. closes the server and foreground Tailscale route on success or expiry.
+   HttpOnly, SameSite=Strict cookie that a second browser cannot reacquire;
+7. atomically claims the first authenticated same-origin POST of 8-2048 UTF-8
+   bytes and makes that submission attempt terminal;
+8. holds a per-name cross-process lock while sending a capability frame and
+   those bytes through redirected stdin to the selected native helper;
+9. requires that helper to verify its direct parent is Node executing the exact
+   bundled `keepkeys-portal.mjs`;
+10. closes the server, aborts an in-flight helper, and removes the foreground
+    Tailscale route on submission, expiry, or termination.
 
 The browser page has no external scripts, styles, images, analytics, or
-network destinations. The native helper rechecks whether the name existed
-before writing, so a replacement-state race fails without changing the vault.
+network destinations. The per-name lock spans the native existence recheck and
+write, so concurrent sessions cannot both accept a stale replacement state.
 The session never runs Tailscale Funnel and never changes unrelated Serve
 configuration.
 
