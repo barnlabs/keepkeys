@@ -53,7 +53,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     three negative directory cases.
   - Acceptance: phone intake is described as a private route to the connected
     host, never as hosted storage, synchronization, or public mobile support.
-- [ ] **Independent adversarial 0.5.0 review and public matrix passed.**
+- [x] **Independent adversarial 0.5.0 review and public matrix passed.**
   - Implementer context: exact diff, generated archives, local proof, public CI,
     immutable `F → C → docs` chain, and rollback.
   - Required tests: dedicated read-only Codex review, complete local regression
@@ -67,8 +67,16 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `534ca9c82914cc0a2a8072f4de2c0674cffd544b`.
 - Catalog commit (`C`):
   `c021deb6c0f2d649b899cc11914adbef43dc7432`.
-- Reviewed documentation candidate, candidate public CI, promotion, evidence,
-  and exact-head proof remain pending for this repaired chain.
+- Reviewed documentation candidate (`D`):
+  `9a2b5ff6c70188bf3afb36b08aa030b02b7f04aa`.
+- Candidate public CI:
+  [30403710815](https://github.com/barnlabs/keepkeys/actions/runs/30403710815)
+  — all 11 jobs passed on the exact documentation candidate, including native
+  vault tests on macOS, Windows, and Linux. Windows parsed and ran the repaired
+  helper, verified Credential Manager add, list, update, read, and deletion,
+  and passed the three native portal scenarios with cleanup.
+- Stable promotion, evidence, and exact-head proof remain pending for this
+  repaired chain.
 - Exact-head GitHub Codex review
   [4802130390](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4802130390)
   reopened the prior exact head for four lifecycle repairs: preserve Windows
@@ -88,8 +96,10 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   overflow or console warnings/errors. JavaScript enabled the initially
   disabled fieldset, the password input had no HTML `name`, focus landed on
   the key field, and a generated submission reached the stored state.
-- Independent read-only reviewer returned `PASS` on the focused four-finding
-  portal-lifecycle repair. Exact-candidate review remains pending.
+- Independent read-only reviewer returned `PASS` on both the focused
+  four-finding portal-lifecycle repair and the exact `F → C → D` candidate
+  after reopening the full diff, generated artifacts, candidate public CI, and
+  all findings from reviews `4801551714`, `4801887230`, and `4802130390`.
 - Superseded launcher-lifecycle chain: functional
   `0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef`, catalog
   `28f5166c06d227261212b2172b75fa54d3b0c00b`, documentation
