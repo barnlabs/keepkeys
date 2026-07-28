@@ -69,14 +69,17 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `d4e383ce4a49f27de25e6fcdfa83db068bc3185b`.
 - Reviewed documentation candidate:
   `b969df07aa84d50364ab8884c1345a829c17885c`.
-- Stable promotion commit: created by the commit that records this candidate
-  proof; the final-proof evidence records its exact SHA.
+- Stable promotion commit:
+  `7dca2be1268ab0bdaebc60b19bb1038cb9349d19`.
 - Candidate public CI run:
   [30385917861](https://github.com/barnlabs/keepkeys/actions/runs/30385917861)
   passed all six Node jobs, all three capability-framed generated-value native
   portal round trips, reproducible packages, and `Release gate` on the exact
   `F → C → docs` candidate.
-- Stable-promotion public CI: pending on the promotion evidence commit.
+- Stable-promotion public CI run:
+  [30386099382](https://github.com/barnlabs/keepkeys/actions/runs/30386099382)
+  passed the same 11 jobs on the exact promotion commit, including the
+  capability-framed Windows Credential Manager round trip and `Release gate`.
 - Superseded native-proof candidate: functional
   `816a1b719c18453159152044b9b728ecd1f767de`, catalog
   `e086b858651ad1a2a38e0b10c401c3d8e3791844`, and documentation
