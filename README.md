@@ -74,12 +74,12 @@ It never falls back to a plaintext keyring, terminal password prompt, or file.
 
 | Client | Package surface | Immutable install |
 | --- | --- | --- |
-| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref 90f2302d729bde03b23be667a63cb16ab5a13889`<br>`codex plugin add keepkeys@barnlabs` |
-| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'barnlabs/keepkeys@90f2302d729bde03b23be667a63cb16ab5a13889#plugins/keepkeys' --trust` |
+| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref 816a1b719c18453159152044b9b728ecd1f767de`<br>`codex plugin add keepkeys@barnlabs` |
+| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'barnlabs/keepkeys@816a1b719c18453159152044b9b728ecd1f767de#plugins/keepkeys' --trust` |
 | **Claude Code** | Claude plugin + pinned catalog | see [Install](INSTALL.md#claude-code) |
 | **Oh My Pi** | OMP/Claude-compatible pinned catalog | see [Install](INSTALL.md#oh-my-pi) |
 | **Hermes** | repository-root Hermes plugin | see [Install](INSTALL.md#hermes) |
-| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref 90f2302d729bde03b23be667a63cb16ab5a13889` |
+| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref 816a1b719c18453159152044b9b728ecd1f767de` |
 | **Agent Skills clients** | standard `skills/keepkeys/SKILL.md` | reviewed checkout or skills-only archive |
 
 All integrations expose the same seven tools and dispatch to the same
@@ -94,8 +94,8 @@ platform-native boundary:
 - `keepkeys_doctor`
 
 Claude Code and Oh My Pi use the immutable catalog at commit
-`8909aadd41acfa77f1ecb6e19a69f42e01477469`; that catalog pins the functional
-plugin source at `90f2302d729bde03b23be667a63cb16ab5a13889`. See
+`e086b858651ad1a2a38e0b10c401c3d8e3791844`; that catalog pins the functional
+plugin source at `816a1b719c18453159152044b9b728ecd1f767de`. See
 [INSTALL.md](INSTALL.md) for copy-paste commands and platform prerequisites.
 
 ## What the user experiences
@@ -121,7 +121,8 @@ Store from a phone:
    **Paste & Store**.
 4. The page sends the value through the private tailnet to the connected
    computer, where the native helper writes it to the operating-system vault.
-   The listener and Serve route then close.
+   The listener, native helper process tree, and Serve route then close.
+   KeepKeys reports cleanup failure unless process exit is confirmed.
 
 Phone intake requires Tailscale 1.52 or newer, MagicDNS, tailnet HTTPS, and a
 phone signed into the same tailnet. See the
@@ -148,7 +149,8 @@ KeepKeys does:
   argv, persistent environment, and plaintext files;
 - keep the optional phone page inside the user's tailnet, bind it to one
   Tailscale identity and browser cookie, serialize same-name commits, and close
-  it after one authenticated submission attempt or ten minutes;
+  it after one authenticated submission attempt or at the advertised
+  ten-minute expiry;
 - read the system clipboard only after **Paste & Store** and clear its current
   contents immediately after capture;
 - pin native helper sources and fail closed on integrity mismatch;

@@ -18,12 +18,15 @@
   submissions terminal.
 - Serialized same-name phone commits across portal processes and abort the
   in-flight native helper when the session expires or terminates.
+- Scheduled teardown from the advertised expiry and require confirmed native
+  helper and Tailscale Serve process exit before cleanup can report success.
 - Sent the submitted value through redirected standard input to a private
   native helper action that requires a capability frame and the exact bundled
   portal parent, without placing the value in model context, tool payloads,
   command arguments, files, logs, or persistent environment variables.
-- Added deterministic portal tests plus a real tailnet-to-macOS-Keychain smoke
-  test with a generated value and verified route, process, record, and
+- Added deterministic portal tests, a capability-framed generated UTF-8
+  portal-to-vault round trip on macOS, Windows, and Linux CI, and a real
+  tailnet-to-macOS-Keychain smoke with verified route, process, record, and
   temporary-file cleanup.
 - Made the skills-only and source archives byte-for-byte reproducible, with a
   CI rebuild check that rejects changing SHA-256 digests.

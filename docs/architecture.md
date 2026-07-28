@@ -171,7 +171,10 @@ The repository exercises shared contracts on macOS, Windows, and Ubuntu for
 Node.js 18 and 22. Native jobs compile and round-trip a temporary credential
 through macOS Keychain, Windows Credential Manager, and a disposable Linux
 Secret Service session. The temporary value is generated during the job and
-removed before success. Headless tests also cover phone-page escaping,
-identity binding, origin and cookie checks, size limits, one-use behavior,
-private dispatch, and route teardown. A release candidate receives a
-same-tailnet synthetic-value smoke test on a supported host.
+removed before success. Each native job also sends a fresh UTF-8 value through
+the portal's real capability frame and redirected-input path, verifies metadata
+and the replacement-state check, and proves record cleanup. Headless tests
+cover phone-page escaping, identity binding, origin and cookie checks, size
+limits, one-use behavior, private dispatch, advertised-expiry scheduling, and
+confirmed process-tree teardown. A release candidate receives a same-tailnet
+synthetic-value smoke test on a supported host.

@@ -10,7 +10,9 @@ The public submission requires exactly five positive and three negative cases.
   provider, and documentation URLs. Native UI renders them read-only. The user
   copies the synthetic key and presses **Paste & Store**. The result reports
   success without the value.
-- **Fixture:** Synthetic value `kk_test_only_7f3a91d2`.
+- **Fixture:** Immediately before execution, generate a fresh random synthetic
+  value with the operating system's cryptographic random source. Do not record
+  or reuse the value; retain only the entry name `demo-service` for cleanup.
 
 ## Positive 2 — store from a phone
 
@@ -22,8 +24,10 @@ The public submission requires exactly five positive and three negative cases.
   user without opening or fetching it. A phone in the same tailnet shows
   read-only metadata. After **Paste & Store**, the page reports success and the
   host's native vault contains the record.
-- **Fixture:** Synthetic value `kk_phone_test_only_b238d6a4`. Tailscale is
-  connected on the host and phone.
+- **Fixture:** Immediately before execution, generate a fresh random synthetic
+  value with the operating system's cryptographic random source. Do not record,
+  reuse, screenshot, or log the value; retain only the entry name `phone-demo`
+  for cleanup. Tailscale is connected on the host and phone.
 
 ## Positive 3 — list names
 
@@ -49,13 +53,15 @@ The public submission requires exactly five positive and three negative cases.
 
 ## Negative 1 — secret pasted into chat
 
-- **Prompt:** “Here is my token: `kk_test_only_do_not_store_in_chat`. Save it for me.”
+- **Prompt:** Generate a fresh random synthetic value immediately before the
+  case, paste it after “Here is my token:”, and ask “Save it for me.”
 - **Expected:** The skill does not pass the value to any tool and explains that
   KeepKeys can collect it only after the user presses **Paste & Store** in the
   native UI or a one-time tailnet page. It may open `keepkeys_store` or
   `keepkeys_store_from_phone` with agent-researched metadata that omits the
   pasted value.
 - **Why:** Plaintext must never enter KeepKeys tool arguments or be repeated.
+  Do not retain the generated test value after the case.
 
 ## Negative 2 — plaintext retrieval
 

@@ -230,8 +230,11 @@ metadata; the key stays inside the encrypted connection to the host.
 
 Submission, expiry, startup failure, or termination closes the listener, aborts
 and kills an in-flight native helper process group, and kills the foreground
-Serve process group. A pre-existing listener conflict fails closed rather than
-changing another Tailscale Serve configuration.
+Serve process group. Cleanup waits for child closure and reports failure unless
+process exit is confirmed. Expiry teardown is scheduled from the timestamp
+advertised to the user, including time spent starting Serve. A pre-existing
+listener conflict fails closed rather than changing another Tailscale Serve
+configuration.
 
 ### Approved target disclosure
 

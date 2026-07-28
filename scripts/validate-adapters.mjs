@@ -23,8 +23,8 @@ const tools = parse("plugins/keepkeys/mcp/tools.json");
 const update = parse("update.json");
 
 const version = codex.version;
-const releaseCommit = "90f2302d729bde03b23be667a63cb16ab5a13889";
-const catalogCommit = "8909aadd41acfa77f1ecb6e19a69f42e01477469";
+const releaseCommit = "816a1b719c18453159152044b9b728ecd1f767de";
+const catalogCommit = "e086b858651ad1a2a38e0b10c401c3d8e3791844";
 assert.equal(version, "0.5.0");
 const expectedUpdate =
   update.sourceCommit === releaseCommit
@@ -43,8 +43,8 @@ const expectedUpdate =
         product: "KeepKeys",
         channel: "stable",
         version: "0.5.0",
-        sourceCommit: "90f2302d729bde03b23be667a63cb16ab5a13889",
-        catalogCommit: "8909aadd41acfa77f1ecb6e19a69f42e01477469",
+        sourceCommit: "816a1b719c18453159152044b9b728ecd1f767de",
+        catalogCommit: "e086b858651ad1a2a38e0b10c401c3d8e3791844",
         installGuide: "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
         releaseNotes: "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md",
       };

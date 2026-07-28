@@ -25,7 +25,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 
 ## Release candidate — 0.5.0
 
-- [x] **Private phone intake keeps plaintext outside the agent protocol.**
+- [ ] **Private phone intake keeps plaintext outside the agent protocol.**
   - Implementer context: `keepkeys_store_from_phone`, temporary localhost
     portal, Tailscale Serve route, and private native standard-input commit
     action on macOS, Windows, and Linux.
@@ -35,7 +35,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   - Acceptance: the model receives only metadata and the one-time URL; no
     plaintext reaches tool input/output, argv, files, logs, persistent
     environment, the public internet, or a BarnLabs service.
-- [x] **Phone setup and failure states are complete.**
+- [ ] **Phone setup and failure states are complete.**
   - Implementer context: ChatGPT Remote guidance, same-tailnet prerequisites,
     MagicDNS/HTTPS requirements, port conflict, unavailable Tailscale, and
     phone clipboard limitation.
@@ -44,7 +44,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     too-short/too-large value, expiry, interrupt, and native commit failure.
   - Acceptance: every failure closes the local listener and owned Serve route
     without changing unrelated Tailscale configuration.
-- [x] **The 0.5.0 package and public copy match the seven-tool contract.**
+- [ ] **The 0.5.0 package and public copy match the seven-tool contract.**
   - Implementer context: manifests, MCP, Hermes, Agent Skill, skills-only
     package, README, install guide, listing, release notes, and eight submission
     cases.
@@ -53,7 +53,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     three negative directory cases.
   - Acceptance: phone intake is described as a private route to the connected
     host, never as hosted storage, synchronization, or public mobile support.
-- [x] **Independent adversarial 0.5.0 review and public matrix passed.**
+- [ ] **Independent adversarial 0.5.0 review and public matrix passed.**
   - Implementer context: exact diff, generated archives, local proof, public CI,
     immutable `F → C → docs` chain, and rollback.
   - Required tests: dedicated read-only Codex review, complete local regression
@@ -64,57 +64,33 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.5.0 release evidence
 
 - Functional source commit (`F`):
-  `90f2302d729bde03b23be667a63cb16ab5a13889`.
+  `816a1b719c18453159152044b9b728ecd1f767de`.
 - Catalog commit (`C`):
-  `8909aadd41acfa77f1ecb6e19a69f42e01477469`.
-- Reviewed documentation candidate:
-  `4ca18084df6b4b6b9c5b9b9ed3017ff3778b31b4`.
-- Stable promotion commit:
-  `083ba093e4acc13c2d99bc028515c0cd03e0fed5`.
-- Candidate public CI run:
-  [30382087740](https://github.com/barnlabs/keepkeys/actions/runs/30382087740)
-  passed macOS, Windows, and Linux on Node 18/22; all three native-vault
-  doctors; reproducible packages; and `Release gate` on the repaired
+  `e086b858651ad1a2a38e0b10c401c3d8e3791844`.
+- Reviewed documentation candidate: pending this documentation commit and
+  independent review.
+- Stable promotion commit: pending candidate review and public CI.
+- Candidate and stable-promotion public CI: pending on the new
   `F → C → docs` chain.
-- Stable-promotion public CI run:
-  [30382349754](https://github.com/barnlabs/keepkeys/actions/runs/30382349754)
-  passed the same 11 proof jobs on the exact promotion commit, including both
-  Windows Node versions and the native Windows vault doctor.
-- Superseded candidate public CI run:
-  [30380783494](https://github.com/barnlabs/keepkeys/actions/runs/30380783494)
-  passed macOS, Windows, and Linux on Node 18/22; all three native-vault
-  doctors; reproducible packages; and `Release gate` on the prior exact
-  candidate chain.
-- Superseded stable-promotion public CI run:
-  [30381058951](https://github.com/barnlabs/keepkeys/actions/runs/30381058951)
-  passed the same 11 proof jobs on the prior exact promotion commit.
-- Final-proof repair trigger:
-  [30381284280](https://github.com/barnlabs/keepkeys/actions/runs/30381284280)
-  passed nine proof jobs; Windows Node 18 failed when the delayed-helper
-  regression raced child close against synchronous tree termination, causing
-  `Release gate` to fail. The repaired `runProcess` settles `AbortError` before
-  termination, and the regression now waits for explicit child readiness
-  before aborting.
-- Superseded repair run:
-  [30380289420](https://github.com/barnlabs/keepkeys/actions/runs/30380289420)
-  passed macOS, Linux, all three native-vault doctors, and reproducible
-  packages, but failed both Windows Node jobs when the new real native
-  forged-parent regression exceeded its 30-second test bound. The Windows-only
-  follow-up uses the Windows PowerShell WMI path and a 90-second test bound;
-  candidate run 30380783494 supplies the required exact-head Windows proof.
-- Independent reviewer verdict: `PASS` after one focused `REWORK` cycle and a
-  second exact-chain review. The repaired diff closes first-browser cookie
-  reacquisition, concurrent POST claims, in-flight helper cancellation,
-  cross-process same-name replacement, and generic-Node-parent native commit
-  forgery. Both focused Windows repairs passed review.
-- Dedicated local proof: `check`, 29 Node tests, Hermes and Linux unit suites,
-  macOS native self-test/status/doctor, reproducible submission/source package
-  rebuilds, archive integrity, a forged non-portal Node-parent rejection, and
-  a generated tailnet HTTPS-to-Keychain smoke all passed. The repaired portal
-  suite also passed eight consecutive runs. The smoke removed its vault record
-  and session-owned route.
+- Exact-head GitHub Codex review
+  [4800221469](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4800221469)
+  reopened the release for four repairs: positive capability-framed native
+  portal tests on every platform, advertised-expiry scheduling, confirmed
+  process-tree termination, and generated-at-execution submission fixtures.
+- Superseded reviewed chain: functional
+  `90f2302d729bde03b23be667a63cb16ab5a13889`, catalog
+  `8909aadd41acfa77f1ecb6e19a69f42e01477469`, documentation
+  `4ca18084df6b4b6b9c5b9b9ed3017ff3778b31b4`, and promotion
+  `083ba093e4acc13c2d99bc028515c0cd03e0fed5`. Its final exact-head review
+  found the four gaps above, so it is not a release candidate.
+- Dedicated local proof: `check`, 32 Node tests, eight Hermes tests, 12 Linux
+  unit tests, macOS native self-test/status, a real capability-framed generated
+  UTF-8 portal-to-Keychain round trip, cleanup absence check, reproducible
+  submission/source packages, archive integrity, and a forged non-portal
+  Node-parent rejection passed. The cross-platform native round trip is wired
+  into all three native CI jobs and still requires public matrix proof.
 - Stable update candidate: `update.json` advertises 0.5.0 with the exact `F`
-  and `C` commits above. Exact candidate and stable-promotion proof passed.
+  and `C` commits above.
 - Rollback: reinstall the 0.4.2 functional commit
   `e5276925d390704fccdf4aaeba47280464762a1c`; plugin rollback does not remove
   native-vault records.
