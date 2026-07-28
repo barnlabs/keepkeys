@@ -53,7 +53,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     three negative directory cases.
   - Acceptance: phone intake is described as a private route to the connected
     host, never as hosted storage, synchronization, or public mobile support.
-- [ ] **Independent adversarial 0.5.0 review and public matrix passed.**
+- [x] **Independent adversarial 0.5.0 review and public matrix passed.**
   - Implementer context: exact diff, generated archives, local proof, public CI,
     immutable `F → C → docs` chain, and rollback.
   - Required tests: dedicated read-only Codex review, complete local regression
@@ -67,9 +67,15 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `561fba77ead72bef09071dd2d81be639eb76bdea`.
 - Catalog commit (`C`):
   `486d048c92b04d47061c64b9462dffd2fe80f29e`.
-- Reviewed documentation candidate, candidate public CI, promotion commit,
-  promotion CI, and exact-head evidence remain pending. The promotion commit
-  will record their immutable identifiers after those external checks pass.
+- Reviewed documentation candidate:
+  `138dd49c6f2e47e27be68690055e8197631a09d4`.
+- Candidate public CI run:
+  [30398247740](https://github.com/barnlabs/keepkeys/actions/runs/30398247740)
+  passed all six Node jobs, all three native-vault jobs, reproducible packages,
+  and `Release gate` on the exact `F → C → docs` candidate.
+- Stable promotion commit and promotion CI remain pending. The final evidence
+  commit will record their immutable identifiers after the promoted matrix
+  passes.
 - Exact-head GitHub Codex review
   [4801551714](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4801551714)
   reopened the prior exact head for three repairs: report failed Linux rollback
@@ -88,8 +94,8 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   the key field, and a generated submission reached the stored state.
 - Independent read-only reviewer returned `PASS` on the focused three-finding
   repair after inspecting the Linux failed-delete regression, the post-write
-  lock cleanup state, and the native race scenarios. Exact-candidate review
-  remains pending.
+  lock cleanup state, and the native race scenarios. The reviewer then reopened
+  the exact public `F → C → docs` candidate and returned `PASS` again.
 - Superseded prior final chain: functional
   `74d32f8898394e8b7203a2d4b95f3d6282aba845`, catalog
   `945626279cc015f3e9b0c0595967bc9e39514618`, documentation
