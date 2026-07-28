@@ -75,8 +75,12 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   vault tests on macOS, Windows, and Linux. Windows parsed and ran the repaired
   helper, verified Credential Manager add, list, update, read, and deletion,
   and passed the three native portal scenarios with cleanup.
-- Stable promotion, evidence, and exact-head proof remain pending for this
-  repaired chain.
+- Stable promotion commit (`P`):
+  `e3422f2b00e16ad29af60a5ff59c0a150ecc9ca7`.
+- Stable-promotion public CI:
+  [30403950497](https://github.com/barnlabs/keepkeys/actions/runs/30403950497)
+  — the same 11 proof jobs passed on the exact promotion commit.
+- Evidence and exact-head proof remain pending for this repaired chain.
 - Exact-head GitHub Codex review
   [4802130390](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4802130390)
   reopened the prior exact head for four lifecycle repairs: preserve Windows
