@@ -94,7 +94,10 @@ replacement state. The session never runs Tailscale Funnel and never changes
 unrelated Serve configuration. After Serve reports readiness, KeepKeys drains
 but no longer retains its later process output. If the key is stored but Serve
 cleanup fails, the response distinguishes that state from a failed vault write
-and the portal exits with a cleanup failure. An unconfirmed native-helper
+and the portal exits with a cleanup failure. If closing or removing the
+per-name lock fails after the native write, the response retains `stored: true`
+and reports the lock cleanup error so the user is not prompted to store the
+same value again. An unconfirmed native-helper
 termination remains attached to teardown even after the commit promise settles.
 
 ## Platform records
@@ -184,10 +187,11 @@ The repository exercises shared contracts on macOS, Windows, and Ubuntu for
 Node.js 18 and 22. Native jobs compile and round-trip a temporary credential
 through macOS Keychain, Windows Credential Manager, and a disposable Linux
 Secret Service session. The temporary value is generated during the job and
-removed before success. Each native job also sends a fresh UTF-8 value through
-the portal's real capability frame and redirected-input path, verifies metadata
-and the replacement-state check, and proves record cleanup. Headless tests
-cover phone-page escaping, identity binding, origin and cookie checks, size
-limits, one-use behavior, private dispatch, advertised-expiry scheduling, and
-confirmed process-tree teardown. A release candidate receives a same-tailnet
-synthetic-value smoke test on a supported host.
+removed before success. Each native job also sends fresh UTF-8 values through
+the portal's real capability frame and redirected-input path, verifies metadata,
+proves a normal round trip, rejects create-to-replace and replace-to-create
+stale states through the real native write path, and proves record cleanup.
+Headless tests cover phone-page escaping, identity binding, origin and cookie
+checks, size limits, one-use behavior, private dispatch, advertised-expiry
+scheduling, and confirmed process-tree teardown. A release candidate receives a
+same-tailnet synthetic-value smoke test on a supported host.

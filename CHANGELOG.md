@@ -31,6 +31,11 @@
 - Preserve unconfirmed native-helper termination as a teardown failure after
   the helper promise settles, and roll back Linux value writes when the
   following metadata subprocess times out or otherwise fails.
+- Report Linux rollback deletion failures instead of treating a failed delete
+  as successful, while still attempting both value and metadata cleanup.
+- Preserve a successful native-vault write when closing or removing the portal
+  commit lock fails: the phone receives `stored: true` with the cleanup error,
+  and the session cannot report a false storage failure.
 - Enforce the 8-byte minimum with UTF-8 byte counting in JavaScript and on the
   server instead of an HTML character-count minimum.
 - Made the no-script form fail closed: controls remain disabled and the
@@ -41,9 +46,9 @@
   portal parent, without placing the value in model context, tool payloads,
   command arguments, files, logs, or persistent environment variables.
 - Added deterministic portal tests, a capability-framed generated UTF-8
-  portal-to-vault round trip on macOS, Windows, and Linux CI, and a real
-  tailnet-to-macOS-Keychain smoke with verified route, process, record, and
-  temporary-file cleanup.
+  portal-to-vault round trip plus create-to-replace and replace-to-create race
+  rejection on macOS, Windows, and Linux CI, and a real tailnet-to-macOS
+  Keychain smoke with verified route, process, record, and temporary-file cleanup.
 - Made the skills-only and source archives byte-for-byte reproducible, with a
   CI rebuild check that rejects changing SHA-256 digests.
 - Updated the Agent Skill, MCP and Hermes adapters, installation guidance,

@@ -155,7 +155,10 @@ and a `secret-tool` pipe; it never crosses the agent protocol.
 Linux replacement snapshots the prior value and metadata. If either
 `secret-tool store` call raises a KeepKeys error, operating-system error,
 timeout, or other subprocess failure, KeepKeys attempts to restore the complete
-previous pair before returning the failure.
+previous pair before returning the failure. A rollback deletion that returns
+false is itself a cleanup failure. KeepKeys records that failure and still
+attempts the other rollback operation instead of reporting incomplete cleanup
+as success.
 
 KeepKeys refuses to use a plaintext keyring fallback and refuses secret entry
 when no graphical session is available.
@@ -219,6 +222,10 @@ fails closed until that file is removed from
 `~/Library/Caches/net.barnlabs.keepkeys/portal-locks` on macOS,
 `%LOCALAPPDATA%\BarnLabs\KeepKeys\portal-locks` on Windows, or
 `${XDG_RUNTIME_DIR:-~/.cache}/keepkeys/portal-locks` on Linux.
+If the native vault write succeeds but closing or removing that lock fails,
+KeepKeys retains the committed state, returns `stored: true` with the cleanup
+error, and keeps the session terminal. It does not tell the user to submit the
+same value again.
 
 The submitted bytes travel from the localhost portal process to the native
 helper through redirected stdin after a 256-bit capability frame. Public

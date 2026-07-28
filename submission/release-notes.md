@@ -20,7 +20,10 @@ browser session, checks origin and request size, and closes after one
 submission or expiry. UTF-8 byte limits are enforced in the page script and
 server. After a vault write, the page shows success only after the owned Serve
 process stops and the exact route is gone; a cleanup failure is shown
-separately from a failed vault write. KeepKeys never enables Tailscale Funnel.
+separately from a failed vault write. A post-write lock cleanup error still
+says the key was stored, preventing a duplicate submission. Native tests reject
+both stale create-to-replace and replace-to-create states on macOS, Windows,
+and Linux. KeepKeys never enables Tailscale Funnel.
 
 The release preserves the immutable-commit update checker, three native
 backends, and packages for Grok Build/Grok Code, Claude Code, Oh My Pi, Hermes,
