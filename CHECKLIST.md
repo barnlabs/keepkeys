@@ -53,7 +53,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     three negative directory cases.
   - Acceptance: phone intake is described as a private route to the connected
     host, never as hosted storage, synchronization, or public mobile support.
-- [ ] **Independent adversarial 0.5.0 review and public matrix passed.**
+- [x] **Independent adversarial 0.5.0 review and public matrix passed.**
   - Implementer context: exact diff, generated archives, local proof, public CI,
     immutable `F → C → docs` chain, and rollback.
   - Required tests: dedicated read-only Codex review, complete local regression
@@ -67,8 +67,16 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef`.
 - Catalog commit (`C`):
   `28f5166c06d227261212b2172b75fa54d3b0c00b`.
-- Reviewed documentation candidate, candidate public CI, promotion, evidence,
-  and exact-head proof remain pending for this repaired chain.
+- Reviewed documentation candidate (`D`):
+  `06b920b98ca3709353d4635e4a46d6a2a2b46143`.
+- Candidate public CI:
+  [30400773539](https://github.com/barnlabs/keepkeys/actions/runs/30400773539)
+  — all 11 jobs passed on the exact documentation candidate, including native
+  vault tests on macOS, Windows, and Linux. The Linux job verified a temporary
+  Secret Service add, metadata list, update, read, deletion, both
+  replacement-state races, and strict native cleanup.
+- Stable promotion, evidence, and exact-head proof remain pending for this
+  repaired chain.
 - Exact-head GitHub Codex review
   [4801887230](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4801887230)
   reopened the prior exact head for three Linux repairs: propagate Secret
@@ -86,8 +94,10 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   overflow or console warnings/errors. JavaScript enabled the initially
   disabled fieldset, the password input had no HTML `name`, focus landed on
   the key field, and a generated submission reached the stored state.
-- Independent read-only reviewer returned `PASS` on the focused three-finding
-  Linux uncertainty repair. Exact-candidate review remains pending.
+- Independent read-only reviewer returned `PASS` on both the focused
+  three-finding Linux uncertainty repair and the exact `F → C → D` candidate
+  after reopening the full diff, generated artifacts, candidate public CI, and
+  all findings from reviews `4801551714` and `4801887230`.
 - Superseded Linux uncertainty chain: functional
   `561fba77ead72bef09071dd2d81be639eb76bdea`, catalog
   `486d048c92b04d47061c64b9462dffd2fe80f29e`, documentation
