@@ -438,6 +438,31 @@ function Stop-KeepKeys {
     exit 1
 }
 
+function New-KeepKeysPortalStorageUncertainError {
+    param(
+        [Parameter(Mandatory = $true)][string]$Message,
+        [Exception]$Cause
+    )
+    $error = [InvalidOperationException]::new($Message, $Cause)
+    $error.Data["storageState"] = "uncertain"
+    $error.Data["cleanupKind"] = "native-rollback"
+    return $error
+}
+
+function ConvertTo-KeepKeysFailure {
+    param([Parameter(Mandatory = $true)][Exception]$Exception)
+    $failure = @{
+        status = "error"
+        message = $Exception.Message
+    }
+    if ($Exception.Data["storageState"] -ceq "uncertain" -and
+        $Exception.Data["cleanupKind"] -ceq "native-rollback") {
+        $failure.storageState = "uncertain"
+        $failure.cleanupKind = "native-rollback"
+    }
+    return $failure
+}
+
 function Test-KeepKeysName {
     param([string]$Value)
     return $null -ne $Value -and $Value -cmatch '^[A-Za-z][A-Za-z0-9._-]{0,127}$'
@@ -1212,9 +1237,12 @@ function Save-KeepKeysRecord {
         )
     } catch {
         $writeFailure = $_
+        $rollbackFailures = [Collections.Generic.List[Exception]]::new()
         try {
             if ($null -eq $previousSecret) {
-                [void][BarnLabs.KeepKeys.CredentialVault]::Delete($secretTarget)
+                [void][BarnLabs.KeepKeys.CredentialVault]::Delete(
+                    $secretTarget
+                )
             } else {
                 [BarnLabs.KeepKeys.CredentialVault]::Write(
                     $secretTarget,
@@ -1223,8 +1251,14 @@ function Save-KeepKeysRecord {
                     $previousSecret.Secret
                 )
             }
+        } catch {
+            $rollbackFailures.Add($_.Exception)
+        }
+        try {
             if ($null -eq $previousMetadata) {
-                [void][BarnLabs.KeepKeys.CredentialVault]::Delete($metadataTarget)
+                [void][BarnLabs.KeepKeys.CredentialVault]::Delete(
+                    $metadataTarget
+                )
             } else {
                 [BarnLabs.KeepKeys.CredentialVault]::Write(
                     $metadataTarget,
@@ -1234,10 +1268,15 @@ function Save-KeepKeysRecord {
                 )
             }
         } catch {
-            throw (
-                "Credential Manager failed during storage and rollback. " +
-                "Remove '$Name' from KeepKeys before retrying."
-            )
+            $rollbackFailures.Add($_.Exception)
+        }
+        if ($rollbackFailures.Count -gt 0) {
+            throw (New-KeepKeysPortalStorageUncertainError `
+                -Message (
+                    "Credential Manager failed during storage and rollback. " +
+                    "Remove '$Name' from KeepKeys before retrying."
+                ) `
+                -Cause $rollbackFailures[0])
         }
         throw $writeFailure
     } finally {
@@ -1588,6 +1627,15 @@ function Invoke-KeepKeysDoctor {
 }
 
 function Invoke-KeepKeysSelfTest {
+    $uncertainError = New-KeepKeysPortalStorageUncertainError `
+        -Message "Synthetic rollback uncertainty." `
+        -Cause ([Exception]::new("Synthetic rollback failure."))
+    $uncertainFailure = ConvertTo-KeepKeysFailure -Exception $uncertainError
+    if ($uncertainFailure.status -cne "error" -or
+        $uncertainFailure.storageState -cne "uncertain" -or
+        $uncertainFailure.cleanupKind -cne "native-rollback") {
+        throw "Credential Manager rollback-uncertainty self-test failed."
+    }
     if (-not (Test-KeepKeysName "github-release") -or
         -not (Test-KeepKeysName "new-key") -or
         (Test-KeepKeysName "../../escape") -or
@@ -2205,5 +2253,6 @@ try {
     }
     Write-KeepKeysJson $result
 } catch {
-    Stop-KeepKeys $_.Exception.Message
+    Write-KeepKeysJson (ConvertTo-KeepKeysFailure $_.Exception)
+    exit 1
 }

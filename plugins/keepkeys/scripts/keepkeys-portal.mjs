@@ -24,6 +24,7 @@ const SESSION_TTL_MS = 10 * 60 * 1000;
 const STARTUP_TIMEOUT_MS = 20 * 1000;
 const PORTAL_PREFIX = "/keepkeys/store";
 const PORTAL_CHILD_FLAG = "KEEPKEYS_PORTAL_SESSION_CHILD";
+const PORTAL_READY_ACK = "keepkeys-portal-ready-accepted";
 const PORTAL_NATIVE_TEST_FLAG = "KEEPKEYS_PORTAL_NATIVE_TEST";
 const PORTAL_TAILNET_TEST_FLAG = "KEEPKEYS_PORTAL_TAILNET_TEST";
 const PORTAL_CAPABILITY_BYTES = 32;
@@ -564,7 +565,9 @@ export function createPortalServer({
                 stored: null,
                 storageState: "uncertain",
                 message:
-                  "KeepKeys could not confirm whether the key remained after native-vault rollback failed. Check the connected host and remove this name before retrying.",
+                  error?.cleanupKind === "native-rollback+portal-lock"
+                    ? "KeepKeys could not confirm whether the key remained after native-vault rollback failed, and it could not remove the private commit lock. Check the connected host, remove this name, and confirm the lock is gone before retrying."
+                    : "KeepKeys could not confirm whether the key remained after native-vault rollback failed. Check the connected host and remove this name before retrying.",
               }
             : stored
             ? {
@@ -811,9 +814,36 @@ async function readExisting(metadata, signal) {
   return parsed.entries.some((entry) => entry?.name === metadata.name);
 }
 
-export async function runPortalStartupOperations(operations) {
+export function watchLauncherConnection(connection, onDisconnect) {
+  let armed = true;
+  let disconnected = connection?.connected === false;
+  const disconnect = () => {
+    if (!armed) return;
+    disconnected = true;
+    onDisconnect();
+  };
+  if (disconnected) {
+    queueMicrotask(disconnect);
+  } else {
+    connection.once("disconnect", disconnect);
+  }
+  return {
+    get disconnected() {
+      return disconnected;
+    },
+    disarm() {
+      armed = false;
+      connection.removeListener("disconnect", disconnect);
+    },
+  };
+}
+
+export async function runPortalStartupOperations(operations, externalSignal) {
   const controller = new AbortController();
   let firstError;
+  const abort = () => controller.abort();
+  if (externalSignal?.aborted) throw abortError();
+  externalSignal?.addEventListener("abort", abort, { once: true });
   const tasks = operations.map((operation) =>
     Promise.resolve()
       .then(() => operation(controller.signal))
@@ -823,9 +853,14 @@ export async function runPortalStartupOperations(operations) {
         throw error;
       }),
   );
-  const results = await Promise.allSettled(tasks);
-  if (firstError !== undefined) throw firstError;
-  return results.map((result) => result.value);
+  try {
+    const results = await Promise.allSettled(tasks);
+    if (firstError !== undefined) throw firstError;
+    if (externalSignal?.aborted) throw abortError();
+    return results.map((result) => result.value);
+  } finally {
+    externalSignal?.removeEventListener("abort", abort);
+  }
 }
 
 function defaultPortalLockRoot() {
@@ -943,6 +978,7 @@ export async function withPortalCommitLock(
     cleanupFailures.push(error);
   }
   if (cleanupFailures.length > 0) {
+    const storageUncertain = operationError?.storageState === "uncertain";
     const cleanupError = new AggregateError(
       operationError
         ? [operationError, ...cleanupFailures]
@@ -950,9 +986,14 @@ export async function withPortalCommitLock(
       "KeepKeys could not confirm removal of its private portal commit lock.",
     );
     cleanupError.name = "CleanupError";
-    cleanupError.cleanupKind = "portal-lock";
+    cleanupError.cleanupKind = storageUncertain
+      ? "native-rollback+portal-lock"
+      : "portal-lock";
+    if (storageUncertain) cleanupError.storageState = "uncertain";
     cleanupError.stored =
-      operationCompleted || operationError?.stored === true;
+      storageUncertain
+        ? null
+        : operationCompleted || operationError?.stored === true;
     throw cleanupError;
   }
   if (operationError) throw operationError;
@@ -1044,6 +1085,7 @@ async function commitToNativeVault(
 export async function waitForServeReady(
   child,
   timeoutMs = STARTUP_TIMEOUT_MS,
+  onUnexpectedExit = () => {},
 ) {
   return new Promise((resolvePromise, rejectPromise) => {
     let output = "";
@@ -1096,8 +1138,12 @@ export async function waitForServeReady(
     child.on("error", (error) => {
       if (!terminating) finish(rejectPromise, error);
     });
-    child.on("close", () => {
+    child.once("close", () => {
       if (terminating) return;
+      if (settled) {
+        onUnexpectedExit();
+        return;
+      }
       finish(
         rejectPromise,
         new Error(
@@ -1239,6 +1285,16 @@ export function trackPortalCommit(operation, state) {
 async function startPortalSession(argumentsValue) {
   const metadata = parsePortalMetadata(argumentsValue);
   const nativeSelfTest = process.env[PORTAL_TAILNET_TEST_FLAG] === "1";
+  const launcherAbortController = new AbortController();
+  let cleanupLauncherDisconnect;
+  let readyDelivered = false;
+  let unexpectedServeExit = false;
+  const launcherConnection = process.send
+    ? watchLauncherConnection(process, () => {
+        launcherAbortController.abort();
+        cleanupLauncherDisconnect?.();
+      })
+    : undefined;
   delete process.env[PORTAL_TAILNET_TEST_FLAG];
   if (nativeSelfTest && !metadata.name.startsWith("keepkeys-portal-test-")) {
     throw new Error("KeepKeys rejected an unauthorized tailnet portal test.");
@@ -1247,7 +1303,8 @@ async function startPortalSession(argumentsValue) {
   const [{ dnsName }, replacing] = await runPortalStartupOperations([
     (signal) => tailscaleState(tailscale, signal),
     (signal) => readExisting(metadata, signal),
-  ]);
+  ], launcherAbortController.signal);
+  if (launcherConnection?.disconnected) throw abortError();
   const path = `${PORTAL_PREFIX}/${randomBytes(24).toString("base64url")}`;
   const cookieToken = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
@@ -1260,11 +1317,13 @@ async function startPortalSession(argumentsValue) {
     active: undefined,
     cleanupError: undefined,
   };
+  let stoppingOwnedServe = false;
   let stoppingOwnedProcessGroup = false;
   const commitController = new AbortController();
   const stopOwnedServe = () => {
     if (!serveProcess) return Promise.resolve();
     if (!stopOwnedServePromise) {
+      stoppingOwnedServe = true;
       stopOwnedServePromise = stopOwnedServeProcess(
         serveProcess,
         () => verifyServePathRemoved(tailscale, path),
@@ -1388,6 +1447,13 @@ async function startPortalSession(argumentsValue) {
     cleanup();
     throw new Error("KeepKeys could not bind its private local intake server.");
   }
+  cleanupLauncherDisconnect = () => {
+    if (!readyDelivered) cleanupAndExit(1);
+  };
+  if (launcherConnection?.disconnected) {
+    await cleanup();
+    throw abortError();
+  }
   serveProcess = spawn(
     tailscale,
     [
@@ -1404,7 +1470,22 @@ async function startPortalSession(argumentsValue) {
     },
   );
   try {
-    await waitForServeReady(serveProcess);
+    await waitForServeReady(serveProcess, STARTUP_TIMEOUT_MS, () => {
+      if (cleanupPromise || stoppingOwnedServe) return;
+      unexpectedServeExit = true;
+      if (readyDelivered) cleanupAndExit(1);
+    });
+    await new Promise((resolvePromise) => setImmediate(resolvePromise));
+    if (
+      launcherConnection?.disconnected ||
+      unexpectedServeExit ||
+      childHasExited(serveProcess)
+    ) {
+      await cleanup();
+      throw new Error(
+        "Tailscale Serve exited before KeepKeys could return the private phone link.",
+      );
+    }
   } catch (error) {
     await cleanup();
     throw error;
@@ -1426,8 +1507,57 @@ async function startPortalSession(argumentsValue) {
     publicInternet: false,
   };
   if (process.send) {
-    process.send(result, () => process.disconnect?.());
+    try {
+      await new Promise((resolvePromise, rejectPromise) => {
+        let settled = false;
+        const finish = (callback, value) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          process.removeListener("message", accept);
+          launcherAbortController.signal.removeEventListener("abort", abort);
+          callback(value);
+        };
+        const accept = (message) => {
+          if (message?.type === PORTAL_READY_ACK) {
+            finish(resolvePromise);
+          }
+        };
+        const abort = () => finish(rejectPromise, abortError());
+        process.on("message", accept);
+        launcherAbortController.signal.addEventListener("abort", abort, {
+          once: true,
+        });
+        const timer = setTimeout(
+          () =>
+            finish(
+              rejectPromise,
+              new Error(
+                "KeepKeys launcher did not accept the private phone link.",
+              ),
+            ),
+          5000,
+        );
+        try {
+          process.send(result, (error) => {
+            if (error) finish(rejectPromise, error);
+          });
+        } catch (error) {
+          finish(rejectPromise, error);
+        }
+      });
+    } catch (error) {
+      await cleanup();
+      throw new Error(
+        "KeepKeys could not return the private phone link to its launcher.",
+        { cause: error },
+      );
+    }
+    readyDelivered = true;
+    launcherConnection?.disarm();
+    process.disconnect?.();
   } else {
+    readyDelivered = true;
     process.stdout.write(`${JSON.stringify(result)}\n`);
   }
 }
@@ -1681,11 +1811,33 @@ async function launchDetached(
         finish(rejectPromise, new Error(result.message));
         return;
       }
-      if (!retainChild) child.unref();
-      finish(
-        resolvePromise,
-        retainChild ? { result, child } : result,
-      );
+      setImmediate(() => {
+        if (terminating || settled) return;
+        if (childHasExited(child)) {
+          finish(
+            rejectPromise,
+            new Error(
+              "Tailscale Serve exited before KeepKeys could return the private phone link.",
+            ),
+          );
+          return;
+        }
+        try {
+          child.send({ type: PORTAL_READY_ACK }, (error) => {
+            if (error) {
+              finish(rejectPromise, error);
+              return;
+            }
+            if (!retainChild) child.unref();
+            finish(
+              resolvePromise,
+              retainChild ? { result, child } : result,
+            );
+          });
+        } catch (error) {
+          finish(rejectPromise, error);
+        }
+      });
     });
     child.once("error", (error) => {
       if (!terminating) finish(rejectPromise, error);
@@ -1766,11 +1918,15 @@ async function main() {
             ? error.message
             : "KeepKeys could not start the private phone intake.",
       };
-      if (process.send) {
-        process.send(result, () => {
-          process.disconnect?.();
-          process.exit(1);
-        });
+      if (process.send && process.connected) {
+        try {
+          process.send(result, () => {
+            process.disconnect?.();
+            process.exit(1);
+          });
+        } catch {
+          fail(result.message);
+        }
       } else {
         fail(result.message);
       }

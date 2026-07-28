@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { once } from "node:events";
+import { EventEmitter, once } from "node:events";
 import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
@@ -26,6 +26,7 @@ import {
   stopOwnedServeProcess,
   trackPortalCommit,
   waitForServeReady,
+  watchLauncherConnection,
   withPortalCommitLock,
 } from "./keepkeys-portal.mjs";
 
@@ -164,6 +165,28 @@ test("portal startup children stay in the detached portal process group", () => 
   );
 });
 
+test("launcher disconnects stay armed until the ready link is accepted", () => {
+  const connection = new EventEmitter();
+  connection.connected = true;
+  let disconnects = 0;
+  const watcher = watchLauncherConnection(connection, () => {
+    disconnects += 1;
+  });
+  connection.emit("disconnect");
+  assert.equal(watcher.disconnected, true);
+  assert.equal(disconnects, 1);
+
+  const accepted = new EventEmitter();
+  accepted.connected = true;
+  const acceptedWatcher = watchLauncherConnection(accepted, () => {
+    disconnects += 1;
+  });
+  acceptedWatcher.disarm();
+  accepted.emit("disconnect");
+  assert.equal(acceptedWatcher.disconnected, false);
+  assert.equal(disconnects, 1);
+});
+
 test("portal startup aborts and awaits sibling work after one failure", async () => {
   let siblingSettled = false;
   await assert.rejects(
@@ -278,6 +301,31 @@ test("Serve readiness stops capturing output for the active session", async () =
   } finally {
     await terminateProcessGracefullyAndWait(child);
   }
+});
+
+test("Serve exit after readiness is reported to the active portal", async () => {
+  const child = spawn(
+    process.execPath,
+    [
+      "-e",
+      [
+        "process.stdout.write('Available within your tailnet:\\n');",
+        "setTimeout(()=>process.exit(0),25);",
+      ].join(""),
+    ],
+    {
+      detached: process.platform !== "win32",
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    },
+  );
+  let unexpectedExitResolve;
+  const unexpectedExit = new Promise((resolvePromise) => {
+    unexpectedExitResolve = resolvePromise;
+  });
+  await waitForServeReady(child, 1000, unexpectedExitResolve);
+  await unexpectedExit;
+  assert.equal(processHasExited(child), true);
 });
 
 test("Serve cleanup fails closed when the route is absent but its child survives", async () => {
@@ -932,6 +980,77 @@ test("native rollback uncertainty never claims the value was discarded", async (
     storageState: "uncertain",
     message:
       "KeepKeys could not confirm whether the key remained after native-vault rollback failed. Check the connected host and remove this name before retrying.",
+  });
+});
+
+test("native rollback uncertainty survives simultaneous lock cleanup failure", async (context) => {
+  const temporary = await mkdtemp(resolve(tmpdir(), "keepkeys-uncertain-lock-"));
+  context.after(() => rm(temporary, { recursive: true, force: true }));
+  let combinedError;
+  await assert.rejects(
+    withPortalCommitLock(
+      metadata.name,
+      async () => {
+        throw nativeCommitError({
+          status: "error",
+          storageState: "uncertain",
+          cleanupKind: "native-rollback",
+        });
+      },
+      {
+        lockRoot: temporary,
+        removeLock: async () => {
+          throw new Error("Synthetic lock removal failure.");
+        },
+      },
+    ),
+    (error) => {
+      combinedError = error;
+      return (
+        error?.name === "CleanupError" &&
+        error?.storageState === "uncertain" &&
+        error?.cleanupKind === "native-rollback+portal-lock" &&
+        error?.stored === null
+      );
+    },
+  );
+
+  const path = "/keepkeys/store/uncertain-rollback-and-lock";
+  const expectedOrigin = "https://device.example.ts.net";
+  const server = createPortalServer({
+    metadata,
+    replacing: false,
+    path,
+    cookieToken: "uncertain-rollback-and-lock-cookie",
+    expectedOrigin,
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    commitSecret: async () => {
+      throw combinedError;
+    },
+  });
+  context.after(() => server.close());
+  const base = await listen(server);
+  const page = await fetch(`${base}${path}`, {
+    headers: { "Tailscale-User-Login": "owner@example.com" },
+  });
+  const cookie = (page.headers.get("set-cookie") ?? "").split(";")[0];
+  const failed = await fetch(`${base}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8",
+      Cookie: cookie,
+      Origin: expectedOrigin,
+      "Tailscale-User-Login": "owner@example.com",
+    },
+    body: "synthetic_secret",
+  });
+  assert.equal(failed.status, 500);
+  assert.deepEqual(await failed.json(), {
+    status: "error",
+    stored: null,
+    storageState: "uncertain",
+    message:
+      "KeepKeys could not confirm whether the key remained after native-vault rollback failed, and it could not remove the private commit lock. Check the connected host, remove this name, and confirm the lock is gone before retrying.",
   });
 });
 

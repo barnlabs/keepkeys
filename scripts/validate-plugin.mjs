@@ -305,7 +305,7 @@ assert.match(
 );
 assert.match(
   portalSource,
-  /cleanupError\.name = "CleanupError";[\s\S]*?cleanupError\.cleanupKind = "portal-lock";[\s\S]*?cleanupError\.stored =[\s\S]*?operationCompleted/,
+  /cleanupError\.name = "CleanupError";[\s\S]*?cleanupError\.cleanupKind = storageUncertain[\s\S]*?: "portal-lock";[\s\S]*?cleanupError\.stored =[\s\S]*?operationCompleted/,
   "successful native commits must retain lock cleanup failures as stored cleanup errors",
 );
 assert.match(
@@ -333,6 +333,16 @@ assert.match(
   "Linux rollback uncertainty must cross the native portal boundary",
 );
 assert.match(
+  windowsHelper,
+  /New-KeepKeysPortalStorageUncertainError[\s\S]*?\$error\.Data\["storageState"\] = "uncertain"[\s\S]*?\$error\.Data\["cleanupKind"\] = "native-rollback"[\s\S]*?ConvertTo-KeepKeysFailure[\s\S]*?\$failure\.storageState = "uncertain"[\s\S]*?\$failure\.cleanupKind = "native-rollback"/,
+  "Windows rollback uncertainty must cross the native portal boundary",
+);
+assert.match(
+  windowsHelper,
+  /\$rollbackFailures =[\s\S]*?CredentialVault\]::Delete\(\s+\$secretTarget[\s\S]*?\$rollbackFailures\.Add\(\$_\.Exception\)[\s\S]*?CredentialVault\]::Delete\(\s+\$metadataTarget[\s\S]*?\$rollbackFailures\.Add\(\$_\.Exception\)[\s\S]*?\$rollbackFailures\.Count -gt 0/,
+  "Windows paired writes must attempt both rollback paths and retain failures",
+);
+assert.match(
   linuxHelper,
   /def clear_native_portal_test_record[\s\S]*?if not clear_item\(service, name\)[\s\S]*?if failures:/,
   "Linux native portal tests must reject failed cleanup deletions",
@@ -344,8 +354,23 @@ assert.match(
 );
 assert.match(
   portalSource,
+  /const storageUncertain = operationError\?\.storageState === "uncertain"[\s\S]*?"native-rollback\+portal-lock"[\s\S]*?cleanupError\.storageState = "uncertain"/,
+  "portal lock cleanup must not overwrite native rollback uncertainty",
+);
+assert.match(
+  portalSource,
   /storageState: "uncertain"[\s\S]*?could not confirm whether the key remained/,
   "the phone must not claim uncertain native rollback discarded the key",
+);
+assert.match(
+  portalSource,
+  /watchLauncherConnection\(process,[\s\S]*?launcherAbortController\.abort\(\)[\s\S]*?cleanupLauncherDisconnect\?\.\(\)[\s\S]*?PORTAL_READY_ACK[\s\S]*?launcherConnection\?\.disarm\(\)/,
+  "a detached portal must clean up if its launcher disconnects before accepting the ready link",
+);
+assert.match(
+  portalSource,
+  /waitForServeReady\(serveProcess,[\s\S]*?unexpectedServeExit = true[\s\S]*?childHasExited\(serveProcess\)[\s\S]*?await cleanup\(\)/,
+  "the portal must stop if its foreground Serve process exits after readiness",
 );
 assert.match(
   portalSource,
