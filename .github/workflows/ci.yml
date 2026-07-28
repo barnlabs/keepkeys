@@ -79,8 +79,12 @@ jobs:
           node-version: "22"
       - run: ./scripts/package-submission
       - run: ./scripts/package-release
-      - run: unzip -l dist/keepkeys-skills-0.4.2.zip
-      - run: unzip -l dist/keepkeys-0.4.2-source.zip
+      - name: Inspect release archives
+        run: |
+          version=$(node -p \
+            "require('./plugins/keepkeys/.codex-plugin/plugin.json').version")
+          unzip -l "dist/keepkeys-skills-${version}.zip"
+          unzip -l "dist/keepkeys-${version}-source.zip"
 
   release-gate:
     name: Release gate
