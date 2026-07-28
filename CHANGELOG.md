@@ -21,6 +21,9 @@
 - Scheduled teardown from the advertised expiry and require confirmed native
   helper and Tailscale Serve process exit plus exact owned-route absence before
   cleanup can report success.
+- Cancel and await both metadata and Tailscale startup operations after either
+  fails, await Serve termination even when route verification fails, and stop
+  retaining Serve output after its readiness message.
 - Made the no-script form fail closed: controls remain disabled and the
   password field has no serializable HTML name until the safe JavaScript POST
   path is active.

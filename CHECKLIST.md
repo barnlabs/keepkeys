@@ -25,7 +25,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 
 ## Release candidate — 0.5.0
 
-- [x] **Private phone intake keeps plaintext outside the agent protocol.**
+- [ ] **Private phone intake keeps plaintext outside the agent protocol.**
   - Implementer context: `keepkeys_store_from_phone`, temporary localhost
     portal, Tailscale Serve route, and private native standard-input commit
     action on macOS, Windows, and Linux.
@@ -35,7 +35,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   - Acceptance: the model receives only metadata and the one-time URL; no
     plaintext reaches tool input/output, argv, files, logs, persistent
     environment, the public internet, or a BarnLabs service.
-- [x] **Phone setup and failure states are complete.**
+- [ ] **Phone setup and failure states are complete.**
   - Implementer context: ChatGPT Remote guidance, same-tailnet prerequisites,
     MagicDNS/HTTPS requirements, port conflict, unavailable Tailscale, and
     phone clipboard limitation.
@@ -44,7 +44,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     too-short/too-large value, expiry, interrupt, and native commit failure.
   - Acceptance: every failure closes the local listener and owned Serve route
     without changing unrelated Tailscale configuration.
-- [x] **The 0.5.0 package and public copy match the seven-tool contract.**
+- [ ] **The 0.5.0 package and public copy match the seven-tool contract.**
   - Implementer context: manifests, MCP, Hermes, Agent Skill, skills-only
     package, README, install guide, listing, release notes, and eight submission
     cases.
@@ -53,7 +53,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     three negative directory cases.
   - Acceptance: phone intake is described as a private route to the connected
     host, never as hosted storage, synchronization, or public mobile support.
-- [x] **Independent adversarial 0.5.0 review and public matrix passed.**
+- [ ] **Independent adversarial 0.5.0 review and public matrix passed.**
   - Implementer context: exact diff, generated archives, local proof, public CI,
     immutable `F → C → docs` chain, and rollback.
   - Required tests: dedicated read-only Codex review, complete local regression
@@ -64,27 +64,17 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.5.0 release evidence
 
 - Functional source commit (`F`):
-  `039f33d6da17173e7615f266c00b656367d64dba`.
+  `af4d97691adf80dbcab2212f5fdfc091b2a97851`.
 - Catalog commit (`C`):
-  `18698ac3374633cda82650115122e9179457ad40`.
-- Reviewed documentation candidate:
-  `6f749af83bb56e9d84bcb3764a4f613a476587a0`.
-- Candidate public CI run:
-  [30389726448](https://github.com/barnlabs/keepkeys/actions/runs/30389726448)
-  passed all six Node jobs, all three native-vault jobs, reproducible packages,
-  and `Release gate` on the exact `F → C → docs` candidate.
-- Stable promotion commit:
-  `fd0b503f3c0179bc68ac9885000f7727369a6dd7`.
-- Stable-promotion public CI run:
-  [30389987843](https://github.com/barnlabs/keepkeys/actions/runs/30389987843)
-  passed the same 11 jobs on the exact promotion commit, including native-vault
-  proof on macOS, Windows, and Linux plus `Release gate`.
+  `e177f405482950de39abef0fa78559a2a6043074`.
+- Reviewed documentation candidate and public matrices: pending.
 - Exact-head GitHub Codex review
-  [4800622135](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4800622135)
-  reopened the prior exact head for three P1 repairs: keep every startup child
-  in the portal process group, disable and unname the no-script secret field,
-  and add durable authenticated tailnet-to-vault proof.
-- Dedicated local proof: `check`, 39 Node tests, eight Hermes tests, 12 Linux
+  [4801015633](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4801015633)
+  reopened the prior exact head for three repairs: cancel and await sibling
+  startup operations after a partial failure, await Serve-process termination
+  even when route verification fails, and stop retaining Serve output after
+  readiness.
+- Dedicated local proof: `check`, 42 Node tests, eight Hermes tests, 12 Linux
   unit tests, macOS doctor, package and archive checks, and repeated
   `./scripts/tailnet-smoke` runs passed. Each live smoke crossed authenticated
   Tailscale Serve HTTPS, bound one browser, submitted a fresh generated UTF-8
@@ -95,21 +85,22 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   overflow or console warnings/errors. JavaScript enabled the initially
   disabled fieldset, the password input had no HTML `name`, focus landed on
   the key field, and a generated submission reached the stored state.
-- Independent read-only reviewer returned `REWORK` until cleanup required both
-  exact route absence and confirmed Serve-process exit, then returned `PASS`
-  after the stubborn-child regression passed. The reviewer reopened the exact
-  `F → C → docs` candidate after public CI and returned `PASS` again.
+- Independent read-only reviewer returned `PASS` on the focused three-finding
+  repair after the new sibling-startup, route-failure, and output-listener
+  regressions passed.
 - Superseded exact chain: functional
-  `55b7095d99607267936ab64df8c65a1c13514ef8`, catalog
-  `d4e383ce4a49f27de25e6fcdfa83db068bc3185b`, documentation
-  `b969df07aa84d50364ab8884c1345a829c17885c`, promotion
-  `7dca2be1268ab0bdaebc60b19bb1038cb9349d19`, and final proof
-  `c204e69a4396f46ef6f2961300ffdefeb894fa43`. Public runs
-  [30385917861](https://github.com/barnlabs/keepkeys/actions/runs/30385917861),
-  [30386099382](https://github.com/barnlabs/keepkeys/actions/runs/30386099382),
-  and [30386335343](https://github.com/barnlabs/keepkeys/actions/runs/30386335343)
-  passed all 11 jobs, but exact-head review `4800622135` found the three gaps
-  above, so that chain is not a release candidate.
+  `039f33d6da17173e7615f266c00b656367d64dba`, catalog
+  `18698ac3374633cda82650115122e9179457ad40`, documentation
+  `6f749af83bb56e9d84bcb3764a4f613a476587a0`, promotion
+  `fd0b503f3c0179bc68ac9885000f7727369a6dd7`, and final proof
+  `b5e74deb7b33e6cdbd9f27602939d81d2e4e3a4c`. Public runs
+  [30389726448](https://github.com/barnlabs/keepkeys/actions/runs/30389726448),
+  [30389987843](https://github.com/barnlabs/keepkeys/actions/runs/30389987843),
+  and [30390148371](https://github.com/barnlabs/keepkeys/actions/runs/30390148371)
+  passed all 11 jobs, but exact-head review `4801015633` found the three gaps
+  above, so that chain is not a release candidate. Review `4800622135` had
+  previously reopened the older `c204e69a4396f46ef6f2961300ffdefeb894fa43`
+  proof head for its own three P1 cleanup, no-script, and live-tailnet gaps.
 - Stable update candidate: `update.json` advertises 0.5.0 with the exact `F`
   and `C` commits above.
 - Rollback: reinstall the 0.4.2 functional commit

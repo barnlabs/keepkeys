@@ -63,21 +63,22 @@ and direct local diagnostics.
 `keepkeys_store_from_phone` starts `scripts/keepkeys-portal.mjs` as a detached,
 ten-minute session. The session:
 
-1. confirms Tailscale 1.52 or newer is online with a tailnet DNS name;
-2. reads only native-vault metadata to determine whether the name exists;
-3. binds an HTTP server to an ephemeral `127.0.0.1` port;
-4. runs Tailscale Serve in the foreground at an unguessable
+1. concurrently confirms Tailscale 1.52 or newer is online with a tailnet DNS
+   name and reads only native-vault metadata to determine whether the name
+   exists, canceling and awaiting both operations if either fails;
+2. binds an HTTP server to an ephemeral `127.0.0.1` port;
+3. runs Tailscale Serve in the foreground at an unguessable
    `/keepkeys/store/...` path;
-5. returns the tailnet HTTPS URL and expiry to the user;
-6. binds the first browser GET to one Tailscale identity and a Secure,
+4. returns the tailnet HTTPS URL and expiry to the user;
+5. binds the first browser GET to one Tailscale identity and a Secure,
    HttpOnly, SameSite=Strict cookie that a second browser cannot reacquire;
-7. atomically claims the first authenticated same-origin POST of 8-2048 UTF-8
+6. atomically claims the first authenticated same-origin POST of 8-2048 UTF-8
    bytes and makes that submission attempt terminal;
-8. holds a per-name cross-process lock while sending a capability frame and
+7. holds a per-name cross-process lock while sending a capability frame and
    those bytes through redirected stdin to the selected native helper;
-9. requires that helper to verify its direct parent is Node executing the exact
+8. requires that helper to verify its direct parent is Node executing the exact
    bundled `keepkeys-portal.mjs`;
-10. closes every localhost connection, aborts an in-flight helper, gracefully
+9. closes every localhost connection, aborts an in-flight helper, gracefully
     signals the portal process group, waits for the owned Serve child, and
     queries Tailscale until the exact route is absent.
 
@@ -88,7 +89,8 @@ URL or form body. The nonce-authorized script enables the controls and sends
 only the explicit same-origin text POST. The per-name lock spans the native
 existence recheck and write, so concurrent sessions cannot both accept a stale
 replacement state. The session never runs Tailscale Funnel and never changes
-unrelated Serve configuration.
+unrelated Serve configuration. After Serve reports readiness, KeepKeys drains
+but no longer retains its later process output.
 
 ## Platform records
 

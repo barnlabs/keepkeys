@@ -235,10 +235,13 @@ Submission, expiry, startup failure, or termination closes the listener, aborts
 and kills an in-flight native helper process group, gracefully signals the
 portal process group, waits for the owned Serve child, and queries Tailscale
 until the exact generated path is absent. Route absence without process exit,
-or process exit without route absence, is a cleanup failure. Expiry teardown is
-scheduled from the timestamp advertised to the user, including time spent
-starting Serve. A pre-existing listener conflict fails closed rather than
-changing another Tailscale Serve configuration.
+or process exit without route absence, is a cleanup failure; failure of one
+proof cannot stop KeepKeys from awaiting the other. Metadata and Tailscale
+startup operations share an abort signal and both settle before startup failure
+is returned. Serve output is drained but not retained after readiness. Expiry
+teardown is scheduled from the timestamp advertised to the user, including
+time spent starting Serve. A pre-existing listener conflict fails closed rather
+than changing another Tailscale Serve configuration.
 
 ### Approved target disclosure
 
