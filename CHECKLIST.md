@@ -82,7 +82,15 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 - Dedicated local Codex review: no actionable regression after independently
   rerunning `check`, `test`, submission packaging, source packaging, checksum
   verification, and archive integrity checks.
-- Stable update promotion: pending.
+- Stable update promotion commit:
+  `878d26f3e62581a5e85db5c33afee3fc649b9fa0`.
+- Stable-promotion public CI run:
+  [30376935891](https://github.com/barnlabs/keepkeys/actions/runs/30376935891)
+  — the same 11 proof jobs passed on the exact promotion commit, including
+  byte-for-byte rebuild checks for both release archives.
+- Stable update channel: `update.json` advertises 0.5.0 with the exact `F` and
+  `C` commits above; update discovery remains review-only and never installs
+  code.
 - Rollback: reinstall the 0.4.2 functional commit
   `e5276925d390704fccdf4aaeba47280464762a1c`; plugin rollback does not remove
   native-vault records.
