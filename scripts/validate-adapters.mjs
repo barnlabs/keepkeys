@@ -24,7 +24,7 @@ const update = parse("update.json");
 
 const version = codex.version;
 const releaseCommit = "51be557dd6e313d6cbe35235d28f75ddd9971e99";
-const catalogCommit = "b6c2a4ed5529e710e420917a1074d4727bd85db1";
+const catalogCommit = "d9e7f2a6b09fd81d676013a080a2dcc40849ad96";
 assert.equal(version, "0.5.0");
 const expectedUpdate =
   update.sourceCommit === releaseCommit

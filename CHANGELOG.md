@@ -19,6 +19,8 @@
 - Added deterministic portal tests plus a real tailnet-to-macOS-Keychain smoke
   test with a generated value and verified route, process, record, and
   temporary-file cleanup.
+- Made the skills-only and source archives byte-for-byte reproducible, with a
+  CI rebuild check that rejects changing SHA-256 digests.
 - Updated the Agent Skill, MCP and Hermes adapters, installation guidance,
   threat model, privacy notice, compatibility matrix, and public submission
   materials for the seven-tool contract.

@@ -47,12 +47,13 @@ Upload:
 
 Expected SHA-256:
 
-`48c2f065e99a0967e62eed604ed5ca2d973c53356cbac4ea61e8d742b6c7fc4b`
+`d1f68bd7dd0f84902d6bfb03c3e9b26d8aca00291f50c0c9bfbd836a3e79d2b8`
 
 The packaging gate verifies that the archive has the plugin manifest, skill,
 native helper sources, phone portal, launcher, brand assets, policies, and
-executable bit. It also verifies that a skills-only upload contains no MCP
-configuration or MCP server directory.
+executable bit. It also rebuilds both archives and compares their SHA-256
+digests, and verifies that a skills-only upload contains no MCP configuration
+or MCP server directory.
 
 ## Portal fields
 
