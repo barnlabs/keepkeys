@@ -64,12 +64,19 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.5.0 release evidence
 
 - Functional source commit (`F`):
-  `2d4ad6f7e0f0d148421f911a71a2b4ac33b2bd70`.
+  `76e17e60b11a05e233bbaf5ea322a6b0ebbfe476`.
 - Catalog commit (`C`):
-  `f1cc2106bf0e2f1975055b51c1e9e6663d1f610e`.
+  `e6f8702a1c8f9e129135b901ef77e4e5307a4b33`.
 - Reviewed documentation candidate: pending the exact docs commit and its
   public matrix.
 - Candidate public CI run: pending on the new `F → C → docs` chain.
+- Superseded repair run:
+  [30380289420](https://github.com/barnlabs/keepkeys/actions/runs/30380289420)
+  passed macOS, Linux, all three native-vault doctors, and reproducible
+  packages, but failed both Windows Node jobs when the new real native
+  forged-parent regression exceeded its 30-second test bound. The Windows-only
+  follow-up uses the Windows PowerShell WMI path and a 90-second test bound;
+  fresh exact-head Windows proof remains required.
 - Independent reviewer verdict: `PASS` after one focused `REWORK` cycle. The
   repaired diff closes first-browser cookie reacquisition, concurrent POST
   claims, in-flight helper cancellation, cross-process same-name replacement,

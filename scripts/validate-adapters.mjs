@@ -24,7 +24,7 @@ const update = parse("update.json");
 
 const version = codex.version;
 const releaseCommit = "76e17e60b11a05e233bbaf5ea322a6b0ebbfe476";
-const catalogCommit = "f1cc2106bf0e2f1975055b51c1e9e6663d1f610e";
+const catalogCommit = "e6f8702a1c8f9e129135b901ef77e4e5307a4b33";
 assert.equal(version, "0.5.0");
 const expectedUpdate =
   update.sourceCommit === releaseCommit
@@ -43,8 +43,8 @@ const expectedUpdate =
         product: "KeepKeys",
         channel: "stable",
         version: "0.5.0",
-        sourceCommit: "2d4ad6f7e0f0d148421f911a71a2b4ac33b2bd70",
-        catalogCommit: "f1cc2106bf0e2f1975055b51c1e9e6663d1f610e",
+        sourceCommit: "76e17e60b11a05e233bbaf5ea322a6b0ebbfe476",
+        catalogCommit: "e6f8702a1c8f9e129135b901ef77e4e5307a4b33",
         installGuide: "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
         releaseNotes: "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md",
       };
