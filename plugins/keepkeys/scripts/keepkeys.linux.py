@@ -1167,13 +1167,31 @@ def store_record(
         OSError,
         subprocess.SubprocessError,
     ) as write_error:
+        rollback_errors: list[BaseException] = []
         try:
             if previous_secret is None:
-                clear_item(SECRET_SERVICE, final_metadata.name)
+                if not clear_item(SECRET_SERVICE, final_metadata.name):
+                    rollback_errors.append(
+                        KeepKeysError(
+                            "Secret Service did not remove the failed value."
+                        )
+                    )
             else:
                 store_value(final_metadata.name, previous_secret)
+        except (
+            KeepKeysError,
+            OSError,
+            subprocess.SubprocessError,
+        ) as rollback_error:
+            rollback_errors.append(rollback_error)
+        try:
             if previous_metadata is None:
-                clear_item(METADATA_SERVICE, final_metadata.name)
+                if not clear_item(METADATA_SERVICE, final_metadata.name):
+                    rollback_errors.append(
+                        KeepKeysError(
+                            "Secret Service did not remove the failed metadata."
+                        )
+                    )
             else:
                 store_metadata(
                     previous_metadata,
@@ -1187,10 +1205,12 @@ def store_record(
             OSError,
             subprocess.SubprocessError,
         ) as rollback_error:
+            rollback_errors.append(rollback_error)
+        if rollback_errors:
             raise KeepKeysError(
                 f"Secret Service failed during storage and rollback. Remove "
                 f"'{final_metadata.name}' from KeepKeys before retrying."
-            ) from rollback_error
+            ) from rollback_errors[0]
         raise write_error
     finally:
         secret = ""
@@ -1262,18 +1282,30 @@ def action_portal_commit(arguments: list[str]) -> dict[str, Any]:
             "The private phone-intake replacement state is invalid."
         )
     native_self_test_value = option(arguments, "--native-self-test") or "no"
-    if native_self_test_value not in {"yes", "no"}:
+    if native_self_test_value not in {
+        "no",
+        "round-trip",
+        "create-to-replace",
+        "replace-to-create",
+    }:
         raise KeepKeysError(
             "The private native portal test request is invalid."
         )
-    native_self_test = native_self_test_value == "yes"
+    native_self_test = native_self_test_value != "no"
     native_self_test_flag = os.environ.pop(
         "KEEPKEYS_PORTAL_NATIVE_TEST", ""
     )
     if native_self_test and (
         native_self_test_flag != "1"
         or not metadata.name.startswith("keepkeys-portal-test-")
-        or expected_value != "no"
+        or (
+            native_self_test_value == "replace-to-create"
+            and expected_value != "yes"
+        )
+        or (
+            native_self_test_value != "replace-to-create"
+            and expected_value != "no"
+        )
     ):
         raise KeepKeysError(
             "KeepKeys rejected an unauthorized native portal test."
@@ -1297,36 +1329,86 @@ def action_portal_commit(arguments: list[str]) -> dict[str, Any]:
                     secret,
                     expected_existing=expected_value == "yes",
                 )
+            race_secret = f"{secret}-replacement-race"
+            validate_secret(race_secret)
+            replacement_state_message = (
+                "The stored KeepKeys name changed after the phone page opened. "
+                "Start a new phone intake and review the replacement warning."
+            )
             try:
-                result = store_record(
-                    metadata,
-                    secret,
-                    expected_existing=False,
-                )
-                matches = (
-                    result.get("status") == "ok"
-                    and lookup_secret(metadata.name) == secret
-                    and search_metadata(metadata.name) == [metadata]
-                )
+                if native_self_test_value == "round-trip":
+                    result = store_record(
+                        metadata,
+                        secret,
+                        expected_existing=False,
+                    )
+                    verified = (
+                        result.get("status") == "ok"
+                        and lookup_secret(metadata.name) == secret
+                        and search_metadata(metadata.name) == [metadata]
+                    )
+                elif native_self_test_value == "create-to-replace":
+                    store_record(
+                        metadata,
+                        secret,
+                        expected_existing=False,
+                    )
+                    rejected = False
+                    try:
+                        store_record(
+                            metadata,
+                            race_secret,
+                            expected_existing=False,
+                        )
+                    except KeepKeysError as error:
+                        if str(error) != replacement_state_message:
+                            raise
+                        rejected = True
+                    verified = (
+                        rejected
+                        and lookup_secret(metadata.name) == secret
+                        and search_metadata(metadata.name) == [metadata]
+                    )
+                else:
+                    clear_item(METADATA_SERVICE, metadata.name)
+                    clear_item(SECRET_SERVICE, metadata.name)
+                    rejected = False
+                    try:
+                        store_record(
+                            metadata,
+                            race_secret,
+                            expected_existing=True,
+                        )
+                    except KeepKeysError as error:
+                        if str(error) != replacement_state_message:
+                            raise
+                        rejected = True
+                    verified = (
+                        rejected
+                        and not search_metadata(metadata.name)
+                        and lookup_secret_optional(metadata.name) is None
+                    )
             finally:
                 clear_item(METADATA_SERVICE, metadata.name)
                 clear_item(SECRET_SERVICE, metadata.name)
+                race_secret = ""
             if (
-                not matches
+                not verified
                 or search_metadata(metadata.name)
                 or lookup_secret_optional(metadata.name) is not None
             ):
                 raise KeepKeysError(
-                    "The temporary native portal Secret Service round trip "
-                    "did not verify."
+                    "The temporary native portal Secret Service scenario or "
+                    "cleanup did not verify."
                 )
             return {
                 "status": "ok",
                 "message": (
-                    "Temporary native portal Secret Service round trip "
-                    "verified."
+                    "Temporary native portal Secret Service scenario and "
+                    "cleanup verified."
                 ),
                 "cleaned": True,
+                "scenario": native_self_test_value,
             }
         finally:
             secret = ""

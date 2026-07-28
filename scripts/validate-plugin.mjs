@@ -300,13 +300,27 @@ assert.match(
 );
 assert.match(
   portalSource,
-  /if \(error\?\.name === "CleanupError"\) state\.cleanupError = error;[\s\S]*?if \(commitState\.cleanupError\)/,
+  /if \(error\?\.name === "CleanupError"\) \{[\s\S]*?state\.cleanupError = error;[\s\S]*?if \(commitState\.cleanupError\)/,
   "native-helper cleanup failures must survive commit settlement",
 );
 assert.match(
+  portalSource,
+  /cleanupError\.name = "CleanupError";[\s\S]*?cleanupError\.cleanupKind = "portal-lock";[\s\S]*?cleanupError\.stored =[\s\S]*?operationCompleted/,
+  "successful native commits must retain lock cleanup failures as stored cleanup errors",
+);
+assert.match(
+  portalSource,
+  /\{ name: "create-to-replace", replacing: false \},[\s\S]*?\{ name: "replace-to-create", replacing: true \}/,
+  "native portal proof must exercise both stale replacement-state directions",
+);
+for (const helper of [sourceText, windowsHelper, linuxHelper]) {
+  assert.match(helper, /create-to-replace/);
+  assert.match(helper, /replace-to-create/);
+}
+assert.match(
   linuxHelper,
-  /except \(\s+KeepKeysError,\s+OSError,\s+subprocess\.SubprocessError,\s+\) as write_error:[\s\S]*?except \(\s+KeepKeysError,\s+OSError,\s+subprocess\.SubprocessError,\s+\) as rollback_error:/,
-  "Linux paired writes must roll back subprocess and operating-system failures",
+  /except \(\s+KeepKeysError,\s+OSError,\s+subprocess\.SubprocessError,\s+\) as write_error:[\s\S]*?if not clear_item\(SECRET_SERVICE,[\s\S]*?if not clear_item\(METADATA_SERVICE,[\s\S]*?if rollback_errors:/,
+  "Linux paired writes must report failed rollback deletions",
 );
 assert.match(
   portalSource,

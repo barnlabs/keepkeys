@@ -9,6 +9,9 @@ private let keychainService = "net.barnlabs.keepkeys"
 private let maximumSecretBytes = 2_048
 private let maximumCapturedBytes = 1_048_576
 private let portalCapabilityBytes = 32
+private let portalReplacementStateMessage =
+    "The stored KeepKeys name changed after the phone page opened. "
+    + "Start a new phone intake and review the replacement warning."
 
 private struct KeepKeysFailure: LocalizedError {
     let message: String
@@ -851,6 +854,33 @@ private func authorizePortalChannel() throws {
     }
 }
 
+private func requirePortalReplacementState(
+    name: String,
+    expectedExisting: Bool
+) throws {
+    guard try KeychainStore.exists(name: name) == expectedExisting else {
+        throw KeepKeysFailure(message: portalReplacementStateMessage)
+    }
+}
+
+private func portalReplacementStateWasRejected(
+    name: String,
+    expectedExisting: Bool
+) throws -> Bool {
+    do {
+        try requirePortalReplacementState(
+            name: name,
+            expectedExisting: expectedExisting
+        )
+        return false
+    } catch let error as KeepKeysFailure {
+        guard error.message == portalReplacementStateMessage else {
+            throw error
+        }
+        return true
+    }
+}
+
 private func storeFromPortal(arguments: [String]) throws -> [String: Any] {
     guard let rawName = try parseOption(arguments, name: "--name"),
           let rawVariable = try parseOption(arguments, name: "--variable"),
@@ -881,17 +911,28 @@ private func storeFromPortal(arguments: [String]) throws -> [String: Any] {
         throw KeepKeysFailure(message: "The private phone-intake replacement state is invalid.")
     }
     let nativeSelfTestValue = try parseOption(arguments, name: "--native-self-test") ?? "no"
-    guard nativeSelfTestValue == "yes" || nativeSelfTestValue == "no" else {
+    let nativeSelfTestScenarios: Set<String> = [
+        "round-trip",
+        "create-to-replace",
+        "replace-to-create",
+    ]
+    guard nativeSelfTestValue == "no"
+            || nativeSelfTestScenarios.contains(nativeSelfTestValue)
+    else {
         throw KeepKeysFailure(message: "The private native portal test request is invalid.")
     }
-    let nativeSelfTest = nativeSelfTestValue == "yes"
+    let nativeSelfTest = nativeSelfTestValue != "no"
     let nativeSelfTestFlag =
         ProcessInfo.processInfo.environment["KEEPKEYS_PORTAL_NATIVE_TEST"]
     unsetenv("KEEPKEYS_PORTAL_NATIVE_TEST")
     if nativeSelfTest {
         guard nativeSelfTestFlag == "1",
               name.hasPrefix("keepkeys-portal-test-"),
-              expectedValue == "no"
+              (
+                  nativeSelfTestValue == "replace-to-create"
+                      ? expectedValue == "yes"
+                      : expectedValue == "no"
+              )
         else {
             throw KeepKeysFailure(
                 message: "KeepKeys rejected an unauthorized native portal test."
@@ -899,13 +940,69 @@ private func storeFromPortal(arguments: [String]) throws -> [String: Any] {
         }
     }
     try authorizePortalChannel()
-    let expectedExisting = expectedValue == "yes"
-    let currentlyExists = try KeychainStore.exists(name: name)
-    guard currentlyExists == expectedExisting else {
-        throw KeepKeysFailure(
-            message: "The stored KeepKeys name changed after the phone page opened. Start a new phone intake and review the replacement warning."
-        )
+    if nativeSelfTest {
+        try KeychainStore.remove(name: name)
     }
+    defer {
+        if nativeSelfTest {
+            try? KeychainStore.remove(name: name)
+        }
+    }
+    if nativeSelfTestValue == "create-to-replace" {
+        var baselineSecret = UUID().uuidString + UUID().uuidString
+        defer { baselineSecret = "" }
+        try KeychainStore.store(
+            name: name,
+            variable: variable,
+            description: description,
+            provider: provider,
+            documentationURLs: documentationURLs,
+            secret: baselineSecret
+        )
+        let rejected = try portalReplacementStateWasRejected(
+            name: name,
+            expectedExisting: false
+        )
+        var stored = try KeychainStore.load(name: name)
+        let preserved =
+            stored.secret == baselineSecret
+            && stored.metadata == metadata
+        stored.secret = ""
+        try KeychainStore.remove(name: name)
+        guard rejected, preserved, !(try KeychainStore.exists(name: name)) else {
+            throw KeepKeysFailure(
+                message: "The temporary native portal create-to-replace rejection did not verify."
+            )
+        }
+        return [
+            "status": "ok",
+            "message": "Temporary native portal create-to-replace rejection verified.",
+            "cleaned": true,
+            "scenario": nativeSelfTestValue,
+        ]
+    }
+    if nativeSelfTestValue == "replace-to-create" {
+        let rejected = try portalReplacementStateWasRejected(
+            name: name,
+            expectedExisting: true
+        )
+        guard rejected, !(try KeychainStore.exists(name: name)) else {
+            throw KeepKeysFailure(
+                message: "The temporary native portal replace-to-create rejection did not verify."
+            )
+        }
+        return [
+            "status": "ok",
+            "message": "Temporary native portal replace-to-create rejection verified.",
+            "cleaned": true,
+            "scenario": nativeSelfTestValue,
+        ]
+    }
+    let expectedExisting = expectedValue == "yes"
+    try requirePortalReplacementState(
+        name: name,
+        expectedExisting: expectedExisting
+    )
 
     var secretData = try FileHandle.standardInput.read(
         upToCount: maximumSecretBytes + 1
@@ -918,11 +1015,6 @@ private func storeFromPortal(arguments: [String]) throws -> [String: Any] {
     }
     defer { secret = "" }
     try validateSecret(secret)
-    defer {
-        if nativeSelfTest {
-            try? KeychainStore.remove(name: name)
-        }
-    }
     try KeychainStore.store(
         name: name,
         variable: variable,
@@ -955,6 +1047,7 @@ private func storeFromPortal(arguments: [String]) throws -> [String: Any] {
             "status": "ok",
             "message": "Temporary native portal Keychain round trip verified.",
             "cleaned": true,
+            "scenario": nativeSelfTestValue,
         ]
     }
     return [

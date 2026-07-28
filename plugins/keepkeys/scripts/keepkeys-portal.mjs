@@ -553,7 +553,8 @@ export function createPortalServer({
           },
           nonce,
         );
-      } catch {
+      } catch (error) {
+        if (error?.stored === true) stored = true;
         safeSendJson(
           response,
           500,
@@ -562,7 +563,9 @@ export function createPortalServer({
                 status: "error",
                 stored: true,
                 message:
-                  "The key was stored, but KeepKeys could not verify that its private Tailscale route closed. Stop the owned KeepKeys Serve route before using this link again.",
+                  error?.cleanupKind === "portal-lock"
+                    ? "The key was stored, but KeepKeys could not remove its private commit lock. Check the connected host before retrying this name."
+                    : "The key was stored, but KeepKeys could not verify that its private Tailscale route closed. Stop the owned KeepKeys Serve route before using this link again.",
               }
             : {
                 status: "error",
@@ -875,6 +878,8 @@ export async function withPortalCommitLock(
     lockRoot = defaultPortalLockRoot(),
     timeoutMs = PORTAL_LOCK_TIMEOUT_MS,
     retryMs = 50,
+    openLock = open,
+    removeLock = rm,
   } = {},
 ) {
   await mkdir(lockRoot, { recursive: true, mode: 0o700 });
@@ -897,7 +902,7 @@ export async function withPortalCommitLock(
   while (!lockHandle) {
     if (signal?.aborted) throw abortError();
     try {
-      lockHandle = await open(lockPath, "wx", 0o600);
+      lockHandle = await openLock(lockPath, "wx", 0o600);
     } catch (error) {
       if (error?.code !== "EEXIST") throw error;
       if (Date.now() >= deadline) {
@@ -908,13 +913,42 @@ export async function withPortalCommitLock(
       await waitForLockRetry(retryMs, signal);
     }
   }
+  let operationCompleted = false;
+  let operationError;
+  let result;
   try {
     await lockHandle.writeFile(`${process.pid}\n`, { encoding: "utf8" });
-    return await operation();
-  } finally {
-    await lockHandle.close();
-    await rm(lockPath, { force: true });
+    result = await operation();
+    operationCompleted = true;
+  } catch (error) {
+    operationError = error;
   }
+  const cleanupFailures = [];
+  try {
+    await lockHandle.close();
+  } catch (error) {
+    cleanupFailures.push(error);
+  }
+  try {
+    await removeLock(lockPath, { force: true });
+  } catch (error) {
+    cleanupFailures.push(error);
+  }
+  if (cleanupFailures.length > 0) {
+    const cleanupError = new AggregateError(
+      operationError
+        ? [operationError, ...cleanupFailures]
+        : cleanupFailures,
+      "KeepKeys could not confirm removal of its private portal commit lock.",
+    );
+    cleanupError.name = "CleanupError";
+    cleanupError.cleanupKind = "portal-lock";
+    cleanupError.stored =
+      operationCompleted || operationError?.stored === true;
+    throw cleanupError;
+  }
+  if (operationError) throw operationError;
+  return result;
 }
 
 async function commitToNativeVault(
@@ -922,7 +956,7 @@ async function commitToNativeVault(
   replacing,
   secret,
   signal,
-  { nativeSelfTest = false } = {},
+  { nativeSelfTestScenario } = {},
 ) {
   return withPortalCommitLock(
     metadata.name,
@@ -942,14 +976,17 @@ async function commitToNativeVault(
           "--expect-existing",
           replacing ? "yes" : "no",
         ];
-        if (nativeSelfTest) {
-          helperArguments.push("--native-self-test", "yes");
+        if (nativeSelfTestScenario) {
+          helperArguments.push(
+            "--native-self-test",
+            nativeSelfTestScenario,
+          );
         }
         const invocation = portalCommitInvocation(
           helperArguments,
           { capabilitySha256, parentPid: process.pid },
         );
-        if (nativeSelfTest) {
+        if (nativeSelfTestScenario) {
           invocation.env[PORTAL_NATIVE_TEST_FLAG] = "1";
         }
         const result = await runProcess(invocation.command, invocation.args, {
@@ -965,7 +1002,7 @@ async function commitToNativeVault(
           throw new Error("KeepKeys received an invalid native-vault response.");
         }
         if (result.code !== 0 || parsed?.status !== "ok") {
-          if (nativeSelfTest && typeof parsed?.message === "string") {
+          if (nativeSelfTestScenario && typeof parsed?.message === "string") {
             throw new Error(parsed.message);
           }
           throw new Error("KeepKeys could not store the submitted key.");
@@ -1162,7 +1199,9 @@ export async function stopOwnedServeProcess(
 export function trackPortalCommit(operation, state) {
   const tracked = operation
     .catch((error) => {
-      if (error?.name === "CleanupError") state.cleanupError = error;
+      if (error?.name === "CleanupError") {
+        state.cleanupError = error;
+      }
       throw error;
     })
     .finally(() => {
@@ -1279,7 +1318,11 @@ async function startPortalSession(argumentsValue) {
         replacing,
         secret,
         signal,
-        { nativeSelfTest },
+        {
+          nativeSelfTestScenario: nativeSelfTest
+            ? "round-trip"
+            : undefined,
+        },
       );
       return trackPortalCommit(operation, commitState);
     },
@@ -1391,22 +1434,33 @@ async function runNativePortalSelfTest() {
     "utf8",
   );
   try {
-    const result = await commitToNativeVault(
-      metadata,
-      false,
-      secret,
-      undefined,
-      { nativeSelfTest: true },
-    );
-    if (result?.status !== "ok" || result?.cleaned !== true) {
-      throw new Error(
-        "KeepKeys did not verify native portal storage and cleanup.",
+    const scenarios = [
+      { name: "round-trip", replacing: false },
+      { name: "create-to-replace", replacing: false },
+      { name: "replace-to-create", replacing: true },
+    ];
+    for (const scenario of scenarios) {
+      const result = await commitToNativeVault(
+        metadata,
+        scenario.replacing,
+        secret,
+        undefined,
+        { nativeSelfTestScenario: scenario.name },
       );
+      if (
+        result?.status !== "ok" ||
+        result?.cleaned !== true ||
+        result?.scenario !== scenario.name
+      ) {
+        throw new Error(
+          "KeepKeys did not verify native portal storage, replacement-state rejection, and cleanup.",
+        );
+      }
     }
     return {
       status: "ok",
       message:
-        "Generated UTF-8 portal value storage, metadata, existence check, and cleanup verified.",
+        "Generated UTF-8 portal storage, both replacement-state races, and cleanup verified.",
       platform: process.platform,
       cleaned: true,
     };

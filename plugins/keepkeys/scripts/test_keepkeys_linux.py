@@ -265,6 +265,49 @@ class LinuxBackendTests(unittest.TestCase):
             ],
         )
 
+    def test_failed_rollback_deletion_is_reported(self) -> None:
+        metadata = keepkeys_linux.Metadata(
+            name="demo",
+            variable="DEMO_TOKEN",
+            description="Synthetic test credential",
+            provider="Example",
+            documentation_urls=("https://docs.example.com/api",),
+        )
+        timeout = subprocess.TimeoutExpired(
+            cmd=["secret-tool", "store"],
+            timeout=30,
+        )
+        with (
+            patch.object(
+                keepkeys_linux,
+                "search_metadata",
+                return_value=[],
+            ),
+            patch.object(keepkeys_linux, "store_value"),
+            patch.object(
+                keepkeys_linux,
+                "store_metadata",
+                side_effect=timeout,
+            ),
+            patch.object(
+                keepkeys_linux,
+                "clear_item",
+                side_effect=[False, True],
+            ) as clear_item,
+            self.assertRaisesRegex(
+                keepkeys_linux.KeepKeysError,
+                "failed during storage and rollback",
+            ),
+        ):
+            keepkeys_linux.store_record(metadata, "synthetic_secret")
+        self.assertEqual(
+            clear_item.call_args_list,
+            [
+                call(keepkeys_linux.SECRET_SERVICE, "demo"),
+                call(keepkeys_linux.METADATA_SERVICE, "demo"),
+            ],
+        )
+
     def test_malformed_documentation_url_returns_structured_error_before_ui(self) -> None:
         completed = subprocess.run(
             [

@@ -1796,11 +1796,13 @@ try {
             if ([String]::IsNullOrEmpty($nativeSelfTestValue)) {
                 $nativeSelfTestValue = "no"
             }
-            if ($nativeSelfTestValue -cne "yes" -and
-                $nativeSelfTestValue -cne "no") {
+            if ($nativeSelfTestValue -cne "no" -and
+                $nativeSelfTestValue -cne "round-trip" -and
+                $nativeSelfTestValue -cne "create-to-replace" -and
+                $nativeSelfTestValue -cne "replace-to-create") {
                 throw "The private native portal test request is invalid."
             }
-            $nativeSelfTest = $nativeSelfTestValue -ceq "yes"
+            $nativeSelfTest = $nativeSelfTestValue -cne "no"
             $nativeSelfTestFlag = [string]$env:KEEPKEYS_PORTAL_NATIVE_TEST
             $env:KEEPKEYS_PORTAL_NATIVE_TEST = $null
             if ($nativeSelfTest -and (
@@ -1809,25 +1811,102 @@ try {
                     "keepkeys-portal-test-",
                     [StringComparison]::Ordinal
                 ) -or
-                $expectedValue -cne "no"
+                (
+                    $nativeSelfTestValue -ceq "replace-to-create" -and
+                    $expectedValue -cne "yes"
+                ) -or
+                (
+                    $nativeSelfTestValue -cne "replace-to-create" -and
+                    $expectedValue -cne "no"
+                )
             )) {
                 throw "KeepKeys rejected an unauthorized native portal test."
             }
             Assert-KeepKeysMetadata $name $variable $description $provider `
                 $documentationUrls
             $submitted = Read-KeepKeysPortalSecret
+            $secretTarget = $Script:SecretPrefix + $name
+            $metadataTarget = $Script:MetadataPrefix + $name
             try {
-                $result = Save-KeepKeysRecord `
-                    $name `
-                    $variable `
-                    $description `
-                    $provider `
-                    $documentationUrls `
-                    $submitted.Secret `
-                    ($expectedValue -ceq "yes")
+                if ($nativeSelfTestValue -ceq "replace-to-create") {
+                    [void][BarnLabs.KeepKeys.CredentialVault]::Delete(
+                        $metadataTarget
+                    )
+                    [void][BarnLabs.KeepKeys.CredentialVault]::Delete(
+                        $secretTarget
+                    )
+                    $rejected = $false
+                    try {
+                        [void](Save-KeepKeysRecord `
+                            $name `
+                            $variable `
+                            $description `
+                            $provider `
+                            $documentationUrls `
+                            $submitted.Secret `
+                            $true)
+                    } catch {
+                        $rejected = $_.Exception.Message -ceq (
+                            "The stored KeepKeys name changed after the phone " +
+                            "page opened. Start a new phone intake and review " +
+                            "the replacement warning."
+                        )
+                        if (-not $rejected) { throw }
+                    }
+                    $metadataAfter = [BarnLabs.KeepKeys.CredentialVault]::Read(
+                        $metadataTarget,
+                        $true
+                    )
+                    $secretAfter = [BarnLabs.KeepKeys.CredentialVault]::Read(
+                        $secretTarget,
+                        $true
+                    )
+                    try {
+                        if (-not $rejected -or
+                            $null -ne $metadataAfter -or
+                            $null -ne $secretAfter) {
+                            throw (
+                                "The temporary native portal " +
+                                "replace-to-create rejection did not verify."
+                            )
+                        }
+                    } finally {
+                        if ($null -ne $metadataAfter -and
+                            $null -ne $metadataAfter.Secret) {
+                            [Array]::Clear(
+                                $metadataAfter.Secret,
+                                0,
+                                $metadataAfter.Secret.Length
+                            )
+                        }
+                        if ($null -ne $secretAfter -and
+                            $null -ne $secretAfter.Secret) {
+                            [Array]::Clear(
+                                $secretAfter.Secret,
+                                0,
+                                $secretAfter.Secret.Length
+                            )
+                        }
+                    }
+                    $result = @{
+                        status = "ok"
+                        message = (
+                            "Temporary native portal replace-to-create " +
+                            "rejection verified."
+                        )
+                        cleaned = $true
+                        scenario = $nativeSelfTestValue
+                    }
+                } else {
+                    $result = Save-KeepKeysRecord `
+                        $name `
+                        $variable `
+                        $description `
+                        $provider `
+                        $documentationUrls `
+                        $submitted.Secret `
+                        ($expectedValue -ceq "yes")
                 if ($nativeSelfTest) {
-                    $secretTarget = $Script:SecretPrefix + $name
-                    $metadataTarget = $Script:MetadataPrefix + $name
                     $storedSecret = $null
                     $storedMetadata = $null
                     $matches = $false
@@ -1854,6 +1933,74 @@ try {
                                     ([string[]]$documentationUrls))
                             )
                             $loadedSecret = ""
+                        }
+                        if ($nativeSelfTestValue -ceq "create-to-replace") {
+                            $raceSecret = $submitted.Secret + "-replacement-race"
+                            $raceRejected = $false
+                            try {
+                                [void](Save-KeepKeysRecord `
+                                    $name `
+                                    $variable `
+                                    $description `
+                                    $provider `
+                                    $documentationUrls `
+                                    $raceSecret `
+                                    $false)
+                            } catch {
+                                $raceRejected = $_.Exception.Message -ceq (
+                                    "The stored KeepKeys name changed after " +
+                                    "the phone page opened. Start a new phone " +
+                                    "intake and review the replacement warning."
+                                )
+                                if (-not $raceRejected) { throw }
+                            } finally {
+                                $raceSecret = ""
+                            }
+                            $secretAfterRace = (
+                                [BarnLabs.KeepKeys.CredentialVault]::Read(
+                                    $secretTarget,
+                                    $true
+                                )
+                            )
+                            $metadataAfterRace = Read-KeepKeysMetadata $name
+                            try {
+                                $preserved = $false
+                                if ($null -ne $secretAfterRace -and
+                                    $null -ne $secretAfterRace.Secret -and
+                                    $null -ne $metadataAfterRace) {
+                                    $loadedAfterRace = $utf8.GetString(
+                                        $secretAfterRace.Secret
+                                    )
+                                    $preserved = (
+                                        $loadedAfterRace -ceq
+                                            $submitted.Secret -and
+                                        $metadataAfterRace.UserName -ceq
+                                            $variable -and
+                                        $metadataAfterRace.Comment -ceq
+                                            $description -and
+                                        $metadataAfterRace.Provider -ceq
+                                            $provider -and
+                                        (Test-KeepKeysStringArrayEqual `
+                                            ([string[]]$metadataAfterRace.DocumentationUrls) `
+                                            ([string[]]$documentationUrls))
+                                    )
+                                    $loadedAfterRace = ""
+                                }
+                                $matches = (
+                                    $matches -and
+                                    $raceRejected -and
+                                    $preserved
+                                )
+                            } finally {
+                                if ($null -ne $secretAfterRace -and
+                                    $null -ne $secretAfterRace.Secret) {
+                                    [Array]::Clear(
+                                        $secretAfterRace.Secret,
+                                        0,
+                                        $secretAfterRace.Secret.Length
+                                    )
+                                }
+                            }
                         }
                     } finally {
                         if ($null -ne $storedSecret -and
@@ -1910,10 +2057,12 @@ try {
                         status = "ok"
                         message = (
                             "Temporary native portal Credential Manager " +
-                            "round trip verified."
+                            "scenario and cleanup verified."
                         )
                         cleaned = $true
+                        scenario = $nativeSelfTestValue
                     }
+                }
                 }
             } finally {
                 if ($nativeSelfTest) {

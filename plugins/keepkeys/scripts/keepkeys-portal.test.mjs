@@ -592,6 +592,75 @@ test("post-store Serve cleanup failures are visible to the phone", async (contex
   await terminal;
 });
 
+test("post-commit lock cleanup failures stay visible as stored", async (context) => {
+  const temporary = await mkdtemp(resolve(tmpdir(), "keepkeys-lock-cleanup-"));
+  context.after(() => rm(temporary, { recursive: true, force: true }));
+  const commitState = {
+    active: undefined,
+    cleanupError: undefined,
+  };
+  const path = "/keepkeys/store/lock-cleanup-failure";
+  const expectedOrigin = "https://device.example.ts.net";
+  let nativeWriteCompleted = false;
+  let finalizeCalled = false;
+  const server = createPortalServer({
+    metadata,
+    replacing: false,
+    path,
+    cookieToken: "lock-cleanup-failure-cookie",
+    expectedOrigin,
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    commitSecret: () =>
+      trackPortalCommit(
+        withPortalCommitLock(
+          metadata.name,
+          async () => {
+            nativeWriteCompleted = true;
+            return { status: "ok" };
+          },
+          {
+            lockRoot: temporary,
+            removeLock: async () => {
+              throw new Error("Synthetic lock removal failure.");
+            },
+          },
+        ),
+        commitState,
+      ),
+    finalizeSuccess: async () => {
+      finalizeCalled = true;
+    },
+  });
+  context.after(() => server.close());
+  const base = await listen(server);
+  const page = await fetch(`${base}${path}`, {
+    headers: { "Tailscale-User-Login": "owner@example.com" },
+  });
+  const cookie = (page.headers.get("set-cookie") ?? "").split(";")[0];
+  const response = await fetch(`${base}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8",
+      Cookie: cookie,
+      Origin: expectedOrigin,
+      "Tailscale-User-Login": "owner@example.com",
+    },
+    body: "synthetic_secret",
+  });
+  assert.equal(response.status, 500);
+  assert.deepEqual(await response.json(), {
+    status: "error",
+    stored: true,
+    message:
+      "The key was stored, but KeepKeys could not remove its private commit lock. Check the connected host before retrying this name.",
+  });
+  assert.equal(nativeWriteCompleted, true);
+  assert.equal(finalizeCalled, false);
+  assert.equal(commitState.active, undefined);
+  assert.equal(commitState.cleanupError?.name, "CleanupError");
+  assert.equal(commitState.cleanupError?.stored, true);
+});
+
 test("portal refuses cross-identity submission and short values", async (context) => {
   let calls = 0;
   let terminalResolve;
