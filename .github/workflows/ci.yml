@@ -58,10 +58,27 @@ jobs:
         with:
           python-version: "3.12"
       - if: runner.os == 'macOS'
-        run: ./scripts/doctor
+        run: |
+          ./scripts/doctor
+          KEEPKEYS_PORTAL_NATIVE_TEST=1 \
+            node "$PWD/plugins/keepkeys/scripts/keepkeys-portal.mjs" \
+            --native-portal-self-test
       - if: runner.os == 'Windows'
         shell: powershell
-        run: .\scripts\doctor.ps1
+        run: |
+          .\scripts\doctor.ps1
+          $env:KEEPKEYS_PORTAL_NATIVE_TEST = "1"
+          try {
+            $portal = (Resolve-Path `
+              plugins/keepkeys/scripts/keepkeys-portal.mjs).Path
+            node $portal --native-portal-self-test
+            if ($LASTEXITCODE -ne 0) {
+              throw "KeepKeys native portal integration test failed."
+            }
+          } finally {
+            Remove-Item Env:KEEPKEYS_PORTAL_NATIVE_TEST `
+              -ErrorAction SilentlyContinue
+          }
       - if: runner.os == 'Linux'
         run: |
           sudo apt-get update

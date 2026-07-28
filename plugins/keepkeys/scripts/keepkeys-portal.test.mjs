@@ -6,8 +6,10 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 
+import { processHasExited } from "./platform.mjs";
 import {
   createPortalServer,
+  millisecondsUntilExpiry,
   parsePortalMetadata,
   renderPortalHtml,
   runProcess,
@@ -76,6 +78,38 @@ test("portal metadata uses the native KeepKeys limits", () => {
         }),
       ),
     /official HTTPS/u,
+  );
+});
+
+test("portal teardown is scheduled from the advertised expiry", () => {
+  const expiry = Date.parse("2026-07-28T18:00:00.000Z");
+  assert.equal(
+    millisecondsUntilExpiry("2026-07-28T18:00:00.000Z", expiry - 7500),
+    7500,
+  );
+  assert.equal(
+    millisecondsUntilExpiry("2026-07-28T18:00:00.000Z", expiry + 1000),
+    0,
+  );
+  assert.throws(
+    () => millisecondsUntilExpiry("not-a-timestamp", 0),
+    /invalid portal expiry/u,
+  );
+});
+
+test("process exit detection does not mistake PID-only cleanup handles for exited children", () => {
+  assert.equal(processHasExited({ pid: 123, kill() {} }), false);
+  assert.equal(
+    processHasExited({ pid: 123, exitCode: null, signalCode: null }),
+    false,
+  );
+  assert.equal(
+    processHasExited({ pid: 123, exitCode: 0, signalCode: null }),
+    true,
+  );
+  assert.equal(
+    processHasExited({ pid: 123, exitCode: null, signalCode: "SIGKILL" }),
+    true,
   );
 });
 
@@ -535,6 +569,26 @@ test("aborting a helper process prevents a delayed write", async (context) => {
   await assert.rejects(child, { name: "AbortError" });
   await delay(2200);
   await assert.rejects(access(marker));
+});
+
+test("helper abort surfaces an unconfirmed termination", async () => {
+  const controller = new AbortController();
+  const child = runProcess(
+    process.execPath,
+    ["-e", "setInterval(()=>{},1000)"],
+    {
+      signal: controller.signal,
+      terminateProcessTree: async (processValue) => {
+        processValue.kill("SIGKILL");
+        throw new Error("Synthetic termination confirmation failure.");
+      },
+    },
+  );
+  controller.abort();
+  await assert.rejects(child, {
+    name: "CleanupError",
+    message: /could not confirm that the native helper stopped/u,
+  });
 });
 
 test("the per-name portal lock serializes independent processes", async (context) => {

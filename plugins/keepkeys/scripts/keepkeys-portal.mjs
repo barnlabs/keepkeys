@@ -13,6 +13,7 @@ import {
   helperInvocation,
   portalCommitInvocation,
   terminateProcessTree,
+  terminateProcessTreeAndWait,
 } from "./platform.mjs";
 
 const MAX_SECRET_BYTES = 2048;
@@ -21,6 +22,7 @@ const SESSION_TTL_MS = 10 * 60 * 1000;
 const STARTUP_TIMEOUT_MS = 20 * 1000;
 const PORTAL_PREFIX = "/keepkeys/store";
 const PORTAL_CHILD_FLAG = "KEEPKEYS_PORTAL_SESSION_CHILD";
+const PORTAL_NATIVE_TEST_FLAG = "KEEPKEYS_PORTAL_NATIVE_TEST";
 const PORTAL_CAPABILITY_BYTES = 32;
 const PORTAL_LOCK_TIMEOUT_MS = 30 * 1000;
 const RESERVED_VARIABLES = new Set([
@@ -578,37 +580,54 @@ export function runProcess(command, argumentsValue, options = {}) {
     let stdout = Buffer.alloc(0);
     let stderr = Buffer.alloc(0);
     let settled = false;
+    let terminating = false;
     const finish = (callback, value) => {
       if (settled) return;
       settled = true;
       options.signal?.removeEventListener("abort", abort);
       callback(value);
     };
+    const terminateThenReject = async (error) => {
+      if (settled || terminating) return;
+      terminating = true;
+      try {
+        const terminate =
+          options.terminateProcessTree ?? terminateProcessTreeAndWait;
+        await terminate(child);
+        finish(rejectPromise, error);
+      } catch (terminationError) {
+        const cleanupError = new Error(
+          "KeepKeys could not confirm that the native helper stopped. The private portal closed with a cleanup failure.",
+          { cause: terminationError },
+        );
+        cleanupError.name = "CleanupError";
+        finish(rejectPromise, cleanupError);
+      }
+    };
     const abort = () => {
       const error = new Error("The private KeepKeys portal was closed.");
       error.name = "AbortError";
-      finish(rejectPromise, error);
-      terminateProcessTree(child);
+      void terminateThenReject(error);
     };
     child.stdout.on("data", (chunk) => {
       try {
         stdout = appendBounded(stdout, chunk);
       } catch (error) {
-        terminateProcessTree(child);
-        finish(rejectPromise, error);
+        void terminateThenReject(error);
       }
     });
     child.stderr.on("data", (chunk) => {
       try {
         stderr = appendBounded(stderr, chunk);
       } catch (error) {
-        terminateProcessTree(child);
-        finish(rejectPromise, error);
+        void terminateThenReject(error);
       }
     });
-    child.on("error", (error) => finish(rejectPromise, error));
+    child.on("error", (error) => {
+      if (!terminating) finish(rejectPromise, error);
+    });
     child.on("close", (code) => {
-      finish(resolvePromise, { code, stdout, stderr });
+      if (!terminating) finish(resolvePromise, { code, stdout, stderr });
     });
     if (options.signal?.aborted) {
       abort();
@@ -812,7 +831,13 @@ export async function withPortalCommitLock(
   }
 }
 
-async function commitToNativeVault(metadata, replacing, secret, signal) {
+async function commitToNativeVault(
+  metadata,
+  replacing,
+  secret,
+  signal,
+  { nativeSelfTest = false } = {},
+) {
   return withPortalCommitLock(
     metadata.name,
     async () => {
@@ -825,15 +850,22 @@ async function commitToNativeVault(metadata, replacing, secret, signal) {
       secret.copy(input, capability.length);
       capability.fill(0);
       try {
+        const helperArguments = [
+          "_portal-commit",
+          ...metadataArguments(metadata),
+          "--expect-existing",
+          replacing ? "yes" : "no",
+        ];
+        if (nativeSelfTest) {
+          helperArguments.push("--native-self-test", "yes");
+        }
         const invocation = portalCommitInvocation(
-          [
-            "_portal-commit",
-            ...metadataArguments(metadata),
-            "--expect-existing",
-            replacing ? "yes" : "no",
-          ],
+          helperArguments,
           { capabilitySha256, parentPid: process.pid },
         );
+        if (nativeSelfTest) {
+          invocation.env[PORTAL_NATIVE_TEST_FLAG] = "1";
+        }
         const result = await runProcess(invocation.command, invocation.args, {
           cwd: invocation.env.KEEPKEYS_PLUGIN_ROOT,
           env: invocation.env,
@@ -847,6 +879,9 @@ async function commitToNativeVault(metadata, replacing, secret, signal) {
           throw new Error("KeepKeys received an invalid native-vault response.");
         }
         if (result.code !== 0 || parsed?.status !== "ok") {
+          if (nativeSelfTest && typeof parsed?.message === "string") {
+            throw new Error(parsed.message);
+          }
           throw new Error("KeepKeys could not store the submitted key.");
         }
         return parsed;
@@ -862,17 +897,35 @@ async function waitForServeReady(child) {
   return new Promise((resolvePromise, rejectPromise) => {
     let output = "";
     let settled = false;
+    let terminating = false;
     const finish = (callback, value) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       callback(value);
     };
+    const terminateThenReject = async (error) => {
+      if (settled || terminating) return;
+      terminating = true;
+      try {
+        await terminateProcessTreeAndWait(child);
+        finish(rejectPromise, error);
+      } catch (terminationError) {
+        finish(
+          rejectPromise,
+          new Error(
+            "KeepKeys could not confirm that the Tailscale Serve process stopped.",
+            { cause: terminationError },
+          ),
+        );
+      }
+    };
     const inspect = (chunk) => {
       output += chunk.toString("utf8");
       if (utf8Bytes(output) > MAX_PROCESS_OUTPUT) {
-        terminateProcessTree(child);
-        finish(rejectPromise, new Error("Tailscale Serve returned too much output."));
+        void terminateThenReject(
+          new Error("Tailscale Serve returned too much output."),
+        );
         return;
       }
       if (output.includes("Available within your tailnet:")) {
@@ -881,8 +934,11 @@ async function waitForServeReady(child) {
     };
     child.stdout.on("data", inspect);
     child.stderr.on("data", inspect);
-    child.on("error", (error) => finish(rejectPromise, error));
+    child.on("error", (error) => {
+      if (!terminating) finish(rejectPromise, error);
+    });
     child.on("close", () => {
+      if (terminating) return;
       finish(
         rejectPromise,
         new Error(
@@ -892,9 +948,7 @@ async function waitForServeReady(child) {
       );
     });
     const timer = setTimeout(() => {
-      terminateProcessTree(child);
-      finish(
-        rejectPromise,
+      void terminateThenReject(
         new Error(
           "Tailscale Serve did not become ready. Enable HTTPS for this tailnet and try again.",
         ),
@@ -916,15 +970,63 @@ async function startPortalSession(argumentsValue) {
   const expectedOrigin = `https://${dnsName}`;
   let serveProcess;
   let expiryTimer;
-  let cleaned = false;
+  let cleanupPromise;
+  let activeCommit;
   const commitController = new AbortController();
+  const closeServer = () =>
+    new Promise((resolvePromise, rejectPromise) => {
+      if (!server.listening) {
+        resolvePromise();
+        return;
+      }
+      server.close((error) => {
+        if (error) rejectPromise(error);
+        else resolvePromise();
+      });
+    });
   const cleanup = () => {
-    if (cleaned) return;
-    cleaned = true;
-    commitController.abort();
-    if (expiryTimer) clearTimeout(expiryTimer);
-    server.close();
-    if (serveProcess) terminateProcessTree(serveProcess);
+    if (cleanupPromise) return cleanupPromise;
+    cleanupPromise = (async () => {
+      if (expiryTimer) clearTimeout(expiryTimer);
+      commitController.abort();
+      let commitCleanupError;
+      if (activeCommit) {
+        try {
+          await activeCommit;
+        } catch (error) {
+          if (error?.name === "CleanupError") commitCleanupError = error;
+        }
+      }
+      const cleanupResults = await Promise.allSettled([
+        closeServer(),
+        serveProcess
+          ? terminateProcessTreeAndWait(serveProcess)
+          : Promise.resolve(),
+      ]);
+      const cleanupFailures = cleanupResults
+        .filter((result) => result.status === "rejected")
+        .map((result) => result.reason);
+      if (commitCleanupError) cleanupFailures.unshift(commitCleanupError);
+      if (cleanupFailures.length > 0) {
+        throw new AggregateError(
+          cleanupFailures,
+          "KeepKeys could not verify complete private portal cleanup.",
+        );
+      }
+    })();
+    return cleanupPromise;
+  };
+  const reportCleanupFailure = (error) => {
+    process.exitCode = 1;
+    process.stderr.write(
+      `${JSON.stringify({
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "KeepKeys could not verify private portal cleanup.",
+      })}\n`,
+    );
   };
   const server = createPortalServer({
     metadata,
@@ -934,21 +1036,46 @@ async function startPortalSession(argumentsValue) {
     expectedOrigin,
     expiresAt,
     abortSignal: commitController.signal,
-    commitSecret: (secret, signal) =>
-      commitToNativeVault(metadata, replacing, secret, signal),
+    commitSecret: (secret, signal) => {
+      const operation = commitToNativeVault(
+        metadata,
+        replacing,
+        secret,
+        signal,
+      );
+      const tracked = operation.finally(() => {
+        if (activeCommit === tracked) activeCommit = undefined;
+      });
+      activeCommit = tracked;
+      return tracked;
+    },
     onTerminal: () => {
-      setTimeout(cleanup, 500);
+      setTimeout(() => {
+        void cleanup().catch(reportCleanupFailure);
+      }, 500);
     },
   });
   process.once("SIGINT", () => {
-    cleanup();
-    process.exit(130);
+    void cleanup().then(
+      () => process.exit(130),
+      (error) => {
+        reportCleanupFailure(error);
+        process.exit(1);
+      },
+    );
   });
   process.once("SIGTERM", () => {
-    cleanup();
-    process.exit(143);
+    void cleanup().then(
+      () => process.exit(143),
+      (error) => {
+        reportCleanupFailure(error);
+        process.exit(1);
+      },
+    );
   });
-  process.once("exit", cleanup);
+  process.once("exit", () => {
+    if (serveProcess) terminateProcessTree(serveProcess);
+  });
   await new Promise((resolvePromise, rejectPromise) => {
     server.once("error", rejectPromise);
     server.listen(0, "127.0.0.1", resolvePromise);
@@ -978,10 +1105,12 @@ async function startPortalSession(argumentsValue) {
   try {
     await waitForServeReady(serveProcess);
   } catch (error) {
-    cleanup();
+    await cleanup();
     throw error;
   }
-  expiryTimer = setTimeout(cleanup, SESSION_TTL_MS);
+  expiryTimer = setTimeout(() => {
+    void cleanup().catch(reportCleanupFailure);
+  }, millisecondsUntilExpiry(expiresAt));
   expiryTimer.unref?.();
   const result = {
     status: "ready",
@@ -1002,6 +1131,57 @@ async function startPortalSession(argumentsValue) {
   }
 }
 
+export function millisecondsUntilExpiry(expiresAt, now = Date.now()) {
+  const timestamp = Date.parse(expiresAt);
+  if (!Number.isFinite(timestamp)) {
+    throw new Error("KeepKeys received an invalid portal expiry.");
+  }
+  return Math.max(0, timestamp - now);
+}
+
+async function runNativePortalSelfTest() {
+  if (process.env[PORTAL_NATIVE_TEST_FLAG] !== "1") {
+    throw new Error(
+      "The native portal integration test requires an explicit test environment.",
+    );
+  }
+  delete process.env[PORTAL_NATIVE_TEST_FLAG];
+  const metadata = {
+    name: `keepkeys-portal-test-${randomBytes(12).toString("hex")}`,
+    variable: "KEEPKEYS_PORTAL_TEST",
+    description: "Temporary UTF-8 phone intake verification",
+    provider: "BarnLabs",
+    documentationUrls: ["https://github.com/barnlabs/keepkeys"],
+  };
+  const secret = Buffer.from(
+    `keepkeys-portal-test-\u2713-${randomBytes(32).toString("base64url")}`,
+    "utf8",
+  );
+  try {
+    const result = await commitToNativeVault(
+      metadata,
+      false,
+      secret,
+      undefined,
+      { nativeSelfTest: true },
+    );
+    if (result?.status !== "ok" || result?.cleaned !== true) {
+      throw new Error(
+        "KeepKeys did not verify native portal storage and cleanup.",
+      );
+    }
+    return {
+      status: "ok",
+      message:
+        "Generated UTF-8 portal value storage, metadata, existence check, and cleanup verified.",
+      platform: process.platform,
+      cleaned: true,
+    };
+  } finally {
+    secret.fill(0);
+  }
+}
+
 async function launchDetached(argumentsValue) {
   const child = fork(fileURLToPath(import.meta.url), argumentsValue, {
     detached: true,
@@ -1010,6 +1190,7 @@ async function launchDetached(argumentsValue) {
   });
   return new Promise((resolvePromise, rejectPromise) => {
     let settled = false;
+    let terminating = false;
     const finish = (callback, value) => {
       if (settled) return;
       settled = true;
@@ -1017,6 +1198,7 @@ async function launchDetached(argumentsValue) {
       callback(value);
     };
     child.once("message", (result) => {
+      if (terminating) return;
       if (result?.status === "error") {
         finish(rejectPromise, new Error(result.message));
         return;
@@ -1024,8 +1206,11 @@ async function launchDetached(argumentsValue) {
       child.unref();
       finish(resolvePromise, result);
     });
-    child.once("error", (error) => finish(rejectPromise, error));
+    child.once("error", (error) => {
+      if (!terminating) finish(rejectPromise, error);
+    });
     child.once("exit", (code) => {
+      if (terminating) return;
       if (code !== 0) {
         finish(
           rejectPromise,
@@ -1034,10 +1219,22 @@ async function launchDetached(argumentsValue) {
       }
     });
     const timer = setTimeout(() => {
-      terminateProcessTree(child);
-      finish(
-        rejectPromise,
-        new Error("KeepKeys timed out while starting the private phone intake."),
+      if (settled || terminating) return;
+      terminating = true;
+      void terminateProcessTreeAndWait(child).then(
+        () =>
+          finish(
+            rejectPromise,
+            new Error("KeepKeys timed out while starting the private phone intake."),
+          ),
+        (error) =>
+          finish(
+            rejectPromise,
+            new Error(
+              "KeepKeys timed out and could not confirm that the private phone intake stopped.",
+              { cause: error },
+            ),
+          ),
       );
     }, STARTUP_TIMEOUT_MS + 5000);
   });
@@ -1045,6 +1242,22 @@ async function launchDetached(argumentsValue) {
 
 async function main() {
   const argumentsValue = process.argv.slice(2);
+  if (argumentsValue[0] === "--native-portal-self-test") {
+    try {
+      if (argumentsValue.length !== 1) {
+        throw new Error("The native portal integration test takes no arguments.");
+      }
+      const result = await runNativePortalSelfTest();
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+    } catch (error) {
+      fail(
+        error instanceof Error
+          ? error.message
+          : "KeepKeys native portal integration test failed.",
+      );
+    }
+    return;
+  }
   if (process.env[PORTAL_CHILD_FLAG] === "1") {
     try {
       await startPortalSession(argumentsValue);

@@ -1791,6 +1791,28 @@ try {
             if ($expectedValue -cne "yes" -and $expectedValue -cne "no") {
                 throw "The private phone-intake replacement state is invalid."
             }
+            $nativeSelfTestValue = Get-KeepKeysOption `
+                $rest "--native-self-test"
+            if ([String]::IsNullOrEmpty($nativeSelfTestValue)) {
+                $nativeSelfTestValue = "no"
+            }
+            if ($nativeSelfTestValue -cne "yes" -and
+                $nativeSelfTestValue -cne "no") {
+                throw "The private native portal test request is invalid."
+            }
+            $nativeSelfTest = $nativeSelfTestValue -ceq "yes"
+            $nativeSelfTestFlag = [string]$env:KEEPKEYS_PORTAL_NATIVE_TEST
+            $env:KEEPKEYS_PORTAL_NATIVE_TEST = $null
+            if ($nativeSelfTest -and (
+                $nativeSelfTestFlag -cne "1" -or
+                -not $name.StartsWith(
+                    "keepkeys-portal-test-",
+                    [StringComparison]::Ordinal
+                ) -or
+                $expectedValue -cne "no"
+            )) {
+                throw "KeepKeys rejected an unauthorized native portal test."
+            }
             Assert-KeepKeysMetadata $name $variable $description $provider `
                 $documentationUrls
             $submitted = Read-KeepKeysPortalSecret
@@ -1803,7 +1825,105 @@ try {
                     $documentationUrls `
                     $submitted.Secret `
                     ($expectedValue -ceq "yes")
+                if ($nativeSelfTest) {
+                    $secretTarget = $Script:SecretPrefix + $name
+                    $metadataTarget = $Script:MetadataPrefix + $name
+                    $storedSecret = $null
+                    $storedMetadata = $null
+                    $matches = $false
+                    try {
+                        $storedSecret = [BarnLabs.KeepKeys.CredentialVault]::Read(
+                            $secretTarget,
+                            $true
+                        )
+                        $storedMetadata = Read-KeepKeysMetadata $name
+                        if ($null -ne $storedSecret -and
+                            $null -ne $storedSecret.Secret -and
+                            $null -ne $storedMetadata) {
+                            $utf8 = [Text.UTF8Encoding]::new($false, $true)
+                            $loadedSecret = $utf8.GetString(
+                                $storedSecret.Secret
+                            )
+                            $matches = (
+                                $loadedSecret -ceq $submitted.Secret -and
+                                $storedMetadata.UserName -ceq $variable -and
+                                $storedMetadata.Comment -ceq $description -and
+                                $storedMetadata.Provider -ceq $provider -and
+                                (Test-KeepKeysStringArrayEqual `
+                                    ([string[]]$storedMetadata.DocumentationUrls) `
+                                    ([string[]]$documentationUrls))
+                            )
+                            $loadedSecret = ""
+                        }
+                    } finally {
+                        if ($null -ne $storedSecret -and
+                            $null -ne $storedSecret.Secret) {
+                            [Array]::Clear(
+                                $storedSecret.Secret,
+                                0,
+                                $storedSecret.Secret.Length
+                            )
+                        }
+                        [void][BarnLabs.KeepKeys.CredentialVault]::Delete(
+                            $metadataTarget
+                        )
+                        [void][BarnLabs.KeepKeys.CredentialVault]::Delete(
+                            $secretTarget
+                        )
+                    }
+                    $metadataAfter = [BarnLabs.KeepKeys.CredentialVault]::Read(
+                        $metadataTarget,
+                        $true
+                    )
+                    $secretAfter = [BarnLabs.KeepKeys.CredentialVault]::Read(
+                        $secretTarget,
+                        $true
+                    )
+                    try {
+                        if (-not $matches -or
+                            $null -ne $metadataAfter -or
+                            $null -ne $secretAfter) {
+                            throw (
+                                "The temporary native portal Credential " +
+                                "Manager round trip did not verify."
+                            )
+                        }
+                    } finally {
+                        if ($null -ne $metadataAfter -and
+                            $null -ne $metadataAfter.Secret) {
+                            [Array]::Clear(
+                                $metadataAfter.Secret,
+                                0,
+                                $metadataAfter.Secret.Length
+                            )
+                        }
+                        if ($null -ne $secretAfter -and
+                            $null -ne $secretAfter.Secret) {
+                            [Array]::Clear(
+                                $secretAfter.Secret,
+                                0,
+                                $secretAfter.Secret.Length
+                            )
+                        }
+                    }
+                    $result = @{
+                        status = "ok"
+                        message = (
+                            "Temporary native portal Credential Manager " +
+                            "round trip verified."
+                        )
+                        cleaned = $true
+                    }
+                }
             } finally {
+                if ($nativeSelfTest) {
+                    [void][BarnLabs.KeepKeys.CredentialVault]::Delete(
+                        $Script:MetadataPrefix + $name
+                    )
+                    [void][BarnLabs.KeepKeys.CredentialVault]::Delete(
+                        $Script:SecretPrefix + $name
+                    )
+                }
                 $submitted.Secret = ""
                 [Array]::Clear(
                     $submitted.Buffer,

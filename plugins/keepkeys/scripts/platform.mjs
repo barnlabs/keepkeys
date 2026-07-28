@@ -7,9 +7,9 @@ import { fileURLToPath } from "node:url";
 
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const WINDOWS_HELPER_SHA256 =
-  "55a6c37a94cf9835153cab23048c77370bd305a6c40eada8c1502a5e60119709";
+  "e93f6746940214385c29cc4bef006455767ef5678883a6876e349e2601b8b3e9";
 const LINUX_HELPER_SHA256 =
-  "0c0d04d22600e3bfbcf8308f7bd8dc1f839836ef3eddb60e7a1d593d39fa70d6";
+  "6776c56ff4d384d9d6a4495b5b1fef092bb3baee6d27a52f9bbed0c60a518c12";
 
 function copyPresent(target, source, names) {
   for (const name of names) {
@@ -206,10 +206,20 @@ export function portalCommitInvocation(
   return invocation;
 }
 
+export function processHasExited(child) {
+  return Boolean(
+    child &&
+      ((child.exitCode !== undefined && child.exitCode !== null) ||
+        (child.signalCode !== undefined && child.signalCode !== null)),
+  );
+}
+
 export function terminateProcessTree(child, platform = process.platform) {
-  if (!child?.pid) return;
+  if (!child?.pid || processHasExited(child)) {
+    return true;
+  }
   if (platform === "win32") {
-    spawnSync(
+    const result = spawnSync(
       resolve(
         process.env.SystemRoot ?? "C:\\Windows",
         "System32",
@@ -218,11 +228,56 @@ export function terminateProcessTree(child, platform = process.platform) {
       ["/PID", `${child.pid}`, "/T", "/F"],
       { windowsHide: true, stdio: "ignore" },
     );
-    return;
+    return !result.error && result.status === 0;
   }
   try {
     process.kill(-child.pid, "SIGKILL");
+    return true;
   } catch {
-    child.kill("SIGKILL");
+    return child.kill("SIGKILL");
   }
+}
+
+export function terminateProcessTreeAndWait(
+  child,
+  platform = process.platform,
+  timeoutMs = 5000,
+) {
+  if (!child?.pid || processHasExited(child)) {
+    return Promise.resolve();
+  }
+  if (typeof child.once !== "function") {
+    return Promise.reject(
+      new Error("KeepKeys cannot confirm termination for this process."),
+    );
+  }
+  return new Promise((resolvePromise, rejectPromise) => {
+    let settled = false;
+    let terminationRequested = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.removeListener("close", close);
+      callback(value);
+    };
+    const close = () => finish(resolvePromise);
+    child.once("close", close);
+    const timer = setTimeout(() => {
+      finish(
+        rejectPromise,
+        new Error(
+          terminationRequested
+            ? "KeepKeys could not confirm that the process tree exited."
+            : "KeepKeys could not request process-tree termination or confirm exit.",
+        ),
+      );
+    }, timeoutMs);
+    try {
+      terminationRequested = terminateProcessTree(child, platform);
+    } catch {
+      terminationRequested = false;
+    }
+    if (processHasExited(child)) close();
+  });
 }

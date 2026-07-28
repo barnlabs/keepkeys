@@ -250,23 +250,28 @@ assert.match(portalSource, /publicInternet: false/);
 assert.match(portalSource, /\[\s*"serve",/);
 assert.match(
   portalSource,
-  /onTerminal: \(\) => \{\s+setTimeout\(cleanup, 500\)/,
+  /onTerminal: \(\) => \{\s+setTimeout\(\(\) => \{\s+void cleanup\(\)\.catch\(reportCleanupFailure\)/,
   "every terminal submission must schedule portal and Serve cleanup",
 );
 assert.match(
   portalSource,
-  /if \(serveProcess\) terminateProcessTree\(serveProcess\)/,
-  "portal cleanup must terminate the session-owned Serve process tree",
+  /serveProcess\s+\?\s+terminateProcessTreeAndWait\(serveProcess\)/,
+  "portal cleanup must confirm termination of the session-owned Serve process tree",
+);
+assert.match(
+  portalSource,
+  /millisecondsUntilExpiry\(expiresAt\)/,
+  "portal cleanup must be scheduled from the advertised expiry",
 );
 assert.doesNotMatch(
   portalSource,
   /["']funnel["']/i,
   "phone intake must never invoke Tailscale Funnel",
 );
-assert.doesNotMatch(
-  portalSource,
-  /https?:\/\/(?:[a-z0-9-]+\.)+[a-z]{2,}/i,
-  "phone intake source must not contain a fixed hosted relay destination",
+assert.deepEqual(
+  portalSource.match(/https?:\/\/(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^"'\s]*)?/gi) ?? [],
+  ["https://github.com/barnlabs/keepkeys"],
+  "phone intake source may contain only the official self-test documentation URL, not a hosted relay",
 );
 const platformDispatcher = readFileSync(
   resolve(pluginRoot, "scripts", "platform.mjs"),

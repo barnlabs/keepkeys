@@ -1253,6 +1253,23 @@ def action_portal_commit(arguments: list[str]) -> dict[str, Any]:
         raise KeepKeysError(
             "The private phone-intake replacement state is invalid."
         )
+    native_self_test_value = option(arguments, "--native-self-test") or "no"
+    if native_self_test_value not in {"yes", "no"}:
+        raise KeepKeysError(
+            "The private native portal test request is invalid."
+        )
+    native_self_test = native_self_test_value == "yes"
+    native_self_test_flag = os.environ.pop(
+        "KEEPKEYS_PORTAL_NATIVE_TEST", ""
+    )
+    if native_self_test and (
+        native_self_test_flag != "1"
+        or not metadata.name.startswith("keepkeys-portal-test-")
+        or expected_value != "no"
+    ):
+        raise KeepKeysError(
+            "KeepKeys rejected an unauthorized native portal test."
+        )
     secret_bytes = read_portal_secret()
     try:
         if len(secret_bytes) > MAX_SECRET_BYTES:
@@ -1266,11 +1283,43 @@ def action_portal_commit(arguments: list[str]) -> dict[str, Any]:
                 "The phone submitted an invalid UTF-8 key."
             ) from error
         try:
-            return store_record(
-                metadata,
-                secret,
-                expected_existing=expected_value == "yes",
-            )
+            if not native_self_test:
+                return store_record(
+                    metadata,
+                    secret,
+                    expected_existing=expected_value == "yes",
+                )
+            try:
+                result = store_record(
+                    metadata,
+                    secret,
+                    expected_existing=False,
+                )
+                matches = (
+                    result.get("status") == "ok"
+                    and lookup_secret(metadata.name) == secret
+                    and search_metadata(metadata.name) == [metadata]
+                )
+            finally:
+                clear_item(METADATA_SERVICE, metadata.name)
+                clear_item(SECRET_SERVICE, metadata.name)
+            if (
+                not matches
+                or search_metadata(metadata.name)
+                or lookup_secret_optional(metadata.name) is not None
+            ):
+                raise KeepKeysError(
+                    "The temporary native portal Secret Service round trip "
+                    "did not verify."
+                )
+            return {
+                "status": "ok",
+                "message": (
+                    "Temporary native portal Secret Service round trip "
+                    "verified."
+                ),
+                "cleaned": True,
+            }
         finally:
             secret = ""
     finally:

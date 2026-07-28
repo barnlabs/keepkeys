@@ -880,6 +880,24 @@ private func storeFromPortal(arguments: [String]) throws -> [String: Any] {
     guard expectedValue == "yes" || expectedValue == "no" else {
         throw KeepKeysFailure(message: "The private phone-intake replacement state is invalid.")
     }
+    let nativeSelfTestValue = try parseOption(arguments, name: "--native-self-test") ?? "no"
+    guard nativeSelfTestValue == "yes" || nativeSelfTestValue == "no" else {
+        throw KeepKeysFailure(message: "The private native portal test request is invalid.")
+    }
+    let nativeSelfTest = nativeSelfTestValue == "yes"
+    let nativeSelfTestFlag =
+        ProcessInfo.processInfo.environment["KEEPKEYS_PORTAL_NATIVE_TEST"]
+    unsetenv("KEEPKEYS_PORTAL_NATIVE_TEST")
+    if nativeSelfTest {
+        guard nativeSelfTestFlag == "1",
+              name.hasPrefix("keepkeys-portal-test-"),
+              expectedValue == "no"
+        else {
+            throw KeepKeysFailure(
+                message: "KeepKeys rejected an unauthorized native portal test."
+            )
+        }
+    }
     try authorizePortalChannel()
     let expectedExisting = expectedValue == "yes"
     let currentlyExists = try KeychainStore.exists(name: name)
@@ -900,6 +918,11 @@ private func storeFromPortal(arguments: [String]) throws -> [String: Any] {
     }
     defer { secret = "" }
     try validateSecret(secret)
+    defer {
+        if nativeSelfTest {
+            try? KeychainStore.remove(name: name)
+        }
+    }
     try KeychainStore.store(
         name: name,
         variable: variable,
@@ -908,6 +931,32 @@ private func storeFromPortal(arguments: [String]) throws -> [String: Any] {
         documentationURLs: documentationURLs,
         secret: secret
     )
+    if nativeSelfTest {
+        var stored = try KeychainStore.load(name: name)
+        defer { stored.secret = "" }
+        let listed = try KeychainStore.entries().contains { entry in
+            entry["name"] as? String == name
+                && entry["variable"] as? String == variable
+        }
+        let matches =
+            stored.secret == secret
+            && stored.metadata.variable == variable
+            && stored.metadata.description == description
+            && stored.metadata.provider == provider
+            && stored.metadata.documentationURLs == documentationURLs
+            && listed
+        try KeychainStore.remove(name: name)
+        guard matches, !(try KeychainStore.exists(name: name)) else {
+            throw KeepKeysFailure(
+                message: "The temporary native portal Keychain round trip did not verify."
+            )
+        }
+        return [
+            "status": "ok",
+            "message": "Temporary native portal Keychain round trip verified.",
+            "cleaned": true,
+        ]
+    }
     return [
         "status": "ok",
         "message": "Stored '\(name)' in macOS Keychain.",
