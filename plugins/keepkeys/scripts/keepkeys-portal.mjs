@@ -706,11 +706,14 @@ export function portalStartupProcessOptions({
   };
 }
 
-async function tailscaleState(tailscale) {
+async function tailscaleState(tailscale, signal) {
   const versionResult = await runProcess(
     tailscale,
     ["version"],
-    portalStartupProcessOptions(),
+    {
+      ...portalStartupProcessOptions(),
+      signal,
+    },
   );
   const versionText = versionResult.stdout.toString("utf8");
   const match = versionText.match(/^(\d+)\.(\d+)\.(\d+)/u);
@@ -725,7 +728,10 @@ async function tailscaleState(tailscale) {
   const statusResult = await runProcess(
     tailscale,
     ["status", "--json"],
-    portalStartupProcessOptions(),
+    {
+      ...portalStartupProcessOptions(),
+      signal,
+    },
   );
   if (statusResult.code !== 0) {
     throw new Error("Tailscale is not available on this computer.");
@@ -750,15 +756,18 @@ async function tailscaleState(tailscale) {
   return { dnsName: dnsName.slice(0, -1) };
 }
 
-async function readExisting(metadata) {
+async function readExisting(metadata, signal) {
   const invocation = helperInvocation(["list"]);
   const result = await runProcess(
     invocation.command,
     invocation.args,
-    portalStartupProcessOptions({
-      cwd: invocation.env.KEEPKEYS_PLUGIN_ROOT,
-      environment: invocation.env,
-    }),
+    {
+      ...portalStartupProcessOptions({
+        cwd: invocation.env.KEEPKEYS_PLUGIN_ROOT,
+        environment: invocation.env,
+      }),
+      signal,
+    },
   );
   if (result.code !== 0) {
     throw new Error("KeepKeys could not read local credential metadata.");
@@ -773,6 +782,23 @@ async function readExisting(metadata) {
     throw new Error("KeepKeys could not read local credential metadata.");
   }
   return parsed.entries.some((entry) => entry?.name === metadata.name);
+}
+
+export async function runPortalStartupOperations(operations) {
+  const controller = new AbortController();
+  let firstError;
+  const tasks = operations.map((operation) =>
+    Promise.resolve()
+      .then(() => operation(controller.signal))
+      .catch((error) => {
+        if (firstError === undefined) firstError = error;
+        controller.abort();
+        throw error;
+      }),
+  );
+  const results = await Promise.allSettled(tasks);
+  if (firstError !== undefined) throw firstError;
+  return results.map((result) => result.value);
 }
 
 function defaultPortalLockRoot() {
@@ -945,10 +971,18 @@ export async function waitForServeReady(
     let output = "";
     let settled = false;
     let terminating = false;
+    const detachOutput = () => {
+      child.stdout.removeListener("data", inspect);
+      child.stderr.removeListener("data", inspect);
+      child.stdout.resume();
+      child.stderr.resume();
+      output = "";
+    };
     const finish = (callback, value) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      detachOutput();
       callback(value);
     };
     const terminateThenReject = async (error) => {
@@ -1093,10 +1127,20 @@ export async function stopOwnedServeProcess(
       );
     }
   })();
-  await Promise.all([
+  const cleanupResults = await Promise.allSettled([
     stopProcess,
-    verifyRouteRemoved(),
+    Promise.resolve().then(verifyRouteRemoved),
   ]);
+  const cleanupFailures = cleanupResults
+    .filter((result) => result.status === "rejected")
+    .map((result) => result.reason);
+  if (cleanupFailures.length === 1) throw cleanupFailures[0];
+  if (cleanupFailures.length > 1) {
+    throw new AggregateError(
+      cleanupFailures,
+      "KeepKeys could not confirm complete Tailscale Serve cleanup.",
+    );
+  }
 }
 
 async function startPortalSession(argumentsValue) {
@@ -1107,9 +1151,9 @@ async function startPortalSession(argumentsValue) {
     throw new Error("KeepKeys rejected an unauthorized tailnet portal test.");
   }
   const tailscale = resolveTailscaleBinary();
-  const [{ dnsName }, replacing] = await Promise.all([
-    tailscaleState(tailscale),
-    readExisting(metadata),
+  const [{ dnsName }, replacing] = await runPortalStartupOperations([
+    (signal) => tailscaleState(tailscale, signal),
+    (signal) => readExisting(metadata, signal),
   ]);
   const path = `${PORTAL_PREFIX}/${randomBytes(24).toString("base64url")}`;
   const cookieToken = randomBytes(32).toString("base64url");

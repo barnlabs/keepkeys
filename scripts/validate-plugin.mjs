@@ -260,6 +260,16 @@ assert.match(
 );
 assert.match(
   portalSource,
+  /runPortalStartupOperations\([\s\S]*?controller\.abort\(\)[\s\S]*?Promise\.allSettled\(tasks\)/,
+  "portal startup must abort and await sibling operations after a partial failure",
+);
+assert.match(
+  portalSource,
+  /removeListener\("data", inspect\)[\s\S]*?\.resume\(\)/,
+  "Serve readiness must stop retaining later process output",
+);
+assert.match(
+  portalSource,
   /onTerminal: \(\) => \{\s+setTimeout\(\(\) => \{\s+cleanupAndExit\(\)/,
   "every terminal submission must schedule portal and Serve cleanup",
 );
@@ -267,6 +277,11 @@ assert.match(
   portalSource,
   /stopOwnedServeProcess\([\s\S]*?verifyServePathRemoved\(tailscale, path\)[\s\S]*?process\.kill\(-process\.pid, "SIGTERM"\)/,
   "portal cleanup must confirm Serve exit and removal of the exact owned route",
+);
+assert.match(
+  portalSource,
+  /const cleanupResults = await Promise\.allSettled\(\[\s+stopProcess,\s+Promise\.resolve\(\)\.then\(verifyRouteRemoved\)/,
+  "Serve cleanup must await both process exit and route verification",
 );
 assert.match(
   portalSource,

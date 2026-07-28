@@ -19,6 +19,7 @@ import {
   parsePortalMetadata,
   portalStartupProcessOptions,
   renderPortalHtml,
+  runPortalStartupOperations,
   runProcess,
   serveStatusContainsPath,
   stopOwnedServeProcess,
@@ -159,6 +160,37 @@ test("portal startup children stay in the detached portal process group", () => 
   );
 });
 
+test("portal startup aborts and awaits sibling work after one failure", async () => {
+  let siblingSettled = false;
+  await assert.rejects(
+    runPortalStartupOperations([
+      async () => {
+        await delay(10);
+        throw new Error("Tailscale startup failed.");
+      },
+      (signal) =>
+        new Promise((resolvePromise, rejectPromise) => {
+          const timer = setTimeout(resolvePromise, 1000);
+          signal.addEventListener(
+            "abort",
+            () => {
+              clearTimeout(timer);
+              setTimeout(() => {
+                siblingSettled = true;
+                const error = new Error("Sibling startup was aborted.");
+                error.name = "AbortError";
+                rejectPromise(error);
+              }, 25);
+            },
+            { once: true },
+          );
+        }),
+    ]),
+    /Tailscale startup failed/u,
+  );
+  assert.equal(siblingSettled, true);
+});
+
 test("Serve cleanup recognizes only the exact owned path", () => {
   const path = "/keepkeys/store/owned-test-path";
   const status = {
@@ -219,6 +251,31 @@ test("a slow Serve startup is gracefully stopped before timeout rejection", asyn
   assert.equal(processHasExited(child), true);
 });
 
+test("Serve readiness stops capturing output for the active session", async () => {
+  const child = spawn(
+    process.execPath,
+    [
+      "-e",
+      [
+        "process.stdout.write('Available within your tailnet:\\n');",
+        "setInterval(()=>process.stdout.write('later output\\n'),5);",
+      ].join(""),
+    ],
+    {
+      detached: process.platform !== "win32",
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    },
+  );
+  try {
+    await waitForServeReady(child, 1000);
+    assert.equal(child.stdout.listenerCount("data"), 0);
+    assert.equal(child.stderr.listenerCount("data"), 0);
+  } finally {
+    await terminateProcessGracefullyAndWait(child);
+  }
+});
+
 test("Serve cleanup fails closed when the route is absent but its child survives", async () => {
   const child = spawn(
     process.execPath,
@@ -249,6 +306,36 @@ test("Serve cleanup fails closed when the route is absent but its child survives
     /forced Tailscale Serve to stop/u,
   );
   assert.equal(routeChecks, 1);
+  assert.equal(processHasExited(child), true);
+});
+
+test("Serve cleanup awaits process exit when route verification fails", async () => {
+  const child = spawn(
+    process.execPath,
+    [
+      "-e",
+      "process.on('SIGTERM',()=>setTimeout(()=>process.exit(0),50));setInterval(()=>{},1000)",
+    ],
+    {
+      detached: process.platform !== "win32",
+      stdio: "ignore",
+      windowsHide: true,
+    },
+  );
+  await assert.rejects(
+    stopOwnedServeProcess(
+      child,
+      async () => {
+        throw new Error("Route verification failed.");
+      },
+      {
+        platform: process.platform,
+        timeoutMs: 1000,
+        signalProcessGroup: () => {},
+      },
+    ),
+    /Route verification failed/u,
+  );
   assert.equal(processHasExited(child), true);
 });
 
