@@ -53,7 +53,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     three negative directory cases.
   - Acceptance: phone intake is described as a private route to the connected
     host, never as hosted storage, synchronization, or public mobile support.
-- [ ] **Independent adversarial 0.5.0 review and public matrix passed.**
+- [x] **Independent adversarial 0.5.0 review and public matrix passed.**
   - Implementer context: exact diff, generated archives, local proof, public CI,
     immutable `F → C → docs` chain, and rollback.
   - Required tests: dedicated read-only Codex review, complete local regression
@@ -67,28 +67,33 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `76e17e60b11a05e233bbaf5ea322a6b0ebbfe476`.
 - Catalog commit (`C`):
   `e6f8702a1c8f9e129135b901ef77e4e5307a4b33`.
-- Reviewed documentation candidate: pending the exact docs commit and its
-  public matrix.
-- Candidate public CI run: pending on the new `F → C → docs` chain.
+- Reviewed documentation candidate:
+  `7908a78c7667f48a643fa6dd0538cd5c741bca1f`.
+- Candidate public CI run:
+  [30380783494](https://github.com/barnlabs/keepkeys/actions/runs/30380783494)
+  passed macOS, Windows, and Linux on Node 18/22; all three native-vault
+  doctors; reproducible packages; and `Release gate` on the exact
+  `F → C → docs` chain.
 - Superseded repair run:
   [30380289420](https://github.com/barnlabs/keepkeys/actions/runs/30380289420)
   passed macOS, Linux, all three native-vault doctors, and reproducible
   packages, but failed both Windows Node jobs when the new real native
   forged-parent regression exceeded its 30-second test bound. The Windows-only
   follow-up uses the Windows PowerShell WMI path and a 90-second test bound;
-  fresh exact-head Windows proof remains required.
-- Independent reviewer verdict: `PASS` after one focused `REWORK` cycle. The
-  repaired diff closes first-browser cookie reacquisition, concurrent POST
-  claims, in-flight helper cancellation, cross-process same-name replacement,
-  and generic-Node-parent native commit forgery.
+  candidate run 30380783494 supplies the required exact-head Windows proof.
+- Independent reviewer verdict: `PASS` after one focused `REWORK` cycle and a
+  second exact-chain review. The repaired diff closes first-browser cookie
+  reacquisition, concurrent POST claims, in-flight helper cancellation,
+  cross-process same-name replacement, and generic-Node-parent native commit
+  forgery. The final focused Windows repair also passed review.
 - Dedicated local proof: `check`, 29 Node tests, Hermes and Linux unit suites,
   macOS native self-test/status/doctor, reproducible submission/source package
   rebuilds, archive integrity, a forged non-portal Node-parent rejection, and
   a generated tailnet HTTPS-to-Keychain smoke all passed. The smoke removed its
   vault record and session-owned route.
 - Stable update candidate: `update.json` advertises 0.5.0 with the exact `F`
-  and `C` commits above; public exact-head proof and promotion evidence are
-  pending.
+  and `C` commits above. Exact candidate proof passed; stable-promotion proof
+  remains pending.
 - Rollback: reinstall the 0.4.2 functional commit
   `e5276925d390704fccdf4aaeba47280464762a1c`; plugin rollback does not remove
   native-vault records.
