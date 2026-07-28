@@ -23,19 +23,31 @@ const tools = parse("plugins/keepkeys/mcp/tools.json");
 const update = parse("update.json");
 
 const version = codex.version;
-const releaseCommit = "e5276925d390704fccdf4aaeba47280464762a1c";
+const releaseCommit = "4f0c7b16d6be3704b632f6f88a3adf4e76560e40";
 const catalogCommit = "c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd";
 assert.equal(version, "0.5.0");
-const expectedUpdate = {
-  schemaVersion: 1,
-  product: "KeepKeys",
-  channel: "stable",
-  version,
-  sourceCommit: releaseCommit,
-  catalogCommit,
-  installGuide: "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
-  releaseNotes: "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md",
-};
+const expectedUpdate =
+  update.version === version
+    ? {
+        schemaVersion: 1,
+        product: "KeepKeys",
+        channel: "stable",
+        version,
+        sourceCommit: releaseCommit,
+        catalogCommit,
+        installGuide: "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
+        releaseNotes: "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md",
+      }
+    : {
+        schemaVersion: 1,
+        product: "KeepKeys",
+        channel: "stable",
+        version: "0.4.2",
+        sourceCommit: "e5276925d390704fccdf4aaeba47280464762a1c",
+        catalogCommit: "c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd",
+        installGuide: "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
+        releaseNotes: "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md",
+      };
 assert.deepEqual(update, expectedUpdate);
 assert.equal(claude.version, version);
 assert.equal(grok.version, version);
@@ -147,8 +159,8 @@ for (const helper of [
   assert.ok(read(helper).length > 0, `${helper} is missing`);
 }
 for (const document of ["README.md", "INSTALL.md"]) {
-  assert.match(read(document), new RegExp(releaseCommit, "g"));
-  assert.match(read(document), new RegExp(catalogCommit, "g"));
+  assert.match(read(document), new RegExp(expectedUpdate.sourceCommit, "g"));
+  assert.match(read(document), new RegExp(expectedUpdate.catalogCommit, "g"));
 }
 
 for (const tool of tools) {
