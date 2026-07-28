@@ -25,7 +25,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 
 ## Release candidate — 0.5.0
 
-- [ ] **Private phone intake keeps plaintext outside the agent protocol.**
+- [x] **Private phone intake keeps plaintext outside the agent protocol.**
   - Implementer context: `keepkeys_store_from_phone`, temporary localhost
     portal, Tailscale Serve route, and private native standard-input commit
     action on macOS, Windows, and Linux.
@@ -35,7 +35,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   - Acceptance: the model receives only metadata and the one-time URL; no
     plaintext reaches tool input/output, argv, files, logs, persistent
     environment, the public internet, or a BarnLabs service.
-- [ ] **Phone setup and failure states are complete.**
+- [x] **Phone setup and failure states are complete.**
   - Implementer context: ChatGPT Remote guidance, same-tailnet prerequisites,
     MagicDNS/HTTPS requirements, port conflict, unavailable Tailscale, and
     phone clipboard limitation.
@@ -44,7 +44,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     too-short/too-large value, expiry, interrupt, and native commit failure.
   - Acceptance: every failure closes the local listener and owned Serve route
     without changing unrelated Tailscale configuration.
-- [ ] **The 0.5.0 package and public copy match the seven-tool contract.**
+- [x] **The 0.5.0 package and public copy match the seven-tool contract.**
   - Implementer context: manifests, MCP, Hermes, Agent Skill, skills-only
     package, README, install guide, listing, release notes, and eight submission
     cases.
@@ -53,7 +53,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     three negative directory cases.
   - Acceptance: phone intake is described as a private route to the connected
     host, never as hosted storage, synchronization, or public mobile support.
-- [ ] **Independent adversarial 0.5.0 review passed.**
+- [x] **Independent adversarial 0.5.0 review passed.**
   - Implementer context: exact diff, generated archives, local proof, public CI,
     immutable `F → C → docs` chain, and rollback.
   - Required tests: dedicated read-only Codex review, complete local regression
@@ -67,9 +67,21 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `51be557dd6e313d6cbe35235d28f75ddd9971e99`.
 - Catalog commit (`C`):
   `d9e7f2a6b09fd81d676013a080a2dcc40849ad96`.
-- Reviewed documentation candidate: pending.
-- Public CI run: pending.
-- Independent reviewer verdict: pending.
+- Reviewed documentation candidate:
+  `863fc47510b8a3dab5ac045f45e14dd57a22e484`.
+- Candidate public CI run:
+  [30376229319](https://github.com/barnlabs/keepkeys/actions/runs/30376229319)
+  — macOS, Windows, and Linux Node 18/22; all three native-vault doctors;
+  two-build archive reproducibility; package inventory; and `Release gate`
+  passed.
+- Independent reviewer verdict: `PASS`; no actionable defect. The reviewer
+  reopened the exact `F → C → docs` chain, the prior failed-write terminal
+  repair, Tailscale identity and browser binding, native source fingerprints,
+  immutable pins, archive contents, executable launcher mode, and both
+  reproducible package digests.
+- Dedicated local Codex review: no actionable regression after independently
+  rerunning `check`, `test`, submission packaging, source packaging, checksum
+  verification, and archive integrity checks.
 - Stable update promotion: pending.
 - Rollback: reinstall the 0.4.2 functional commit
   `e5276925d390704fccdf4aaeba47280464762a1c`; plugin rollback does not remove
