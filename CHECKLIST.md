@@ -53,7 +53,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     three negative directory cases.
   - Acceptance: phone intake is described as a private route to the connected
     host, never as hosted storage, synchronization, or public mobile support.
-- [x] **Independent adversarial 0.5.0 review and public matrix passed.**
+- [ ] **Independent adversarial 0.5.0 review and public matrix passed.**
   - Implementer context: exact diff, generated archives, local proof, public CI,
     immutable `F → C → docs` chain, and rollback.
   - Required tests: dedicated read-only Codex review, complete local regression
@@ -64,22 +64,27 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.5.0 release evidence
 
 - Functional source commit (`F`):
-  `76e17e60b11a05e233bbaf5ea322a6b0ebbfe476`.
+  `90f2302d729bde03b23be667a63cb16ab5a13889`.
 - Catalog commit (`C`):
-  `e6f8702a1c8f9e129135b901ef77e4e5307a4b33`.
-- Reviewed documentation candidate:
-  `7908a78c7667f48a643fa6dd0538cd5c741bca1f`.
-- Stable promotion commit:
-  `1e76479dbcce00fd124bb91d6ba2df8bdf0737e5`.
-- Candidate public CI run:
+  `8909aadd41acfa77f1ecb6e19a69f42e01477469`.
+- Reviewed documentation candidate: pending the exact docs commit and its
+  public matrix.
+- Candidate public CI run: pending on the repaired `F → C → docs` chain.
+- Superseded candidate public CI run:
   [30380783494](https://github.com/barnlabs/keepkeys/actions/runs/30380783494)
   passed macOS, Windows, and Linux on Node 18/22; all three native-vault
-  doctors; reproducible packages; and `Release gate` on the exact
-  `F → C → docs` chain.
-- Stable-promotion public CI run:
+  doctors; reproducible packages; and `Release gate` on the prior exact
+  candidate chain.
+- Superseded stable-promotion public CI run:
   [30381058951](https://github.com/barnlabs/keepkeys/actions/runs/30381058951)
-  passed the same 11 proof jobs on the exact promotion commit, including both
-  Windows Node versions and the native Windows vault doctor.
+  passed the same 11 proof jobs on the prior exact promotion commit.
+- Final-proof repair trigger:
+  [30381284280](https://github.com/barnlabs/keepkeys/actions/runs/30381284280)
+  passed nine proof jobs; Windows Node 18 failed when the delayed-helper
+  regression raced child close against synchronous tree termination, causing
+  `Release gate` to fail. The repaired `runProcess` settles `AbortError` before
+  termination, and the regression now waits for explicit child readiness
+  before aborting.
 - Superseded repair run:
   [30380289420](https://github.com/barnlabs/keepkeys/actions/runs/30380289420)
   passed macOS, Linux, all three native-vault doctors, and reproducible
@@ -91,14 +96,15 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   second exact-chain review. The repaired diff closes first-browser cookie
   reacquisition, concurrent POST claims, in-flight helper cancellation,
   cross-process same-name replacement, and generic-Node-parent native commit
-  forgery. The final focused Windows repair also passed review.
+  forgery. Both focused Windows repairs passed review.
 - Dedicated local proof: `check`, 29 Node tests, Hermes and Linux unit suites,
   macOS native self-test/status/doctor, reproducible submission/source package
   rebuilds, archive integrity, a forged non-portal Node-parent rejection, and
-  a generated tailnet HTTPS-to-Keychain smoke all passed. The smoke removed its
-  vault record and session-owned route.
+  a generated tailnet HTTPS-to-Keychain smoke all passed. The repaired portal
+  suite also passed eight consecutive runs. The smoke removed its vault record
+  and session-owned route.
 - Stable update candidate: `update.json` advertises 0.5.0 with the exact `F`
-  and `C` commits above. Exact candidate and stable-promotion proof passed.
+  and `C` commits above; new exact-head and promotion proof are pending.
 - Rollback: reinstall the 0.4.2 functional commit
   `e5276925d390704fccdf4aaeba47280464762a1c`; plugin rollback does not remove
   native-vault records.
