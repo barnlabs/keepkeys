@@ -1176,8 +1176,8 @@ function Save-KeepKeysRecord {
         $metadataTarget,
         $true
     )
-    if ($ExpectedExisting.HasValue -and
-        (($null -ne $previousMetadata) -ne $ExpectedExisting.Value)) {
+    if ($null -ne $ExpectedExisting -and
+        (($null -ne $previousMetadata) -ne [bool]$ExpectedExisting)) {
         if ($null -ne $previousMetadata -and
             $null -ne $previousMetadata.Secret) {
             [Array]::Clear(
