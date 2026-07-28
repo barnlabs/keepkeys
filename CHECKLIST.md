@@ -79,8 +79,16 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   [30398539657](https://github.com/barnlabs/keepkeys/actions/runs/30398539657)
   passed all six Node jobs, all three native-vault jobs, reproducible packages,
   and `Release gate`.
-- The final evidence commit, its exact-head CI, and exact-head reviews remain
-  pending. The evidence commit records the immutable promotion proof above.
+- Final evidence commit:
+  `471d0798e1817d876924f6461bc61366eb7f3f0d`.
+- Exact-head public CI run:
+  [30398737699](https://github.com/barnlabs/keepkeys/actions/runs/30398737699)
+  passed all six Node jobs, all three native-vault jobs, reproducible packages,
+  and `Release gate`.
+- Final independent review of that evidence head found no product defect and
+  requested this proof-only correction because the completed exact-head run
+  was still labeled pending. Closure review of this ledger correction remains
+  external to the immutable release record.
 - Exact-head GitHub Codex review
   [4801551714](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4801551714)
   reopened the prior exact head for three repairs: report failed Linux rollback
