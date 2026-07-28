@@ -45,6 +45,7 @@ for (const relative of [
   "scripts/keepkeys.swift",
   "scripts/keepkeys-cli.mjs",
   "scripts/keepkeys-portal.mjs",
+  "scripts/keepkeys-store.mjs",
   "scripts/keepkeys.linux.py",
   "scripts/keepkeys.windows.ps1",
   "scripts/check-for-update.mjs",
@@ -85,6 +86,7 @@ for member in \
   "keepkeys/scripts/keepkeys.swift" \
   "keepkeys/scripts/keepkeys-cli.mjs" \
   "keepkeys/scripts/keepkeys-portal.mjs" \
+  "keepkeys/scripts/keepkeys-store.mjs" \
   "keepkeys/scripts/keepkeys.linux.py" \
   "keepkeys/scripts/keepkeys.windows.ps1" \
   "keepkeys/scripts/check-for-update.mjs" \
