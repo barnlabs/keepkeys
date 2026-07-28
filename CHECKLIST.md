@@ -78,8 +78,13 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `fb74fb2a351a2d08284abcb8630283fa1db51e98`.
 - Promotion public CI:
   [30406522588](https://github.com/barnlabs/keepkeys/actions/runs/30406522588)
-  — all 11 jobs passed on the exact promotion commit. Evidence and exact-head
-  proof remain pending.
+  — all 11 jobs passed on the exact promotion commit.
+- Evidence commit (`E`):
+  `3a10a89e3de30e8e4f60900fd325d128ad9f3dc3`.
+- Evidence public CI:
+  [30406686042](https://github.com/barnlabs/keepkeys/actions/runs/30406686042)
+  — all 11 jobs passed on the exact evidence commit. Exact-head proof remains
+  pending.
 - Exact-head GitHub Codex review
   [4802351808](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4802351808)
   reopened the prior exact head for four final delivery repairs: clean up Serve
