@@ -69,16 +69,16 @@ ten-minute session. The session:
 2. binds an HTTP server to an ephemeral `127.0.0.1` port;
 3. runs Tailscale Serve in the foreground at an unguessable
    `/keepkeys/store/...` path;
-4. sends the tailnet HTTPS URL and expiry to its launcher, then keeps the
-   detached session coupled to that launcher until an explicit IPC
-   acknowledgment arrives;
+4. sends the tailnet HTTPS URL and expiry to its launcher, receives the
+   launcher's acknowledgment, rechecks Serve, and sends a child-side
+   confirmation before the launcher can return the URL;
 5. binds the first browser GET to one Tailscale identity and a Secure,
    HttpOnly, SameSite=Strict cookie that a second browser cannot reacquire;
 6. atomically claims the first authenticated same-origin POST of 8-2048 UTF-8
    bytes and makes that submission attempt terminal;
-7. holds the same per-name cross-process lock used by native paste-and-store,
-   then sends a capability frame and those bytes through redirected stdin to
-   the selected native helper;
+7. holds the same per-name cross-process lock used by native paste-and-store
+   and removal, then sends a capability frame and those bytes through
+   redirected stdin to the selected native helper;
 8. requires that helper to verify its direct parent is Node executing the exact
    bundled `keepkeys-portal.mjs`;
 9. after a successful native write, stops the owned Serve process and queries
@@ -95,12 +95,14 @@ network destinations. Its form starts disabled, and the password input has no
 HTML `name`, so missing or blocked JavaScript cannot serialize the key into a
 URL or form body. The nonce-authorized script enables the controls and sends
 only the explicit same-origin text POST. `scripts/keepkeys-store.mjs` routes
-native paste-and-store through the same per-name lock used by phone intake.
-The native helpers reject public store dispatch that bypasses that
-coordinator. The lock spans the replacement check and write, so desktop and
-phone stores cannot silently overwrite a name whose displayed replacement
-state has changed. The session never runs Tailscale Funnel and never changes
-unrelated Serve configuration. After Serve reports readiness, KeepKeys drains
+native paste-and-store and removal through the same per-name lock used by
+phone intake. The native helpers reject public store or removal dispatch that
+bypasses that coordinator. The lock spans replacement checks, destructive
+confirmation, and the selected write or deletion, so removal cannot interleave
+with a store and desktop and phone stores cannot silently overwrite a name
+whose displayed replacement state has changed. The session never runs
+Tailscale Funnel and never changes unrelated Serve configuration. After Serve
+reports readiness, KeepKeys drains
 but no longer retains its later process output. If the key is stored but Serve
 cleanup fails, the response distinguishes that state from a failed vault write
 and the portal exits with a cleanup failure. If closing or removing the
@@ -114,11 +116,12 @@ retrying. Windows uses the same structured uncertainty when paired-record
 rollback fails. If commit-lock cleanup fails at the same time, the portal
 retains the uncertain vault state and reports both cleanup problems. An
 unconfirmed native-helper termination remains attached to teardown even after
-the commit promise settles. A helper exit, malformed JSON, or inconsistent
-success response without a valid commit receipt is also uncertain; the phone
-never reports that value as discarded. Metadata and Tailscale startup helpers
-run in their own process groups so cancellation can terminate their
-descendants before startup settles.
+the commit promise settles. A helper exit, malformed JSON, or incomplete or
+inconsistent error or success receipt is also uncertain; the phone never
+reports that value as discarded. Metadata and Tailscale startup helpers run in
+their own process groups. Cancellation verifies the group is gone even if its
+leader exited first; Windows process-tree cleanup must succeed or startup
+reports a cleanup failure.
 
 ## Platform records
 

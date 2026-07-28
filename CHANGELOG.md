@@ -16,20 +16,24 @@
 - Bound the first page open to its original browser cookie, claimed the first
   authenticated POST before reading its body, and made malformed authenticated
   submissions terminal.
-- Serialized same-name desktop and phone stores through one per-name
-  coordinator, preventing a concurrent native store from bypassing the
-  replacement state shown on the phone.
-- Reject native desktop store dispatch that bypasses that coordinator, and
-  abort the in-flight native helper when the session expires or terminates.
+- Serialized same-name desktop Store, phone Store, and Remove through one
+  per-name coordinator. Removal cannot interleave with a write, and a
+  concurrent native store cannot bypass the replacement state shown on the
+  phone.
+- Reject native desktop store or removal dispatch that bypasses that
+  coordinator, and abort the in-flight native helper when the session expires
+  or terminates.
 - Scheduled teardown from the advertised expiry and require confirmed native
   helper and Tailscale Serve process exit plus exact owned-route absence before
   cleanup can report success.
 - Cancel and await both metadata and Tailscale startup operations after either
   fails, await Serve termination even when route verification fails, and stop
   retaining Serve output after its readiness message.
-- Keep the detached portal tied to its launcher until the launcher explicitly
-  accepts the ready link. A cancelled or terminated launcher aborts startup,
-  stops the owned Serve process, and verifies exact route removal.
+- Keep the detached portal tied to its launcher through a two-way handshake:
+  the launcher acknowledges the ready link, then waits for the portal to
+  process that acknowledgment and recheck Serve. A cancelled or terminated
+  launcher aborts startup, stops the owned Serve process, and verifies exact
+  route removal.
 - Continue watching the foreground Serve process after readiness. If it exits
   before link delivery, during launcher acknowledgment, or later in the
   session, KeepKeys closes the portal instead of advertising a dead route
@@ -59,11 +63,13 @@
 - Preserve native-vault uncertainty when rollback and commit-lock cleanup both
   fail, reporting both cleanup problems without claiming the value was stored
   or discarded.
-- Treat helper termination, malformed JSON, or an inconsistent response
-  without a valid native commit receipt as uncertain instead of claiming the
-  value was discarded.
+- Treat helper termination, malformed JSON, or an incomplete or inconsistent
+  error or success receipt as uncertain instead of claiming the value was
+  discarded.
 - Give concurrent startup helpers independent process groups so sibling
-  cancellation terminates and awaits their descendants.
+  cancellation terminates and awaits their descendants even if a group leader
+  has already exited. Windows cleanup must successfully stop the full process
+  tree or report a cleanup failure.
 - Enforce the 8-byte minimum with UTF-8 byte counting in JavaScript and on the
   server instead of an HTML character-count minimum.
 - Made the no-script form fail closed: controls remain disabled and the

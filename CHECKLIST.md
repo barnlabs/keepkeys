@@ -64,40 +64,20 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.5.0 release evidence
 
 - Functional source commit (`F`):
-  `7eba25e76778337cbcc3aff68dd9e3cbc843a31d`.
+  `9335564192b5d505d618a8413b84a9e2e6969b12`.
 - Catalog commit (`C`):
-  `c046ff9c04b28b57a5c3a6c206389b4fa467046e`.
-- Reviewed documentation candidate (`D`):
-  `d1fb0f5192bb7c6ea317b60410866e90c5827994`.
-- Candidate public CI:
-  [30406317033](https://github.com/barnlabs/keepkeys/actions/runs/30406317033)
-  — all 11 jobs passed on the exact documentation candidate, including native
-  vault tests on macOS, Windows, and Linux plus byte-for-byte reproducible
-  package proof.
-- Promotion commit (`P`):
-  `fb74fb2a351a2d08284abcb8630283fa1db51e98`.
-- Promotion public CI:
-  [30406522588](https://github.com/barnlabs/keepkeys/actions/runs/30406522588)
-  — all 11 jobs passed on the exact promotion commit.
-- Evidence commit (`E`):
-  `3a10a89e3de30e8e4f60900fd325d128ad9f3dc3`.
-- Evidence public CI:
-  [30406686042](https://github.com/barnlabs/keepkeys/actions/runs/30406686042)
-  — all 11 jobs passed on the exact evidence commit.
-- Proof closure commit:
-  `be6ebb8f63c6b1dcecc4a961c3ee0b6515dba828`.
-- Proof closure public CI:
-  [30406826613](https://github.com/barnlabs/keepkeys/actions/runs/30406826613)
-  — all 11 jobs passed on the exact proof closure commit. This ledger-only
-  record follows that proof; public CI and both read-only reviews must also
-  pass on this final ledger head before release closure.
+  `85c958738cef2f907b226622382cc2fe5276c4da`.
+- Reviewed documentation candidate, candidate public CI, promotion, evidence,
+  proof closure, and final ledger review remain pending for this repaired
+  chain.
 - Exact-head GitHub Codex review
-  [4802351808](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4802351808)
-  reopened the prior exact head for four final delivery repairs: clean up Serve
-  if it exits while launcher acknowledgment is pending, treat a missing native
-  commit receipt as uncertain, serialize desktop and phone stores by name, and
-  terminate startup-helper descendants on cancellation.
-- Dedicated local proof: `check`, 55 Node tests, eight Hermes tests, 18 Linux
+  [4802681598](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4802681598)
+  reopened the prior ledger head for four additional repairs: wait for the
+  portal's child-side confirmation before returning the ready link, treat an
+  incomplete error receipt as uncertain, terminate a startup process group
+  even after its leader exits, and serialize removal with every same-name
+  store path.
+- Dedicated local proof: `check`, 59 Node tests, eight Hermes tests, 19 Linux
   unit tests, macOS doctor, package and archive checks, and repeated
   `./scripts/tailnet-smoke` runs passed. Each live smoke crossed authenticated
   Tailscale Serve HTTPS, bound one browser, submitted a fresh generated UTF-8
@@ -106,13 +86,30 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   or test record. A separate live cancellation probe reached Serve readiness,
   withheld the launcher acknowledgment, disconnected the launcher, observed
   the detached portal fail, and verified exact route removal.
+- A generated absent-name removal passed through the shared coordinator and
+  native macOS helper without opening a destructive confirmation, proving the
+  no-op removal path holds and releases the same per-name mutation lock.
 - Browser proof at 375 by 812 and 1280 by 720 CSS pixels found no horizontal
   overflow or console warnings/errors. JavaScript enabled the initially
   disabled fieldset, the password input had no HTML `name`, focus landed on
   the key field, and a generated submission reached the stored state.
-- Independent read-only review returned `PASS` on the exact `F → C → D`
-  candidate after reopening the complete diff, all four findings from review
-  `4802351808`, package inventories, local proof, and candidate public CI.
+- Focused independent review and exact-candidate review remain pending for this
+  repaired chain.
+- Superseded serialized-store chain: functional
+  `7eba25e76778337cbcc3aff68dd9e3cbc843a31d`, catalog
+  `c046ff9c04b28b57a5c3a6c206389b4fa467046e`, documentation
+  `d1fb0f5192bb7c6ea317b60410866e90c5827994`, promotion
+  `fb74fb2a351a2d08284abcb8630283fa1db51e98`, evidence
+  `3a10a89e3de30e8e4f60900fd325d128ad9f3dc3`, proof closure
+  `be6ebb8f63c6b1dcecc4a961c3ee0b6515dba828`, and ledger closure
+  `a1bce44d388a449e010f9ac81cfdc7fdb9e31709`. Public runs
+  [30406317033](https://github.com/barnlabs/keepkeys/actions/runs/30406317033),
+  [30406522588](https://github.com/barnlabs/keepkeys/actions/runs/30406522588),
+  [30406686042](https://github.com/barnlabs/keepkeys/actions/runs/30406686042),
+  [30406826613](https://github.com/barnlabs/keepkeys/actions/runs/30406826613),
+  and [30407355247](https://github.com/barnlabs/keepkeys/actions/runs/30407355247)
+  passed all 11 jobs, but exact-head review `4802681598` found the four
+  delivery gaps above, so that chain is not a release candidate.
 - Superseded portal-delivery chain: functional
   `534ca9c82914cc0a2a8072f4de2c0674cffd544b`, catalog
   `c021deb6c0f2d649b899cc11914adbef43dc7432`, documentation
