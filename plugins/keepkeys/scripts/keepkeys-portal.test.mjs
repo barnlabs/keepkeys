@@ -507,21 +507,33 @@ test("closing a portal aborts its in-flight commit", async (context) => {
 test("aborting a helper process prevents a delayed write", async (context) => {
   const temporary = await mkdtemp(resolve(tmpdir(), "keepkeys-abort-test-"));
   context.after(() => rm(temporary, { recursive: true, force: true }));
+  const ready = resolve(temporary, "ready");
   const marker = resolve(temporary, "late-write");
   const controller = new AbortController();
   const child = runProcess(
     process.execPath,
     [
       "-e",
-      "const fs=require('node:fs');setTimeout(()=>fs.writeFileSync(process.argv[1],'wrong'),250);setInterval(()=>{},1000);",
+      "const fs=require('node:fs');fs.writeFileSync(process.argv[1],'ready');setTimeout(()=>fs.writeFileSync(process.argv[2],'wrong'),2000);setInterval(()=>{},1000);",
+      ready,
       marker,
     ],
     { signal: controller.signal },
   );
-  await delay(75);
+  let helperReady = false;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    try {
+      await access(ready);
+      helperReady = true;
+      break;
+    } catch {
+      await delay(50);
+    }
+  }
+  assert.equal(helperReady, true);
   controller.abort();
   await assert.rejects(child, { name: "AbortError" });
-  await delay(300);
+  await delay(2200);
   await assert.rejects(access(marker));
 });
 

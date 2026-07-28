@@ -585,10 +585,10 @@ export function runProcess(command, argumentsValue, options = {}) {
       callback(value);
     };
     const abort = () => {
-      terminateProcessTree(child);
       const error = new Error("The private KeepKeys portal was closed.");
       error.name = "AbortError";
       finish(rejectPromise, error);
+      terminateProcessTree(child);
     };
     child.stdout.on("data", (chunk) => {
       try {
