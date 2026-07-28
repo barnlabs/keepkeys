@@ -77,14 +77,18 @@ ten-minute session. The session:
    those bytes through redirected stdin to the selected native helper;
 9. requires that helper to verify its direct parent is Node executing the exact
    bundled `keepkeys-portal.mjs`;
-10. closes the server, aborts an in-flight helper, and removes the foreground
-    Tailscale route on submission, expiry, or termination.
+10. closes every localhost connection, aborts an in-flight helper, gracefully
+    signals the portal process group, waits for the owned Serve child, and
+    queries Tailscale until the exact route is absent.
 
 The browser page has no external scripts, styles, images, analytics, or
-network destinations. The per-name lock spans the native existence recheck and
-write, so concurrent sessions cannot both accept a stale replacement state.
-The session never runs Tailscale Funnel and never changes unrelated Serve
-configuration.
+network destinations. Its form starts disabled, and the password input has no
+HTML `name`, so missing or blocked JavaScript cannot serialize the key into a
+URL or form body. The nonce-authorized script enables the controls and sends
+only the explicit same-origin text POST. The per-name lock spans the native
+existence recheck and write, so concurrent sessions cannot both accept a stale
+replacement state. The session never runs Tailscale Funnel and never changes
+unrelated Serve configuration.
 
 ## Platform records
 

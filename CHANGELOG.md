@@ -19,7 +19,11 @@
 - Serialized same-name phone commits across portal processes and abort the
   in-flight native helper when the session expires or terminates.
 - Scheduled teardown from the advertised expiry and require confirmed native
-  helper and Tailscale Serve process exit before cleanup can report success.
+  helper and Tailscale Serve process exit plus exact owned-route absence before
+  cleanup can report success.
+- Made the no-script form fail closed: controls remain disabled and the
+  password field has no serializable HTML name until the safe JavaScript POST
+  path is active.
 - Sent the submitted value through redirected standard input to a private
   native helper action that requires a capability frame and the exact bundled
   portal parent, without placing the value in model context, tool payloads,

@@ -25,7 +25,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 
 ## Release candidate — 0.5.0
 
-- [x] **Private phone intake keeps plaintext outside the agent protocol.**
+- [ ] **Private phone intake keeps plaintext outside the agent protocol.**
   - Implementer context: `keepkeys_store_from_phone`, temporary localhost
     portal, Tailscale Serve route, and private native standard-input commit
     action on macOS, Windows, and Linux.
@@ -35,7 +35,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   - Acceptance: the model receives only metadata and the one-time URL; no
     plaintext reaches tool input/output, argv, files, logs, persistent
     environment, the public internet, or a BarnLabs service.
-- [x] **Phone setup and failure states are complete.**
+- [ ] **Phone setup and failure states are complete.**
   - Implementer context: ChatGPT Remote guidance, same-tailnet prerequisites,
     MagicDNS/HTTPS requirements, port conflict, unavailable Tailscale, and
     phone clipboard limitation.
@@ -44,7 +44,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     too-short/too-large value, expiry, interrupt, and native commit failure.
   - Acceptance: every failure closes the local listener and owned Serve route
     without changing unrelated Tailscale configuration.
-- [x] **The 0.5.0 package and public copy match the seven-tool contract.**
+- [ ] **The 0.5.0 package and public copy match the seven-tool contract.**
   - Implementer context: manifests, MCP, Hermes, Agent Skill, skills-only
     package, README, install guide, listing, release notes, and eight submission
     cases.
@@ -53,7 +53,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     three negative directory cases.
   - Acceptance: phone intake is described as a private route to the connected
     host, never as hosted storage, synchronization, or public mobile support.
-- [x] **Independent adversarial 0.5.0 review and public matrix passed.**
+- [ ] **Independent adversarial 0.5.0 review and public matrix passed.**
   - Implementer context: exact diff, generated archives, local proof, public CI,
     immutable `F → C → docs` chain, and rollback.
   - Required tests: dedicated read-only Codex review, complete local regression
@@ -64,54 +64,42 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.5.0 release evidence
 
 - Functional source commit (`F`):
-  `55b7095d99607267936ab64df8c65a1c13514ef8`.
+  `039f33d6da17173e7615f266c00b656367d64dba`.
 - Catalog commit (`C`):
-  `d4e383ce4a49f27de25e6fcdfa83db068bc3185b`.
-- Reviewed documentation candidate:
-  `b969df07aa84d50364ab8884c1345a829c17885c`.
-- Stable promotion commit:
-  `7dca2be1268ab0bdaebc60b19bb1038cb9349d19`.
-- Candidate public CI run:
-  [30385917861](https://github.com/barnlabs/keepkeys/actions/runs/30385917861)
-  passed all six Node jobs, all three capability-framed generated-value native
-  portal round trips, reproducible packages, and `Release gate` on the exact
-  `F → C → docs` candidate.
-- Stable-promotion public CI run:
-  [30386099382](https://github.com/barnlabs/keepkeys/actions/runs/30386099382)
-  passed the same 11 jobs on the exact promotion commit, including the
-  capability-framed Windows Credential Manager round trip and `Release gate`.
-- Superseded native-proof candidate: functional
-  `816a1b719c18453159152044b9b728ecd1f767de`, catalog
-  `e086b858651ad1a2a38e0b10c401c3d8e3791844`, and documentation
-  `e96e3a2c6d2b9e84c8544bf2cbd44cbb37d2519a`. Public CI
-  [30385488524](https://github.com/barnlabs/keepkeys/actions/runs/30385488524)
-  passed all six Node jobs, packages, and the macOS and Linux native portal
-  round trips. The new Windows portal test exposed incorrect use of
-  `Nullable[bool].HasValue` after PowerShell parameter binding; the release
-  gate failed and functional commit `55b7095d99607267936ab64df8c65a1c13514ef8`
-  repairs the replacement-state check.
+  `18698ac3374633cda82650115122e9179457ad40`.
+- Reviewed documentation candidate: pending this documentation commit and
+  exact-chain review.
+- Stable promotion commit and public candidate/promotion matrices: pending.
 - Exact-head GitHub Codex review
-  [4800221469](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4800221469)
-  reopened the release for four repairs: positive capability-framed native
-  portal tests on every platform, advertised-expiry scheduling, confirmed
-  process-tree termination, and generated-at-execution submission fixtures.
-- Superseded reviewed chain: functional
-  `90f2302d729bde03b23be667a63cb16ab5a13889`, catalog
-  `8909aadd41acfa77f1ecb6e19a69f42e01477469`, documentation
-  `4ca18084df6b4b6b9c5b9b9ed3017ff3778b31b4`, and promotion
-  `083ba093e4acc13c2d99bc028515c0cd03e0fed5`. Its final exact-head review
-  found the four gaps above, so it is not a release candidate.
-- Dedicated local proof: `check`, 32 Node tests, eight Hermes tests, 12 Linux
-  unit tests, macOS native self-test/status, a real capability-framed generated
-  UTF-8 portal-to-Keychain round trip, cleanup absence check, reproducible
-  submission/source packages, archive integrity, and a forged non-portal
-  Node-parent rejection passed. The cross-platform native round trip is wired
-  into all three native CI jobs and passed the public matrix.
-- Independent reviewer verdict: `PASS` on the rebuilt
-  `55b7095d99607267936ab64df8c65a1c13514ef8 →`
-  `d4e383ce4a49f27de25e6fcdfa83db068bc3185b →`
-  `b969df07aa84d50364ab8884c1345a829c17885c` chain after focused review of
-  the Windows PowerShell replacement-state repair and helper fingerprint.
+  [4800622135](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4800622135)
+  reopened the prior exact head for three P1 repairs: keep every startup child
+  in the portal process group, disable and unname the no-script secret field,
+  and add durable authenticated tailnet-to-vault proof.
+- Dedicated local proof: `check`, 39 Node tests, eight Hermes tests, 12 Linux
+  unit tests, macOS doctor, package and archive checks, and repeated
+  `./scripts/tailnet-smoke` runs passed. Each live smoke crossed authenticated
+  Tailscale Serve HTTPS, bound one browser, submitted a fresh generated UTF-8
+  value to macOS Keychain, verified the native round trip, and left
+  `tailscale serve status --json` equal to `{}` with no portal, Serve process,
+  or test record.
+- Browser proof at 375 by 812 and 1280 by 720 CSS pixels found no horizontal
+  overflow or console warnings/errors. JavaScript enabled the initially
+  disabled fieldset, the password input had no HTML `name`, focus landed on
+  the key field, and a generated submission reached the stored state.
+- Independent read-only reviewer returned `REWORK` until cleanup required both
+  exact route absence and confirmed Serve-process exit, then returned `PASS`
+  after the stubborn-child regression passed.
+- Superseded exact chain: functional
+  `55b7095d99607267936ab64df8c65a1c13514ef8`, catalog
+  `d4e383ce4a49f27de25e6fcdfa83db068bc3185b`, documentation
+  `b969df07aa84d50364ab8884c1345a829c17885c`, promotion
+  `7dca2be1268ab0bdaebc60b19bb1038cb9349d19`, and final proof
+  `c204e69a4396f46ef6f2961300ffdefeb894fa43`. Public runs
+  [30385917861](https://github.com/barnlabs/keepkeys/actions/runs/30385917861),
+  [30386099382](https://github.com/barnlabs/keepkeys/actions/runs/30386099382),
+  and [30386335343](https://github.com/barnlabs/keepkeys/actions/runs/30386335343)
+  passed all 11 jobs, but exact-head review `4800622135` found the three gaps
+  above, so that chain is not a release candidate.
 - Stable update candidate: `update.json` advertises 0.5.0 with the exact `F`
   and `C` commits above.
 - Rollback: reinstall the 0.4.2 functional commit

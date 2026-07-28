@@ -189,6 +189,9 @@ requests without that header. The first GET binds the session to one identity,
 sets a Secure, HttpOnly, SameSite=Strict cookie, and returns a page with no
 third-party resources. Later GETs require both that identity and cookie, so a
 second browser under the same identity cannot acquire another session cookie.
+The form is disabled until the nonce-authorized script runs, and its password
+input has no HTML `name`. If JavaScript is blocked or fails, the browser cannot
+serialize the value into a query string or form submission.
 POST requires the same identity, exact HTTPS origin, cookie, content type,
 path, and 8-2048-byte body. The first authenticated POST claims the session
 before its body is read; malformed bodies, native failure, and successful
@@ -229,12 +232,13 @@ and the user's identity provider can observe normal connection and identity
 metadata; the key stays inside the encrypted connection to the host.
 
 Submission, expiry, startup failure, or termination closes the listener, aborts
-and kills an in-flight native helper process group, and kills the foreground
-Serve process group. Cleanup waits for child closure and reports failure unless
-process exit is confirmed. Expiry teardown is scheduled from the timestamp
-advertised to the user, including time spent starting Serve. A pre-existing
-listener conflict fails closed rather than changing another Tailscale Serve
-configuration.
+and kills an in-flight native helper process group, gracefully signals the
+portal process group, waits for the owned Serve child, and queries Tailscale
+until the exact generated path is absent. Route absence without process exit,
+or process exit without route absence, is a cleanup failure. Expiry teardown is
+scheduled from the timestamp advertised to the user, including time spent
+starting Serve. A pre-existing listener conflict fails closed rather than
+changing another Tailscale Serve configuration.
 
 ### Approved target disclosure
 
