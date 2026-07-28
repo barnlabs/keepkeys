@@ -12,7 +12,7 @@ launcher_file="$script_dir/keepkeys"
 cache_dir="${KEEPKEYS_CACHE_DIR:-${HOME}/Library/Caches/net.barnlabs.keepkeys}"
 binary="$cache_dir/keepkeys-helper"
 hash_file="$cache_dir/build-inputs.sha256"
-expected_source_hash="dd54e6afdfa08373184a84ac6fc684254729ad20a7b2a245f884a597af374ccc"
+expected_source_hash="ee238ed832214ea14404c2b94ca110d844ebf399376444d90e87997f2a4bebfc"
 
 umask 077
 if [ -L "$cache_dir" ]; then
@@ -87,5 +87,6 @@ fi
 
 exec /usr/bin/env -i HOME="$HOME" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
   KEEPKEYS_ASSETS_DIR="$script_dir/../assets" \
-  KEEPKEYS_PORTAL_COMMIT="${KEEPKEYS_PORTAL_COMMIT:-}" \
+  KEEPKEYS_PORTAL_CAPABILITY_SHA256="${KEEPKEYS_PORTAL_CAPABILITY_SHA256:-}" \
+  KEEPKEYS_PORTAL_PARENT_PID="${KEEPKEYS_PORTAL_PARENT_PID:-}" \
   "$binary" "$@"

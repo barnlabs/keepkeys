@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -14,6 +15,7 @@ import {
 import {
   canonicalTextSha256,
   helperInvocation,
+  portalCommitInvocation,
 } from "../scripts/platform.mjs";
 
 test("tool schemas never accept a plaintext secret", () => {
@@ -309,6 +311,81 @@ test("native helper fingerprints are stable across LF and CRLF checkouts", () =>
     canonicalTextSha256("line one\nline two\n"),
     canonicalTextSha256("line one\r\nline two\r\n"),
   );
+});
+
+test("the native portal commit is unavailable through public dispatch", () => {
+  for (const action of ["portal-commit", "_portal-commit"]) {
+    assert.throws(
+      () => helperInvocation([action]),
+      /not a public KeepKeys action/u,
+    );
+  }
+  const capabilitySha256 = "a".repeat(64);
+  for (const platform of ["darwin", "win32", "linux"]) {
+    const environment =
+      platform === "win32"
+        ? { SystemRoot: "C:\\Windows", USERPROFILE: "C:\\Users\\example" }
+        : {};
+    const invocation = portalCommitInvocation(
+      ["_portal-commit", "--name", "demo"],
+      { capabilitySha256, parentPid: 1234 },
+      {
+        platform,
+        environment,
+        home: platform === "win32" ? "C:\\Users\\example" : "/home/example",
+      },
+    );
+    assert.equal(
+      invocation.env.KEEPKEYS_PORTAL_CAPABILITY_SHA256,
+      capabilitySha256,
+    );
+    assert.equal(invocation.env.KEEPKEYS_PORTAL_PARENT_PID, "1234");
+    assert.equal(invocation.args.at(-2), "--name");
+    assert.equal(invocation.args.at(-1), "demo");
+  }
+});
+
+test("a non-portal Node parent cannot forge the native commit channel", () => {
+  const capability = randomBytes(32);
+  const capabilitySha256 = createHash("sha256")
+    .update(capability)
+    .digest("hex");
+  const secret = randomBytes(24).toString("base64url");
+  const input = Buffer.concat([capability, Buffer.from(secret, "utf8")]);
+  capability.fill(0);
+  try {
+    const invocation = portalCommitInvocation(
+      [
+        "_portal-commit",
+        "--name",
+        `forged-parent-${process.pid}-${Date.now()}`,
+        "--variable",
+        "FORGED_PARENT_TOKEN",
+        "--description",
+        "Generated negative portal-channel test",
+        "--provider",
+        "KeepKeys test",
+        "--documentation-url",
+        "https://github.com/barnlabs/keepkeys",
+        "--expect-existing",
+        "yes",
+      ],
+      { capabilitySha256, parentPid: process.pid },
+    );
+    const result = spawnSync(invocation.command, invocation.args, {
+      cwd: invocation.env.KEEPKEYS_PLUGIN_ROOT,
+      env: invocation.env,
+      input,
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+    assert.notEqual(result.status, 0);
+    const response = JSON.parse(result.stdout.trim());
+    assert.equal(response.status, "error");
+    assert.match(response.message, /live KeepKeys portal channel/u);
+  } finally {
+    input.fill(0);
+  }
 });
 
 function expectWindowsScript(value) {

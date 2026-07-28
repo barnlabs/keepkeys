@@ -1,14 +1,19 @@
 #!/usr/bin/env node
 
 import { fork, spawn } from "node:child_process";
-import { randomBytes, timingSafeEqual } from "node:crypto";
-import { existsSync, realpathSync, statSync } from "node:fs";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { chmodSync, existsSync, lstatSync, realpathSync, statSync } from "node:fs";
+import { mkdir, open, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { helperInvocation, terminateProcessTree } from "./platform.mjs";
+import {
+  helperInvocation,
+  portalCommitInvocation,
+  terminateProcessTree,
+} from "./platform.mjs";
 
 const MAX_SECRET_BYTES = 2048;
 const MAX_PROCESS_OUTPUT = 1024 * 1024;
@@ -16,7 +21,8 @@ const SESSION_TTL_MS = 10 * 60 * 1000;
 const STARTUP_TIMEOUT_MS = 20 * 1000;
 const PORTAL_PREFIX = "/keepkeys/store";
 const PORTAL_CHILD_FLAG = "KEEPKEYS_PORTAL_SESSION_CHILD";
-const PORTAL_COMMIT_FLAG = "KEEPKEYS_PORTAL_COMMIT";
+const PORTAL_CAPABILITY_BYTES = 32;
+const PORTAL_LOCK_TIMEOUT_MS = 30 * 1000;
 const RESERVED_VARIABLES = new Set([
   "BASH_ENV",
   "CDPATH",
@@ -311,6 +317,28 @@ function sendJson(response, statusCode, payload, nonce) {
   response.end(body);
 }
 
+function suppliedSessionCookie(request) {
+  const cookie = request.headers.cookie ?? "";
+  return cookie
+    .split(";")
+    .map((value) => value.trim())
+    .find((value) => value.startsWith("keepkeys_session="))
+    ?.slice("keepkeys_session=".length);
+}
+
+function validSessionCookie(request, cookieToken) {
+  const suppliedCookie = suppliedSessionCookie(request);
+  return (
+    typeof suppliedCookie === "string" &&
+    constantTimeEqual(suppliedCookie, cookieToken)
+  );
+}
+
+function safeSendJson(response, statusCode, payload, nonce) {
+  if (response.destroyed || response.headersSent) return;
+  sendJson(response, statusCode, payload, nonce);
+}
+
 export function createPortalServer({
   metadata,
   replacing,
@@ -319,12 +347,21 @@ export function createPortalServer({
   expectedOrigin,
   expiresAt,
   commitSecret,
+  abortSignal,
   onTerminal = () => {},
 }) {
   const nonce = randomBytes(18).toString("base64url");
   let boundIdentity;
   let committing = false;
   let completed = false;
+  let terminalNotified = false;
+  const finishTerminal = () => {
+    completed = true;
+    committing = false;
+    if (terminalNotified) return;
+    terminalNotified = true;
+    setImmediate(onTerminal);
+  };
   const server = createServer((request, response) => {
     const identity = request.headers["tailscale-user-login"];
     if (typeof identity !== "string" || !identity) {
@@ -371,17 +408,26 @@ export function createPortalServer({
         sendJson(response, 403, { status: "error", message: "This KeepKeys link is already open on another Tailscale identity." }, nonce);
         return;
       }
-      boundIdentity = identity;
+      if (boundIdentity && !validSessionCookie(request, cookieToken)) {
+        sendJson(response, 403, { status: "error", message: "This KeepKeys link is already open in another browser." }, nonce);
+        return;
+      }
+      const firstOpen = !boundIdentity;
+      boundIdentity ??= identity;
       const body = Buffer.from(
         renderPortalHtml({ metadata, replacing, nonce, expiresAt }),
         "utf8",
       );
-      response.writeHead(200, {
+      const headers = {
         ...securityHeaders(nonce),
         "Content-Type": "text/html; charset=utf-8",
         "Content-Length": body.length,
-        "Set-Cookie": `keepkeys_session=${cookieToken}; Secure; HttpOnly; SameSite=Strict; Path=${path}`,
-      });
+      };
+      if (firstOpen) {
+        headers["Set-Cookie"] =
+          `keepkeys_session=${cookieToken}; Secure; HttpOnly; SameSite=Strict; Path=${path}`;
+      }
+      response.writeHead(200, headers);
       response.end(body);
       return;
     }
@@ -407,16 +453,9 @@ export function createPortalServer({
       return;
     }
     const origin = request.headers.origin;
-    const cookie = request.headers.cookie ?? "";
-    const suppliedCookie = cookie
-      .split(";")
-      .map((value) => value.trim())
-      .find((value) => value.startsWith("keepkeys_session="))
-      ?.slice("keepkeys_session=".length);
     if (
       origin !== expectedOrigin ||
-      typeof suppliedCookie !== "string" ||
-      !constantTimeEqual(suppliedCookie, cookieToken) ||
+      !validSessionCookie(request, cookieToken) ||
       !/^text\/plain(?:\s*;\s*charset=utf-8)?$/iu.test(
         String(request.headers["content-type"] ?? ""),
       )
@@ -425,10 +464,12 @@ export function createPortalServer({
       request.resume();
       return;
     }
+    committing = true;
     const declaredLength = Number.parseInt(String(request.headers["content-length"] ?? ""), 10);
     if (!Number.isInteger(declaredLength) || declaredLength < 8 || declaredLength > MAX_SECRET_BYTES) {
       sendJson(response, 400, { status: "error", message: "Keys must contain 8-2048 UTF-8 bytes." }, nonce);
       request.resume();
+      finishTerminal();
       return;
     }
     const chunks = [];
@@ -446,21 +487,38 @@ export function createPortalServer({
     });
     request.on("aborted", () => {
       for (const value of chunks) value.fill(0);
+      chunks.length = 0;
+      finishTerminal();
+    });
+    request.on("error", () => {
+      for (const value of chunks) value.fill(0);
+      chunks.length = 0;
+      finishTerminal();
     });
     request.on("end", async () => {
+      if (completed) {
+        for (const value of chunks) value.fill(0);
+        chunks.length = 0;
+        return;
+      }
       if (rejected || byteCount !== declaredLength || byteCount < 8) {
         for (const value of chunks) value.fill(0);
-        if (!response.headersSent) {
-          sendJson(response, 400, { status: "error", message: "Keys must contain 8-2048 UTF-8 bytes." }, nonce);
-        }
+        chunks.length = 0;
+        safeSendJson(
+          response,
+          400,
+          { status: "error", message: "Keys must contain 8-2048 UTF-8 bytes." },
+          nonce,
+        );
+        finishTerminal();
         return;
       }
       const secret = Buffer.concat(chunks, byteCount);
       for (const value of chunks) value.fill(0);
-      committing = true;
+      chunks.length = 0;
       try {
-        const result = await commitSecret(secret);
-        sendJson(
+        const result = await commitSecret(secret, abortSignal);
+        safeSendJson(
           response,
           200,
           {
@@ -473,7 +531,7 @@ export function createPortalServer({
           nonce,
         );
       } catch {
-        sendJson(
+        safeSendJson(
           response,
           500,
           {
@@ -484,10 +542,8 @@ export function createPortalServer({
           nonce,
         );
       } finally {
-        completed = true;
         secret.fill(0);
-        committing = false;
-        setImmediate(onTerminal);
+        finishTerminal();
       }
     });
   });
@@ -505,23 +561,41 @@ function appendBounded(current, chunk) {
   return next;
 }
 
-function runProcess(command, argumentsValue, options = {}) {
+export function runProcess(command, argumentsValue, options = {}) {
   return new Promise((resolvePromise, rejectPromise) => {
     const child = spawn(command, argumentsValue, {
       cwd: options.cwd,
       env: options.env,
-      stdio: [options.input ? "pipe" : "ignore", "pipe", "pipe"],
+      stdio: [
+        options.input === undefined ? "ignore" : "pipe",
+        "pipe",
+        "pipe",
+      ],
       shell: false,
+      detached: process.platform !== "win32",
       windowsHide: true,
     });
     let stdout = Buffer.alloc(0);
     let stderr = Buffer.alloc(0);
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      options.signal?.removeEventListener("abort", abort);
+      callback(value);
+    };
+    const abort = () => {
+      terminateProcessTree(child);
+      const error = new Error("The private KeepKeys portal was closed.");
+      error.name = "AbortError";
+      finish(rejectPromise, error);
+    };
     child.stdout.on("data", (chunk) => {
       try {
         stdout = appendBounded(stdout, chunk);
       } catch (error) {
         terminateProcessTree(child);
-        rejectPromise(error);
+        finish(rejectPromise, error);
       }
     });
     child.stderr.on("data", (chunk) => {
@@ -529,14 +603,19 @@ function runProcess(command, argumentsValue, options = {}) {
         stderr = appendBounded(stderr, chunk);
       } catch (error) {
         terminateProcessTree(child);
-        rejectPromise(error);
+        finish(rejectPromise, error);
       }
     });
-    child.on("error", rejectPromise);
+    child.on("error", (error) => finish(rejectPromise, error));
     child.on("close", (code) => {
-      resolvePromise({ code, stdout, stderr });
+      finish(resolvePromise, { code, stdout, stderr });
     });
-    if (options.input) {
+    if (options.signal?.aborted) {
+      abort();
+      return;
+    }
+    options.signal?.addEventListener("abort", abort, { once: true });
+    if (options.input !== undefined) {
       child.stdin.on("error", () => {});
       child.stdin.end(options.input);
     }
@@ -633,29 +712,150 @@ async function readExisting(metadata) {
   return parsed.entries.some((entry) => entry?.name === metadata.name);
 }
 
-async function commitToNativeVault(metadata, replacing, secret) {
-  const invocation = helperInvocation([
-    "portal-commit",
-    ...metadataArguments(metadata),
-    "--expect-existing",
-    replacing ? "yes" : "no",
-  ]);
-  invocation.env[PORTAL_COMMIT_FLAG] = "1";
-  const result = await runProcess(invocation.command, invocation.args, {
-    cwd: invocation.env.KEEPKEYS_PLUGIN_ROOT,
-    env: invocation.env,
-    input: secret,
+function defaultPortalLockRoot() {
+  if (process.platform === "darwin") {
+    return resolve(
+      homedir(),
+      "Library",
+      "Caches",
+      "net.barnlabs.keepkeys",
+      "portal-locks",
+    );
+  }
+  if (process.platform === "win32") {
+    return resolve(
+      process.env.LOCALAPPDATA ?? resolve(homedir(), "AppData", "Local"),
+      "BarnLabs",
+      "KeepKeys",
+      "portal-locks",
+    );
+  }
+  return resolve(
+    process.env.XDG_RUNTIME_DIR ?? resolve(homedir(), ".cache"),
+    "keepkeys",
+    "portal-locks",
+  );
+}
+
+function abortError() {
+  const error = new Error("The private KeepKeys portal was closed.");
+  error.name = "AbortError";
+  return error;
+}
+
+async function waitForLockRetry(milliseconds, signal) {
+  if (signal?.aborted) throw abortError();
+  await new Promise((resolvePromise, rejectPromise) => {
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      callback(value);
+    };
+    const abort = () => {
+      finish(rejectPromise, abortError());
+    };
+    const timer = setTimeout(() => finish(resolvePromise), milliseconds);
+    signal?.addEventListener("abort", abort, { once: true });
   });
-  let parsed;
+}
+
+export async function withPortalCommitLock(
+  name,
+  operation,
+  {
+    signal,
+    lockRoot = defaultPortalLockRoot(),
+    timeoutMs = PORTAL_LOCK_TIMEOUT_MS,
+    retryMs = 50,
+  } = {},
+) {
+  await mkdir(lockRoot, { recursive: true, mode: 0o700 });
+  const rootInfo = lstatSync(lockRoot);
+  if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory()) {
+    throw new Error("KeepKeys portal lock storage is not a private directory.");
+  }
+  if (
+    process.platform !== "win32" &&
+    typeof process.getuid === "function" &&
+    rootInfo.uid !== process.getuid()
+  ) {
+    throw new Error("KeepKeys portal lock storage is not owned by this user.");
+  }
+  if (process.platform !== "win32") chmodSync(lockRoot, 0o700);
+  const lockName = createHash("sha256").update(name, "utf8").digest("hex");
+  const lockPath = resolve(lockRoot, `${lockName}.lock`);
+  const deadline = Date.now() + timeoutMs;
+  let lockHandle;
+  while (!lockHandle) {
+    if (signal?.aborted) throw abortError();
+    try {
+      lockHandle = await open(lockPath, "wx", 0o600);
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+      if (Date.now() >= deadline) {
+        throw new Error(
+          "Another KeepKeys phone intake is still storing this name.",
+        );
+      }
+      await waitForLockRetry(retryMs, signal);
+    }
+  }
   try {
-    parsed = JSON.parse(result.stdout.toString("utf8").trim());
-  } catch {
-    throw new Error("KeepKeys received an invalid native-vault response.");
+    await lockHandle.writeFile(`${process.pid}\n`, { encoding: "utf8" });
+    return await operation();
+  } finally {
+    await lockHandle.close();
+    await rm(lockPath, { force: true });
   }
-  if (result.code !== 0 || parsed?.status !== "ok") {
-    throw new Error("KeepKeys could not store the submitted key.");
-  }
-  return parsed;
+}
+
+async function commitToNativeVault(metadata, replacing, secret, signal) {
+  return withPortalCommitLock(
+    metadata.name,
+    async () => {
+      const capability = randomBytes(PORTAL_CAPABILITY_BYTES);
+      const capabilitySha256 = createHash("sha256")
+        .update(capability)
+        .digest("hex");
+      const input = Buffer.allocUnsafe(capability.length + secret.length);
+      capability.copy(input, 0);
+      secret.copy(input, capability.length);
+      capability.fill(0);
+      try {
+        const invocation = portalCommitInvocation(
+          [
+            "_portal-commit",
+            ...metadataArguments(metadata),
+            "--expect-existing",
+            replacing ? "yes" : "no",
+          ],
+          { capabilitySha256, parentPid: process.pid },
+        );
+        const result = await runProcess(invocation.command, invocation.args, {
+          cwd: invocation.env.KEEPKEYS_PLUGIN_ROOT,
+          env: invocation.env,
+          input,
+          signal,
+        });
+        let parsed;
+        try {
+          parsed = JSON.parse(result.stdout.toString("utf8").trim());
+        } catch {
+          throw new Error("KeepKeys received an invalid native-vault response.");
+        }
+        if (result.code !== 0 || parsed?.status !== "ok") {
+          throw new Error("KeepKeys could not store the submitted key.");
+        }
+        return parsed;
+      } finally {
+        input.fill(0);
+      }
+    },
+    { signal },
+  );
 }
 
 async function waitForServeReady(child) {
@@ -716,6 +916,16 @@ async function startPortalSession(argumentsValue) {
   const expectedOrigin = `https://${dnsName}`;
   let serveProcess;
   let expiryTimer;
+  let cleaned = false;
+  const commitController = new AbortController();
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    commitController.abort();
+    if (expiryTimer) clearTimeout(expiryTimer);
+    server.close();
+    if (serveProcess) terminateProcessTree(serveProcess);
+  };
   const server = createPortalServer({
     metadata,
     replacing,
@@ -723,16 +933,13 @@ async function startPortalSession(argumentsValue) {
     cookieToken,
     expectedOrigin,
     expiresAt,
-    commitSecret: (secret) => commitToNativeVault(metadata, replacing, secret),
+    abortSignal: commitController.signal,
+    commitSecret: (secret, signal) =>
+      commitToNativeVault(metadata, replacing, secret, signal),
     onTerminal: () => {
       setTimeout(cleanup, 500);
     },
   });
-  const cleanup = () => {
-    if (expiryTimer) clearTimeout(expiryTimer);
-    server.close();
-    if (serveProcess) terminateProcessTree(serveProcess);
-  };
   process.once("SIGINT", () => {
     cleanup();
     process.exit(130);

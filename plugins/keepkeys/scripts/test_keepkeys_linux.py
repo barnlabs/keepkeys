@@ -130,28 +130,9 @@ class LinuxBackendTests(unittest.TestCase):
                 )
             )
 
-    def test_phone_portal_commit_requires_private_redirected_input(self) -> None:
-        arguments = [
-            "--name",
-            "demo",
-            "--variable",
-            "DEMO_TOKEN",
-            "--description",
-            "Synthetic test credential",
-            "--provider",
-            "Example",
-            "--documentation-url",
-            "https://docs.example.com/api",
-            "--expect-existing",
-            "no",
-        ]
-        with self.assertRaisesRegex(
-            keepkeys_linux.KeepKeysError,
-            "only to a live KeepKeys portal",
-        ):
-            keepkeys_linux.action_portal_commit(arguments)
-
-    def test_phone_portal_commit_stores_redirected_bytes_without_tool_value(self) -> None:
+    def test_phone_portal_commit_rejects_the_old_forgeable_environment_flag(
+        self,
+    ) -> None:
         class RedirectedInput:
             buffer = BytesIO(b"synthetic_secret")
 
@@ -177,6 +158,54 @@ class LinuxBackendTests(unittest.TestCase):
             patch.dict(
                 keepkeys_linux.os.environ,
                 {"KEEPKEYS_PORTAL_COMMIT": "1"},
+            ),
+            patch.object(keepkeys_linux.sys, "stdin", RedirectedInput()),
+            self.assertRaisesRegex(
+                keepkeys_linux.KeepKeysError,
+                "live KeepKeys portal channel",
+            ),
+        ):
+            keepkeys_linux.action_portal_commit(arguments)
+
+    def test_phone_portal_commit_stores_redirected_bytes_without_tool_value(self) -> None:
+        capability = b"c" * keepkeys_linux.PORTAL_CAPABILITY_BYTES
+
+        class RedirectedInput:
+            buffer = BytesIO(capability + b"synthetic_secret")
+
+            @staticmethod
+            def isatty() -> bool:
+                return False
+
+        arguments = [
+            "--name",
+            "demo",
+            "--variable",
+            "DEMO_TOKEN",
+            "--description",
+            "Synthetic test credential",
+            "--provider",
+            "Example",
+            "--documentation-url",
+            "https://docs.example.com/api",
+            "--expect-existing",
+            "no",
+        ]
+        with (
+            patch.dict(
+                keepkeys_linux.os.environ,
+                {
+                    "KEEPKEYS_PORTAL_CAPABILITY_SHA256": (
+                        keepkeys_linux.hashlib.sha256(capability).hexdigest()
+                    ),
+                    "KEEPKEYS_PORTAL_PARENT_PID": "1234",
+                },
+            ),
+            patch.object(keepkeys_linux.os, "getppid", return_value=1234),
+            patch.object(
+                keepkeys_linux,
+                "portal_parent_is_bundled_portal",
+                return_value=True,
             ),
             patch.object(keepkeys_linux.sys, "stdin", RedirectedInput()),
             patch.object(

@@ -35,6 +35,112 @@ using System.Threading.Tasks;
 
 namespace BarnLabs.KeepKeys
 {
+    public static class ProcessIdentity
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        private struct PROCESS_BASIC_INFORMATION
+        {
+            public IntPtr Reserved1;
+            public IntPtr PebBaseAddress;
+            public IntPtr Reserved2_0;
+            public IntPtr Reserved2_1;
+            public IntPtr UniqueProcessId;
+            public IntPtr InheritedFromUniqueProcessId;
+        }
+
+        [DllImport("ntdll.dll")]
+        private static extern int NtQueryInformationProcess(
+            IntPtr processHandle,
+            int processInformationClass,
+            ref PROCESS_BASIC_INFORMATION processInformation,
+            int processInformationLength,
+            out int returnLength
+        );
+
+        public static int ParentProcessId()
+        {
+            PROCESS_BASIC_INFORMATION information =
+                new PROCESS_BASIC_INFORMATION();
+            int returnLength;
+            int status = NtQueryInformationProcess(
+                Process.GetCurrentProcess().Handle,
+                0,
+                ref information,
+                Marshal.SizeOf(information),
+                out returnLength
+            );
+            if (status != 0)
+            {
+                throw new InvalidOperationException(
+                    "KeepKeys could not verify its private portal parent."
+                );
+            }
+            return information.InheritedFromUniqueProcessId.ToInt32();
+        }
+
+        public static bool IsNodeProcess(int processId)
+        {
+            using (Process process = Process.GetProcessById(processId))
+            {
+                return
+                    string.Equals(
+                        process.ProcessName,
+                        "node",
+                        StringComparison.OrdinalIgnoreCase
+                    ) ||
+                    string.Equals(
+                        process.ProcessName,
+                        "nodejs",
+                        StringComparison.OrdinalIgnoreCase
+                    );
+            }
+        }
+    }
+
+    public static class CommandLine
+    {
+        [DllImport("shell32.dll", SetLastError = true)]
+        private static extern IntPtr CommandLineToArgvW(
+            [MarshalAs(UnmanagedType.LPWStr)] string commandLine,
+            out int argumentCount
+        );
+
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr LocalFree(IntPtr memory);
+
+        public static string[] Parse(string commandLine)
+        {
+            int argumentCount;
+            IntPtr arguments = CommandLineToArgvW(
+                commandLine,
+                out argumentCount
+            );
+            if (arguments == IntPtr.Zero)
+            {
+                throw new InvalidOperationException(
+                    "KeepKeys could not parse its private portal parent."
+                );
+            }
+            try
+            {
+                string[] result = new string[argumentCount];
+                for (int index = 0; index < argumentCount; index++)
+                {
+                    IntPtr value = Marshal.ReadIntPtr(
+                        arguments,
+                        index * IntPtr.Size
+                    );
+                    result[index] = Marshal.PtrToStringUni(value);
+                }
+                return result;
+            }
+            finally
+            {
+                LocalFree(arguments);
+            }
+        }
+    }
+
     public sealed class CredentialItem
     {
         public string TargetName;
@@ -1165,15 +1271,109 @@ function Save-KeepKeysRecord {
     }
 }
 
+function Test-KeepKeysPortalParent {
+    param([int]$ParentProcessId)
+    try {
+        if (-not [BarnLabs.KeepKeys.ProcessIdentity]::IsNodeProcess(
+            $ParentProcessId
+        )) {
+            return $false
+        }
+        $process = Get-CimInstance -ClassName Win32_Process -Filter (
+            "ProcessId = $ParentProcessId"
+        )
+        if ($null -eq $process -or
+            [String]::IsNullOrWhiteSpace($process.CommandLine)) {
+            return $false
+        }
+        $arguments = [BarnLabs.KeepKeys.CommandLine]::Parse(
+            $process.CommandLine
+        )
+        if ($arguments.Length -lt 2) {
+            return $false
+        }
+        $expectedPortal = [IO.Path]::GetFullPath(
+            (Join-Path $PSScriptRoot "keepkeys-portal.mjs")
+        )
+        $parentScript = [IO.Path]::GetFullPath($arguments[1])
+        return [String]::Equals(
+            $parentScript,
+            $expectedPortal,
+            [StringComparison]::OrdinalIgnoreCase
+        )
+    } catch {
+        return $false
+    }
+}
+
 function Read-KeepKeysPortalSecret {
-    if ($env:KEEPKEYS_PORTAL_COMMIT -cne "1" -or
-        -not [Console]::IsInputRedirected) {
+    $expectedDigest = [string]$env:KEEPKEYS_PORTAL_CAPABILITY_SHA256
+    $expectedParent = [string]$env:KEEPKEYS_PORTAL_PARENT_PID
+    $env:KEEPKEYS_PORTAL_CAPABILITY_SHA256 = $null
+    $env:KEEPKEYS_PORTAL_PARENT_PID = $null
+    $parentPid = 0
+    if (-not [Console]::IsInputRedirected -or
+        $expectedDigest -cnotmatch "^[a-f0-9]{64}$" -or
+        -not [int]::TryParse($expectedParent, [ref]$parentPid) -or
+        $parentPid -le 0 -or
+        $parentPid -ne [BarnLabs.KeepKeys.ProcessIdentity]::ParentProcessId() -or
+        -not (Test-KeepKeysPortalParent $parentPid)) {
         throw (
-            "The private phone-intake commit is available only to a live " +
-            "KeepKeys portal."
+            "The private phone-intake commit requires the live KeepKeys " +
+            "portal channel."
         )
     }
     $stream = [Console]::OpenStandardInput()
+    $capability = [byte[]]::new(32)
+    $capabilityCount = 0
+    while ($capabilityCount -lt $capability.Length) {
+        $read = $stream.Read(
+            $capability,
+            $capabilityCount,
+            $capability.Length - $capabilityCount
+        )
+        if ($read -eq 0) { break }
+        $capabilityCount += $read
+    }
+    if ($capabilityCount -ne $capability.Length) {
+        [Array]::Clear($capability, 0, $capability.Length)
+        throw (
+            "The private phone-intake channel ended before authorization."
+        )
+    }
+    $expectedBytes = [byte[]]::new(32)
+    $actualBytes = $null
+    try {
+        for ($index = 0; $index -lt $expectedBytes.Length; $index += 1) {
+            $expectedBytes[$index] = [Convert]::ToByte(
+                $expectedDigest.Substring($index * 2, 2),
+                16
+            )
+        }
+        $sha256 = [Security.Cryptography.SHA256]::Create()
+        try {
+            $actualBytes = $sha256.ComputeHash($capability)
+        } finally {
+            $sha256.Dispose()
+        }
+        $difference = 0
+        for ($index = 0; $index -lt $actualBytes.Length; $index += 1) {
+            $difference = $difference -bor (
+                $actualBytes[$index] -bxor $expectedBytes[$index]
+            )
+        }
+        if ($difference -ne 0) {
+            throw (
+                "The private phone-intake channel was not authorized."
+            )
+        }
+    } finally {
+        [Array]::Clear($capability, 0, $capability.Length)
+        [Array]::Clear($expectedBytes, 0, $expectedBytes.Length)
+        if ($null -ne $actualBytes) {
+            [Array]::Clear($actualBytes, 0, $actualBytes.Length)
+        }
+    }
     $buffer = [byte[]]::new($Script:MaximumSecretBytes + 1)
     $count = 0
     while ($count -lt $buffer.Length) {
@@ -1581,7 +1781,7 @@ try {
                 $entered.Secret = ""
             }
         }
-        "portal-commit" {
+        "_portal-commit" {
             $name = Get-KeepKeysOption $rest "--name" -Required
             $variable = (Get-KeepKeysOption $rest "--variable" -Required).ToUpperInvariant()
             $description = Get-KeepKeysOption $rest "--description" -Required

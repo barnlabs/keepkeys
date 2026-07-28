@@ -8,6 +8,7 @@ private let keepKeysVersion = "0.5.0"
 private let keychainService = "net.barnlabs.keepkeys"
 private let maximumSecretBytes = 2_048
 private let maximumCapturedBytes = 1_048_576
+private let portalCapabilityBytes = 32
 
 private struct KeepKeysFailure: LocalizedError {
     let message: String
@@ -701,14 +702,156 @@ private func storeInteractively(
     }
 }
 
-private func storeFromPortal(arguments: [String]) throws -> [String: Any] {
-    guard ProcessInfo.processInfo.environment["KEEPKEYS_PORTAL_COMMIT"] == "1",
-          isatty(STDIN_FILENO) == 0
+private func constantTimeEqual(_ first: String, _ second: String) -> Bool {
+    let firstBytes = Array(first.utf8)
+    let secondBytes = Array(second.utf8)
+    guard firstBytes.count == secondBytes.count else {
+        return false
+    }
+    var difference: UInt8 = 0
+    for index in firstBytes.indices {
+        difference |= firstBytes[index] ^ secondBytes[index]
+    }
+    return difference == 0
+}
+
+private func processArguments(_ processID: Int32) -> [String]? {
+    var query: [Int32] = [CTL_KERN, KERN_PROCARGS2, processID]
+    var byteCount = 0
+    let sizeStatus = query.withUnsafeMutableBufferPointer {
+        sysctl($0.baseAddress, UInt32($0.count), nil, &byteCount, nil, 0)
+    }
+    guard sizeStatus == 0, byteCount > MemoryLayout<Int32>.size else {
+        return nil
+    }
+    var buffer = [UInt8](repeating: 0, count: byteCount)
+    let readStatus = query.withUnsafeMutableBufferPointer { queryPointer in
+        buffer.withUnsafeMutableBytes { bufferPointer in
+            sysctl(
+                queryPointer.baseAddress,
+                UInt32(queryPointer.count),
+                bufferPointer.baseAddress,
+                &byteCount,
+                nil,
+                0
+            )
+        }
+    }
+    guard readStatus == 0, byteCount > MemoryLayout<Int32>.size else {
+        return nil
+    }
+    var argumentCount: Int32 = 0
+    withUnsafeMutableBytes(of: &argumentCount) { destination in
+        buffer.withUnsafeBytes { source in
+            destination.copyBytes(
+                from: source.prefix(MemoryLayout<Int32>.size)
+            )
+        }
+    }
+    guard argumentCount > 0 else {
+        return nil
+    }
+    var cursor = MemoryLayout<Int32>.size
+    while cursor < byteCount, buffer[cursor] != 0 {
+        cursor += 1
+    }
+    while cursor < byteCount, buffer[cursor] == 0 {
+        cursor += 1
+    }
+    var arguments: [String] = []
+    while cursor < byteCount, arguments.count < Int(argumentCount) {
+        let start = cursor
+        while cursor < byteCount, buffer[cursor] != 0 {
+            cursor += 1
+        }
+        guard let argument = String(
+            bytes: buffer[start..<cursor],
+            encoding: .utf8
+        ) else {
+            return nil
+        }
+        arguments.append(argument)
+        while cursor < byteCount, buffer[cursor] == 0 {
+            cursor += 1
+        }
+    }
+    return arguments.count == Int(argumentCount) ? arguments : nil
+}
+
+private func portalParentIsBundledPortal(_ parentPID: Int32) -> Bool {
+    var path = [CChar](repeating: 0, count: 4_096)
+    let length = proc_pidpath(parentPID, &path, UInt32(path.count))
+    guard length > 0,
+          let arguments = processArguments(parentPID),
+          arguments.count > 1,
+          let assetsDirectory =
+              ProcessInfo.processInfo.environment["KEEPKEYS_ASSETS_DIR"]
+    else {
+        return false
+    }
+    let executableName = URL(fileURLWithPath: String(cString: path))
+        .lastPathComponent
+        .lowercased()
+    let expectedPortal = URL(fileURLWithPath: assetsDirectory)
+        .deletingLastPathComponent()
+        .appendingPathComponent("scripts", isDirectory: true)
+        .appendingPathComponent("keepkeys-portal.mjs")
+        .resolvingSymlinksInPath()
+        .standardizedFileURL
+    let parentScript = URL(fileURLWithPath: arguments[1])
+        .resolvingSymlinksInPath()
+        .standardizedFileURL
+    return (executableName == "node" || executableName == "nodejs") &&
+        parentScript == expectedPortal
+}
+
+private func authorizePortalChannel() throws {
+    let environment = ProcessInfo.processInfo.environment
+    let expectedDigest = environment["KEEPKEYS_PORTAL_CAPABILITY_SHA256"] ?? ""
+    let expectedParent = environment["KEEPKEYS_PORTAL_PARENT_PID"] ?? ""
+    unsetenv("KEEPKEYS_PORTAL_CAPABILITY_SHA256")
+    unsetenv("KEEPKEYS_PORTAL_PARENT_PID")
+    guard isatty(STDIN_FILENO) == 0,
+          expectedDigest.count == 64,
+          expectedDigest.allSatisfy({
+              ("0"..."9").contains($0) || ("a"..."f").contains($0)
+          }),
+          let parentPID = Int32(expectedParent),
+          parentPID > 0,
+          parentPID == getppid(),
+          portalParentIsBundledPortal(parentPID)
     else {
         throw KeepKeysFailure(
-            message: "The private phone-intake commit is available only to a live KeepKeys portal."
+            message: "The private phone-intake commit requires the live KeepKeys portal channel."
         )
     }
+    var capability = Data()
+    while capability.count < portalCapabilityBytes {
+        let remaining = portalCapabilityBytes - capability.count
+        guard let chunk = try FileHandle.standardInput.read(upToCount: remaining),
+              !chunk.isEmpty
+        else {
+            break
+        }
+        capability.append(chunk)
+    }
+    defer { capability.resetBytes(in: 0..<capability.count) }
+    guard capability.count == portalCapabilityBytes else {
+        throw KeepKeysFailure(
+            message: "The private phone-intake channel ended before authorization."
+        )
+    }
+    let actualDigest = SHA256.hash(data: capability)
+        .map { String(format: "%02x", $0) }
+        .joined()
+    guard constantTimeEqual(actualDigest, expectedDigest) else {
+        throw KeepKeysFailure(
+            message: "The private phone-intake channel was not authorized."
+        )
+    }
+}
+
+private func storeFromPortal(arguments: [String]) throws -> [String: Any] {
     guard let rawName = try parseOption(arguments, name: "--name"),
           let rawVariable = try parseOption(arguments, name: "--variable"),
           let rawDescription = try parseOption(arguments, name: "--description"),
@@ -737,6 +880,7 @@ private func storeFromPortal(arguments: [String]) throws -> [String: Any] {
     guard expectedValue == "yes" || expectedValue == "no" else {
         throw KeepKeysFailure(message: "The private phone-intake replacement state is invalid.")
     }
+    try authorizePortalChannel()
     let expectedExisting = expectedValue == "yes"
     let currentlyExists = try KeychainStore.exists(name: name)
     guard currentlyExists == expectedExisting else {
@@ -1382,7 +1526,7 @@ private func main() {
                 suggestedProvider: parseOption(rest, name: "--provider"),
                 suggestedDocumentationURLs: parseOptions(rest, name: "--documentation-url")
             )
-        case "portal-commit":
+        case "_portal-commit":
             result = try storeFromPortal(arguments: Array(args.dropFirst()))
         case "list":
             result = ["status": "ok", "entries": try KeychainStore.entries()]

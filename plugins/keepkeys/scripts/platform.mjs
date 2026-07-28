@@ -7,9 +7,9 @@ import { fileURLToPath } from "node:url";
 
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const WINDOWS_HELPER_SHA256 =
-  "f7b4306e8b5d29f6d8b444727d5465da08aef86ac5dfd1396b89c6ee2eef459c";
+  "a5aae17ddb5abd105add5808406a6f69c859ec3e46a92b1f762f8bdedf8fad6a";
 const LINUX_HELPER_SHA256 =
-  "38e36d7e753bf17d8381664691b51a728eb841e4f561d8155a027901590cfab4";
+  "0c0d04d22600e3bfbcf8308f7bd8dc1f839836ef3eddb60e7a1d593d39fa70d6";
 
 function copyPresent(target, source, names) {
   for (const name of names) {
@@ -50,13 +50,14 @@ function routedInvocation(helperArguments, nativeInvocation) {
   };
 }
 
-export function helperInvocation(
+function buildInvocation(
   helperArguments,
   {
     platform = process.platform,
     environment = process.env,
     home = homedir(),
   } = {},
+  routePortalStore = true,
 ) {
   const common = {
     KEEPKEYS_CALLED_FROM_MCP: "1",
@@ -71,11 +72,14 @@ export function helperInvocation(
       KEEPKEYS_ASSETS_DIR: resolve(pluginRoot, "assets"),
     };
     copyPresent(env, environment, ["LANG", "LC_ALL", "TMPDIR"]);
-    return routedInvocation(helperArguments, {
+    const invocation = {
       command: resolve(pluginRoot, "scripts", "keepkeys"),
       args: helperArguments,
       env,
-    });
+    };
+    return routePortalStore
+      ? routedInvocation(helperArguments, invocation)
+      : invocation;
   }
 
   if (platform === "win32") {
@@ -111,7 +115,7 @@ export function helperInvocation(
       "USERNAME",
       "USERDOMAIN",
     ]);
-    return routedInvocation(helperArguments, {
+    const invocation = {
       command: powershell,
       args: [
         "-NoLogo",
@@ -125,7 +129,10 @@ export function helperInvocation(
         ...helperArguments,
       ],
       env,
-    });
+    };
+    return routePortalStore
+      ? routedInvocation(helperArguments, invocation)
+      : invocation;
   }
 
   if (platform === "linux") {
@@ -150,19 +157,53 @@ export function helperInvocation(
       "XDG_RUNTIME_DIR",
       "XDG_SESSION_TYPE",
     ]);
-    return routedInvocation(helperArguments, {
+    const invocation = {
       command: "/usr/bin/python3",
       args: [
         helper,
         ...helperArguments,
       ],
       env,
-    });
+    };
+    return routePortalStore
+      ? routedInvocation(helperArguments, invocation)
+      : invocation;
   }
 
   throw new Error(
     `KeepKeys does not support platform '${platform}'. Supported platforms are macOS, Windows, and Linux.`,
   );
+}
+
+export function helperInvocation(helperArguments, options = {}) {
+  if (
+    helperArguments[0] === "portal-commit" ||
+    helperArguments[0] === "_portal-commit"
+  ) {
+    throw new Error(
+      "The private phone-intake commit is not a public KeepKeys action.",
+    );
+  }
+  return buildInvocation(helperArguments, options, true);
+}
+
+export function portalCommitInvocation(
+  helperArguments,
+  { capabilitySha256, parentPid },
+  options = {},
+) {
+  if (
+    helperArguments[0] !== "_portal-commit" ||
+    !/^[a-f0-9]{64}$/u.test(capabilitySha256) ||
+    !Number.isSafeInteger(parentPid) ||
+    parentPid <= 0
+  ) {
+    throw new Error("KeepKeys rejected an invalid private portal channel.");
+  }
+  const invocation = buildInvocation(helperArguments, options, false);
+  invocation.env.KEEPKEYS_PORTAL_CAPABILITY_SHA256 = capabilitySha256;
+  invocation.env.KEEPKEYS_PORTAL_PARENT_PID = String(parentPid);
+  return invocation;
 }
 
 export function terminateProcessTree(child, platform = process.platform) {

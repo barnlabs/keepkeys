@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
 import test from "node:test";
 
 import {
   createPortalServer,
   parsePortalMetadata,
   renderPortalHtml,
+  runProcess,
+  withPortalCommitLock,
 } from "./keepkeys-portal.mjs";
 
 const metadata = Object.freeze({
@@ -37,6 +43,12 @@ async function listen(server) {
   const address = server.address();
   assert(address && typeof address !== "string");
   return `http://127.0.0.1:${address.port}`;
+}
+
+async function delay(milliseconds) {
+  await new Promise((resolvePromise) => {
+    setTimeout(resolvePromise, milliseconds);
+  });
 }
 
 test("portal metadata uses the native KeepKeys limits", () => {
@@ -163,6 +175,10 @@ test("portal requires Tailscale identity, same-origin cookie, and one use", asyn
 
 test("portal refuses cross-identity submission and short values", async (context) => {
   let calls = 0;
+  let terminalResolve;
+  const terminal = new Promise((resolvePromise) => {
+    terminalResolve = resolvePromise;
+  });
   const path = "/keepkeys/store/test-session-two";
   const expectedOrigin = "https://device.example.ts.net";
   const server = createPortalServer({
@@ -176,6 +192,7 @@ test("portal refuses cross-identity submission and short values", async (context
       calls += 1;
       return { status: "ok" };
     },
+    onTerminal: terminalResolve,
   });
   context.after(() => server.close());
   const base = await listen(server);
@@ -207,7 +224,20 @@ test("portal refuses cross-identity submission and short values", async (context
     body: "short",
   });
   assert.equal(short.status, 400);
+  await terminal;
   assert.equal(calls, 0);
+
+  const retried = await fetch(`${base}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8",
+      Cookie: cookie,
+      Origin: expectedOrigin,
+      "Tailscale-User-Login": "owner@example.com",
+    },
+    body: "synthetic_secret",
+  });
+  assert.equal(retried.status, 410);
 });
 
 test("portal refuses another browser, the wrong media type, and oversized values", async (context) => {
@@ -232,6 +262,20 @@ test("portal refuses another browser, the wrong media type, and oversized values
     headers: { "Tailscale-User-Login": "owner@example.com" },
   });
   const cookie = (page.headers.get("set-cookie") ?? "").split(";")[0];
+
+  const secondBrowserPage = await fetch(`${base}${path}`, {
+    headers: { "Tailscale-User-Login": "owner@example.com" },
+  });
+  assert.equal(secondBrowserPage.status, 403);
+
+  const originalBrowserRefresh = await fetch(`${base}${path}`, {
+    headers: {
+      Cookie: cookie,
+      "Tailscale-User-Login": "owner@example.com",
+    },
+  });
+  assert.equal(originalBrowserRefresh.status, 200);
+  assert.equal(originalBrowserRefresh.headers.get("set-cookie"), null);
 
   const anotherBrowser = await fetch(`${base}${path}`, {
     method: "POST",
@@ -354,4 +398,178 @@ test("native commit failure makes the phone session terminal", async (context) =
     body: "another_synthetic_secret",
   });
   assert.equal(reused.status, 410);
+});
+
+test("the first valid POST atomically claims the one-time session", async (context) => {
+  let calls = 0;
+  let commitStartedResolve;
+  const commitStarted = new Promise((resolvePromise) => {
+    commitStartedResolve = resolvePromise;
+  });
+  let releaseCommit;
+  const commitGate = new Promise((resolvePromise) => {
+    releaseCommit = resolvePromise;
+  });
+  const path = "/keepkeys/store/concurrent-session";
+  const expectedOrigin = "https://device.example.ts.net";
+  const server = createPortalServer({
+    metadata,
+    replacing: false,
+    path,
+    cookieToken: "concurrent-cookie",
+    expectedOrigin,
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    commitSecret: async () => {
+      calls += 1;
+      commitStartedResolve();
+      await commitGate;
+      return { status: "ok" };
+    },
+  });
+  context.after(() => server.close());
+  const base = await listen(server);
+  const page = await fetch(`${base}${path}`, {
+    headers: { "Tailscale-User-Login": "owner@example.com" },
+  });
+  const cookie = (page.headers.get("set-cookie") ?? "").split(";")[0];
+  const requestOptions = {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8",
+      Cookie: cookie,
+      Origin: expectedOrigin,
+      "Tailscale-User-Login": "owner@example.com",
+    },
+    body: "synthetic_secret",
+  };
+  const first = fetch(`${base}${path}`, requestOptions);
+  await commitStarted;
+  const second = await fetch(`${base}${path}`, requestOptions);
+  assert.equal(second.status, 409);
+  releaseCommit();
+  assert.equal((await first).status, 200);
+  assert.equal(calls, 1);
+});
+
+test("closing a portal aborts its in-flight commit", async (context) => {
+  const controller = new AbortController();
+  let observedSignal;
+  let commitStartedResolve;
+  const commitStarted = new Promise((resolvePromise) => {
+    commitStartedResolve = resolvePromise;
+  });
+  const path = "/keepkeys/store/abort-session";
+  const expectedOrigin = "https://device.example.ts.net";
+  const server = createPortalServer({
+    metadata,
+    replacing: false,
+    path,
+    cookieToken: "abort-cookie",
+    expectedOrigin,
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    abortSignal: controller.signal,
+    commitSecret: async (_secret, signal) => {
+      observedSignal = signal;
+      commitStartedResolve();
+      await new Promise((resolvePromise, rejectPromise) => {
+        signal.addEventListener(
+          "abort",
+          () => rejectPromise(new Error("Synthetic abort.")),
+          { once: true },
+        );
+      });
+      return { status: "ok" };
+    },
+  });
+  context.after(() => server.close());
+  const base = await listen(server);
+  const page = await fetch(`${base}${path}`, {
+    headers: { "Tailscale-User-Login": "owner@example.com" },
+  });
+  const cookie = (page.headers.get("set-cookie") ?? "").split(";")[0];
+  const submission = fetch(`${base}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8",
+      Cookie: cookie,
+      Origin: expectedOrigin,
+      "Tailscale-User-Login": "owner@example.com",
+    },
+    body: "synthetic_secret",
+  });
+  await commitStarted;
+  controller.abort();
+  assert.equal(observedSignal, controller.signal);
+  assert.equal(observedSignal.aborted, true);
+  assert.equal((await submission).status, 500);
+});
+
+test("aborting a helper process prevents a delayed write", async (context) => {
+  const temporary = await mkdtemp(resolve(tmpdir(), "keepkeys-abort-test-"));
+  context.after(() => rm(temporary, { recursive: true, force: true }));
+  const marker = resolve(temporary, "late-write");
+  const controller = new AbortController();
+  const child = runProcess(
+    process.execPath,
+    [
+      "-e",
+      "const fs=require('node:fs');setTimeout(()=>fs.writeFileSync(process.argv[1],'wrong'),250);setInterval(()=>{},1000);",
+      marker,
+    ],
+    { signal: controller.signal },
+  );
+  await delay(75);
+  controller.abort();
+  await assert.rejects(child, { name: "AbortError" });
+  await delay(300);
+  await assert.rejects(access(marker));
+});
+
+test("the per-name portal lock serializes independent processes", async (context) => {
+  const temporary = await mkdtemp(resolve(tmpdir(), "keepkeys-lock-test-"));
+  context.after(() => rm(temporary, { recursive: true, force: true }));
+  const marker = resolve(temporary, "entered");
+  let firstEnteredResolve;
+  const firstEntered = new Promise((resolvePromise) => {
+    firstEnteredResolve = resolvePromise;
+  });
+  let releaseFirst;
+  const firstGate = new Promise((resolvePromise) => {
+    releaseFirst = resolvePromise;
+  });
+  const first = withPortalCommitLock(
+    "demo-service",
+    async () => {
+      firstEnteredResolve();
+      await firstGate;
+    },
+    { lockRoot: temporary, retryMs: 10 },
+  );
+  await firstEntered;
+
+  const moduleUrl = new URL("./keepkeys-portal.mjs", import.meta.url).href;
+  const child = spawn(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import {writeFile} from 'node:fs/promises';const {withPortalCommitLock}=await import(${JSON.stringify(moduleUrl)});process.stdout.write('waiting\\n');await withPortalCommitLock('demo-service',()=>writeFile(process.env.KEEPKEYS_TEST_MARKER,'entered'),{lockRoot:process.env.KEEPKEYS_TEST_LOCK_ROOT,retryMs:10});`,
+    ],
+    {
+      env: {
+        ...process.env,
+        KEEPKEYS_TEST_LOCK_ROOT: temporary,
+        KEEPKEYS_TEST_MARKER: marker,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  await once(child.stdout, "data");
+  await delay(100);
+  await assert.rejects(access(marker));
+  releaseFirst();
+  await first;
+  const [code] = await once(child, "close");
+  assert.equal(code, 0);
+  assert.equal(await readFile(marker, "utf8"), "entered");
 });

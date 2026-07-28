@@ -12,6 +12,7 @@ from __future__ import annotations
 import base64
 from dataclasses import dataclass
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -29,6 +30,7 @@ SECRET_SERVICE = "net.barnlabs.keepkeys.secret"
 LABEL_PREFIX_V1 = "KeepKeys|v1|"
 LABEL_PREFIX_V2 = "KeepKeys|v2|"
 MAX_SECRET_BYTES = 2_048
+PORTAL_CAPABILITY_BYTES = 32
 MAX_CAPTURED_BYTES = 1_048_576
 OMITTED_OUTPUT = (
     "[OUTPUT OMITTED BY KEEPKEYS: stream exceeded the 1 MiB safety limit]"
@@ -1094,6 +1096,28 @@ def repeated_options(arguments: list[str], name: str) -> tuple[str, ...]:
     return tuple(values)
 
 
+def portal_parent_is_bundled_portal(parent_pid: int) -> bool:
+    try:
+        executable_name = Path(
+            os.readlink(f"/proc/{parent_pid}/exe")
+        ).name.lower()
+        arguments = Path(f"/proc/{parent_pid}/cmdline").read_bytes().split(
+            b"\0"
+        )
+        expected_portal = Path(__file__).with_name(
+            "keepkeys-portal.mjs"
+        ).resolve()
+        parent_script = Path(
+            arguments[1].decode("utf-8", errors="strict")
+        ).resolve()
+    except (IndexError, OSError, UnicodeError, ValueError):
+        return False
+    return (
+        executable_name in {"node", "nodejs"}
+        and parent_script == expected_portal
+    )
+
+
 def action_store(arguments: list[str]) -> dict[str, Any]:
     metadata = Metadata(
         name=require_option(arguments, "--name"),
@@ -1174,15 +1198,48 @@ def store_record(
     }
 
 
-def action_portal_commit(arguments: list[str]) -> dict[str, Any]:
+def read_portal_secret() -> bytearray:
+    expected_digest = os.environ.pop(
+        "KEEPKEYS_PORTAL_CAPABILITY_SHA256", ""
+    )
+    expected_parent = os.environ.pop("KEEPKEYS_PORTAL_PARENT_PID", "")
     if (
-        os.environ.get("KEEPKEYS_PORTAL_COMMIT") != "1"
-        or sys.stdin.isatty()
+        sys.stdin.isatty()
+        or not re.fullmatch(r"[a-f0-9]{64}", expected_digest)
+        or not expected_parent.isascii()
+        or not expected_parent.isdigit()
+        or int(expected_parent) != os.getppid()
+        or not portal_parent_is_bundled_portal(int(expected_parent))
     ):
         raise KeepKeysError(
-            "The private phone-intake commit is available only to a live "
-            "KeepKeys portal."
+            "The private phone-intake commit requires the live KeepKeys "
+            "portal channel."
         )
+    capability = bytearray()
+    while len(capability) < PORTAL_CAPABILITY_BYTES:
+        chunk = sys.stdin.buffer.read(
+            PORTAL_CAPABILITY_BYTES - len(capability)
+        )
+        if not chunk:
+            break
+        capability.extend(chunk)
+    try:
+        if len(capability) != PORTAL_CAPABILITY_BYTES:
+            raise KeepKeysError(
+                "The private phone-intake channel ended before authorization."
+            )
+        actual_digest = hashlib.sha256(capability).hexdigest()
+        if not hmac.compare_digest(actual_digest, expected_digest):
+            raise KeepKeysError(
+                "The private phone-intake channel was not authorized."
+            )
+    finally:
+        for index in range(len(capability)):
+            capability[index] = 0
+    return bytearray(sys.stdin.buffer.read(MAX_SECRET_BYTES + 1))
+
+
+def action_portal_commit(arguments: list[str]) -> dict[str, Any]:
     metadata = Metadata(
         name=require_option(arguments, "--name"),
         variable=require_option(arguments, "--variable").upper(),
@@ -1196,7 +1253,7 @@ def action_portal_commit(arguments: list[str]) -> dict[str, Any]:
         raise KeepKeysError(
             "The private phone-intake replacement state is invalid."
         )
-    secret_bytes = bytearray(sys.stdin.buffer.read(MAX_SECRET_BYTES + 1))
+    secret_bytes = read_portal_secret()
     try:
         if len(secret_bytes) > MAX_SECRET_BYTES:
             raise KeepKeysError(
@@ -1385,7 +1442,7 @@ def main(arguments: list[str]) -> None:
     try:
         if action == "store":
             result = action_store(rest)
-        elif action == "portal-commit":
+        elif action == "_portal-commit":
             result = action_portal_commit(rest)
         elif action == "list":
             result = {
