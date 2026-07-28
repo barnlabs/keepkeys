@@ -67,8 +67,13 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `7eba25e76778337cbcc3aff68dd9e3cbc843a31d`.
 - Catalog commit (`C`):
   `c046ff9c04b28b57a5c3a6c206389b4fa467046e`.
-- Reviewed documentation candidate, candidate public CI, promotion, evidence,
-  and exact-head proof remain pending for this repaired chain.
+- Reviewed documentation candidate (`D`):
+  `d1fb0f5192bb7c6ea317b60410866e90c5827994`.
+- Candidate public CI:
+  [30406317033](https://github.com/barnlabs/keepkeys/actions/runs/30406317033)
+  — all 11 jobs passed on the exact documentation candidate, including native
+  vault tests on macOS, Windows, and Linux plus byte-for-byte reproducible
+  package proof. Promotion, evidence, and exact-head proof remain pending.
 - Exact-head GitHub Codex review
   [4802351808](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4802351808)
   reopened the prior exact head for four final delivery repairs: clean up Serve
@@ -88,8 +93,9 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   overflow or console warnings/errors. JavaScript enabled the initially
   disabled fieldset, the password input had no HTML `name`, focus landed on
   the key field, and a generated submission reached the stored state.
-- Focused independent review and exact-candidate review remain pending for this
-  repaired chain.
+- Independent read-only review returned `PASS` on the exact `F → C → D`
+  candidate after reopening the complete diff, all four findings from review
+  `4802351808`, package inventories, local proof, and candidate public CI.
 - Superseded portal-delivery chain: functional
   `534ca9c82914cc0a2a8072f4de2c0674cffd544b`, catalog
   `c021deb6c0f2d649b899cc11914adbef43dc7432`, documentation
