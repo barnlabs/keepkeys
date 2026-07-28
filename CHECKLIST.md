@@ -53,7 +53,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     three negative directory cases.
   - Acceptance: phone intake is described as a private route to the connected
     host, never as hosted storage, synchronization, or public mobile support.
-- [x] **Independent adversarial 0.5.0 review and public matrix passed.**
+- [ ] **Independent adversarial 0.5.0 review and public matrix passed.**
   - Implementer context: exact diff, generated archives, local proof, public CI,
     immutable `F → C → docs` chain, and rollback.
   - Required tests: dedicated read-only Codex review, complete local regression
@@ -64,53 +64,45 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.5.0 release evidence
 
 - Functional source commit (`F`):
-  `0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef`.
+  `534ca9c82914cc0a2a8072f4de2c0674cffd544b`.
 - Catalog commit (`C`):
-  `28f5166c06d227261212b2172b75fa54d3b0c00b`.
-- Reviewed documentation candidate (`D`):
-  `06b920b98ca3709353d4635e4a46d6a2a2b46143`.
-- Candidate public CI:
-  [30400773539](https://github.com/barnlabs/keepkeys/actions/runs/30400773539)
-  — all 11 jobs passed on the exact documentation candidate, including native
-  vault tests on macOS, Windows, and Linux. The Linux job verified a temporary
-  Secret Service add, metadata list, update, read, deletion, both
-  replacement-state races, and strict native cleanup.
-- Stable promotion commit (`P`):
-  `b90e8588d694e2c9186cb73d1eb3b775a802b097`.
-- Stable-promotion public CI:
-  [30401202501](https://github.com/barnlabs/keepkeys/actions/runs/30401202501)
-  — the same 11 proof jobs passed on the exact promotion commit.
-- Evidence commit (`E`):
-  `03a27b2e509270896d29ec36c3a1c17aca46be70`.
-- Evidence public CI:
-  [30401418081](https://github.com/barnlabs/keepkeys/actions/runs/30401418081)
-  — all 11 proof jobs passed on the exact evidence commit.
-- The commit containing this proof-only ledger is the final source head. Its
-  exact-head public CI, independent review, GitHub Codex review,
-  unresolved-thread audit, and rebuilt archive checks are recorded on PR #4
-  after the commit exists; recording those external IDs does not mutate the
-  reviewed source head.
+  `c021deb6c0f2d649b899cc11914adbef43dc7432`.
+- Reviewed documentation candidate, candidate public CI, promotion, evidence,
+  and exact-head proof remain pending for this repaired chain.
 - Exact-head GitHub Codex review
-  [4801887230](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4801887230)
-  reopened the prior exact head for three Linux repairs: propagate Secret
-  Service lookup errors instead of treating them as absence, reject failed
-  native-test deletions, and preserve rollback uncertainty through the phone
-  response and teardown.
-- Dedicated local proof: `check`, 48 Node tests, eight Hermes tests, 18 Linux
+  [4802130390](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4802130390)
+  reopened the prior exact head for four lifecycle repairs: preserve Windows
+  rollback uncertainty, tie a detached portal to its launcher until ready-link
+  acknowledgment, terminate the portal when Serve exits after readiness, and
+  retain vault uncertainty when commit-lock cleanup also fails.
+- Dedicated local proof: `check`, 51 Node tests, eight Hermes tests, 18 Linux
   unit tests, macOS doctor, package and archive checks, and repeated
   `./scripts/tailnet-smoke` runs passed. Each live smoke crossed authenticated
   Tailscale Serve HTTPS, bound one browser, submitted a fresh generated UTF-8
   value to macOS Keychain, verified the native round trip, and left
   `tailscale serve status --json` equal to `{}` with no portal, Serve process,
-  or test record.
+  or test record. A separate live cancellation probe reached Serve readiness,
+  withheld the launcher acknowledgment, disconnected the launcher, observed
+  the detached portal fail, and verified exact route removal.
 - Browser proof at 375 by 812 and 1280 by 720 CSS pixels found no horizontal
   overflow or console warnings/errors. JavaScript enabled the initially
   disabled fieldset, the password input had no HTML `name`, focus landed on
   the key field, and a generated submission reached the stored state.
-- Independent read-only reviewer returned `PASS` on both the focused
-  three-finding Linux uncertainty repair and the exact `F → C → D` candidate
-  after reopening the full diff, generated artifacts, candidate public CI, and
-  all findings from reviews `4801551714` and `4801887230`.
+- Independent read-only reviewer returned `PASS` on the focused four-finding
+  portal-lifecycle repair. Exact-candidate review remains pending.
+- Superseded launcher-lifecycle chain: functional
+  `0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef`, catalog
+  `28f5166c06d227261212b2172b75fa54d3b0c00b`, documentation
+  `06b920b98ca3709353d4635e4a46d6a2a2b46143`, promotion
+  `b90e8588d694e2c9186cb73d1eb3b775a802b097`, evidence
+  `03a27b2e509270896d29ec36c3a1c17aca46be70`, and proof closure
+  `3201689385ecfcf053e010ba7397efa82914aa3c`. Public runs
+  [30400773539](https://github.com/barnlabs/keepkeys/actions/runs/30400773539),
+  [30401202501](https://github.com/barnlabs/keepkeys/actions/runs/30401202501),
+  [30401418081](https://github.com/barnlabs/keepkeys/actions/runs/30401418081),
+  and [30401624974](https://github.com/barnlabs/keepkeys/actions/runs/30401624974)
+  passed all 11 jobs, but exact-head review `4802130390` found the four
+  lifecycle gaps above, so that chain is not a release candidate.
 - Superseded Linux uncertainty chain: functional
   `561fba77ead72bef09071dd2d81be639eb76bdea`, catalog
   `486d048c92b04d47061c64b9462dffd2fe80f29e`, documentation

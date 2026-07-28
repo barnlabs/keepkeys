@@ -69,7 +69,9 @@ ten-minute session. The session:
 2. binds an HTTP server to an ephemeral `127.0.0.1` port;
 3. runs Tailscale Serve in the foreground at an unguessable
    `/keepkeys/store/...` path;
-4. returns the tailnet HTTPS URL and expiry to the user;
+4. sends the tailnet HTTPS URL and expiry to its launcher, then keeps the
+   detached session coupled to that launcher until an explicit IPC
+   acknowledgment arrives;
 5. binds the first browser GET to one Tailscale identity and a Secure,
    HttpOnly, SameSite=Strict cookie that a second browser cannot reacquire;
 6. atomically claims the first authenticated same-origin POST of 8-2048 UTF-8
@@ -81,7 +83,9 @@ ten-minute session. The session:
 9. after a successful native write, stops the owned Serve process and queries
    Tailscale until the exact route is absent before the browser receives its
    success response;
-10. closes every localhost connection and aborts any in-flight helper during
+10. watches the foreground Serve process after readiness and closes the portal
+    if Serve exits unexpectedly;
+11. closes every localhost connection and aborts any in-flight helper during
     terminal or expiry cleanup.
 
 The browser page has no external scripts, styles, images, analytics, or
@@ -101,8 +105,11 @@ same value again. If the Linux helper cannot confirm rollback after a failed
 write, its JSON response carries `storageState: "uncertain"` and
 `cleanupKind: "native-rollback"`. The portal preserves that cleanup error
 through teardown and tells the phone to inspect the connected host before
-retrying. An unconfirmed native-helper termination remains attached to teardown
-even after the commit promise settles.
+retrying. Windows uses the same structured uncertainty when paired-record
+rollback fails. If commit-lock cleanup fails at the same time, the portal
+retains the uncertain vault state and reports both cleanup problems. An
+unconfirmed native-helper termination remains attached to teardown even after
+the commit promise settles.
 
 ## Platform records
 

@@ -74,12 +74,12 @@ It never falls back to a plaintext keyring, terminal password prompt, or file.
 
 | Client | Package surface | Immutable install |
 | --- | --- | --- |
-| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref 0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef`<br>`codex plugin add keepkeys@barnlabs` |
-| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'barnlabs/keepkeys@0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef#plugins/keepkeys' --trust` |
+| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref 534ca9c82914cc0a2a8072f4de2c0674cffd544b`<br>`codex plugin add keepkeys@barnlabs` |
+| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'barnlabs/keepkeys@534ca9c82914cc0a2a8072f4de2c0674cffd544b#plugins/keepkeys' --trust` |
 | **Claude Code** | Claude plugin + pinned catalog | see [Install](INSTALL.md#claude-code) |
 | **Oh My Pi** | OMP/Claude-compatible pinned catalog | see [Install](INSTALL.md#oh-my-pi) |
 | **Hermes** | repository-root Hermes plugin | see [Install](INSTALL.md#hermes) |
-| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref 0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef` |
+| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref 534ca9c82914cc0a2a8072f4de2c0674cffd544b` |
 | **Agent Skills clients** | standard `skills/keepkeys/SKILL.md` | reviewed checkout or skills-only archive |
 
 All integrations expose the same seven tools and dispatch to the same
@@ -94,8 +94,8 @@ platform-native boundary:
 - `keepkeys_doctor`
 
 Claude Code and Oh My Pi use the immutable catalog at commit
-`28f5166c06d227261212b2172b75fa54d3b0c00b`; that catalog pins the functional
-plugin source at `0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef`. See
+`c021deb6c0f2d649b899cc11914adbef43dc7432`; that catalog pins the functional
+plugin source at `534ca9c82914cc0a2a8072f4de2c0674cffd544b`. See
 [INSTALL.md](INSTALL.md) for copy-paste commands and platform prerequisites.
 
 ## What the user experiences
@@ -125,8 +125,15 @@ Store from a phone:
    before the browser can show **Stored**. The localhost listener then closes.
    If the vault write succeeds but Serve cleanup fails, the page says the key
    was stored and reports the cleanup failure. If Linux storage and rollback
-   both fail, the page says the final vault state is uncertain and tells the
-   user to inspect and remove the name before retrying.
+   both fail—or Windows Credential Manager cannot complete its paired-record
+   rollback—the page says the final vault state is uncertain and tells the
+   user to inspect and remove the name before retrying. If lock cleanup also
+   fails, the page reports both problems.
+
+The detached portal does not survive a cancelled launcher until the launcher
+acknowledges the ready link. KeepKeys also watches the foreground Serve process
+after readiness; an unexpected exit closes the portal instead of leaving a
+dead link advertised until expiry.
 
 Phone intake requires Tailscale 1.52 or newer, MagicDNS, tailnet HTTPS, and a
 phone signed into the same tailnet. See the

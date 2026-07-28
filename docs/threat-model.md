@@ -138,11 +138,14 @@ files and is outside the boundary.
 ### Windows paired-record interruption
 
 A crash can occur between Credential Manager writes. Replacement snapshots the
-old pair, writes the value and metadata, and attempts rollback on failure.
-Doctor verifies create, update, enumerate, read, and deletion. An unclean
-process termination at the exact inter-write boundary can still leave an orphan
-record; listing ignores orphan value records and a later approved store/remove
-repairs the named pair.
+old pair, writes the value and metadata, and attempts both rollback operations
+on failure. If either rollback operation also fails, the helper returns
+`storageState: "uncertain"` and `cleanupKind: "native-rollback"`; the phone
+tells the user to inspect and remove the name instead of claiming the value was
+discarded. Doctor verifies create, update, enumerate, read, and deletion. An
+unclean process termination at the exact inter-write boundary can still leave
+an orphan record; listing ignores orphan value records and a later approved
+store/remove repairs the named pair.
 
 ### Linux Secret Service diversity
 
@@ -254,16 +257,22 @@ until the exact generated path is absent. Route absence without process exit,
 or process exit without route absence, is a cleanup failure; failure of one
 proof cannot stop KeepKeys from awaiting the other. Metadata and Tailscale
 startup operations share an abort signal and both settle before startup failure
-is returned. A successful vault write does not produce a browser success
-response until the owned Serve process exits and the exact path is absent. If
-that cleanup fails, the response says the key was stored and reports cleanup
+is returned. The detached child requires an IPC acknowledgment before it
+releases the launcher; launcher disconnect before that acknowledgment aborts
+startup and runs verified cleanup. KeepKeys continues watching foreground
+Serve after readiness. An exit before link delivery fails startup, and a later
+unexpected exit terminates the portal rather than leaving a dead page until
+expiry. A successful vault write does not produce a browser success response
+until the owned Serve process exits and the exact path is absent. If that
+cleanup fails, the response says the key was stored and reports cleanup
 failure. A structured native rollback uncertainty reports neither stored nor
-discarded and remains a teardown cleanup failure. Unconfirmed native-helper
-termination remains a teardown failure after
-the commit promise settles. Serve output is drained but not retained after
-readiness. Expiry teardown is scheduled from the timestamp advertised to the
-user, including time spent starting Serve. A pre-existing listener conflict
-fails closed rather than changing another Tailscale Serve configuration.
+discarded and remains a teardown cleanup failure. If commit-lock cleanup also
+fails, both failures are preserved. Unconfirmed native-helper termination
+remains a teardown failure after the commit promise settles. Serve output is
+drained but not retained after readiness. Expiry teardown is scheduled from the
+timestamp advertised to the user, including time spent starting Serve. A
+pre-existing listener conflict fails closed rather than changing another
+Tailscale Serve configuration.
 
 ### Approved target disclosure
 

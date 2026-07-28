@@ -92,10 +92,10 @@ checkout:
 
 ```text
 functional plugin commit
-0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef
+534ca9c82914cc0a2a8072f4de2c0674cffd544b
 
 Claude/OMP catalog commit
-28f5166c06d227261212b2172b75fa54d3b0c00b
+c021deb6c0f2d649b899cc11914adbef43dc7432
 ```
 
 The catalog commit pins its plugin source to the functional commit. Review both
@@ -105,7 +105,7 @@ before installation.
 
 ```sh
 codex plugin marketplace add barnlabs/keepkeys \
-  --ref 0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef
+  --ref 534ca9c82914cc0a2a8072f4de2c0674cffd544b
 codex plugin add keepkeys@barnlabs
 ```
 
@@ -120,7 +120,7 @@ plugin hosts.
 
 ```sh
 grok plugin install \
-  'barnlabs/keepkeys@0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef#plugins/keepkeys' \
+  'barnlabs/keepkeys@534ca9c82914cc0a2a8072f4de2c0674cffd544b#plugins/keepkeys' \
   --trust
 grok plugin list
 grok plugin details keepkeys
@@ -133,20 +133,20 @@ The exact-SHA subdirectory install is the credential-sensitive route.
 
 ```sh
 claude plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keepkeys/28f5166c06d227261212b2172b75fa54d3b0c00b/.claude-plugin/marketplace.json
+  https://raw.githubusercontent.com/barnlabs/keepkeys/c021deb6c0f2d649b899cc11914adbef43dc7432/.claude-plugin/marketplace.json
 claude plugin install keepkeys@barnlabs
 claude plugin list
 ```
 
 Claude Code does not expose a raw commit option for a Git marketplace checkout.
 The immutable raw catalog above pins `plugins/keepkeys` to functional commit
-`0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef`. Start a new Claude Code session.
+`534ca9c82914cc0a2a8072f4de2c0674cffd544b`. Start a new Claude Code session.
 
 ## Oh My Pi
 
 ```sh
 omp plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keepkeys/28f5166c06d227261212b2172b75fa54d3b0c00b/.omp-plugin/marketplace.json
+  https://raw.githubusercontent.com/barnlabs/keepkeys/c021deb6c0f2d649b899cc11914adbef43dc7432/.omp-plugin/marketplace.json
 omp plugin install keepkeys@barnlabs
 omp plugin list
 ```
@@ -161,7 +161,7 @@ Hermes installs the repository root. Use a detached reviewed checkout:
 ```sh
 git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.5.0
 git -C keepkeys-0.5.0 checkout --detach \
-  0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef
+  534ca9c82914cc0a2a8072f4de2c0674cffd544b
 hermes plugins install "file://$(cd keepkeys-0.5.0 && pwd)" --enable
 hermes plugins list
 ```
@@ -170,7 +170,7 @@ On Windows PowerShell:
 
 ```powershell
 git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.5.0
-git -C keepkeys-0.5.0 checkout --detach 0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef
+git -C keepkeys-0.5.0 checkout --detach 534ca9c82914cc0a2a8072f4de2c0674cffd544b
 $path = (Resolve-Path .\keepkeys-0.5.0).Path
 hermes plugins install "file://$path" --enable
 hermes plugins list
@@ -183,7 +183,7 @@ Hermes plugins are opt-in. If installed without `--enable`, run
 
 ```sh
 gemini extensions install https://github.com/barnlabs/keepkeys \
-  --ref 0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef
+  --ref 534ca9c82914cc0a2a8072f4de2c0674cffd544b
 gemini extensions list
 ```
 
@@ -238,7 +238,9 @@ that expires after ten minutes. Open it on a phone in the same tailnet, review
 the metadata and any replacement warning, paste the key, and press
 **Paste & Store**. The page sends the value to the host's native vault and
 closes its local listener. KeepKeys never uses Tailscale Funnel or a BarnLabs
-server.
+server. The detached portal stays coupled to its launcher until the ready link
+is acknowledged. If ChatGPT Remote cancels during startup or foreground Serve
+exits, KeepKeys closes the portal and the user starts a new phone intake.
 
 KeepKeys cannot clear the phone's clipboard or clipboard history. Copy the key
 only after the page is ready, submit it immediately, and close the page after
@@ -264,7 +266,7 @@ macOS or Linux:
 ```sh
 git clone https://github.com/barnlabs/keepkeys.git
 cd keepkeys
-git checkout --detach 0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef
+git checkout --detach 534ca9c82914cc0a2a8072f4de2c0674cffd544b
 ./scripts/bootstrap
 ./scripts/check
 ./scripts/test
@@ -276,7 +278,7 @@ Windows:
 ```powershell
 git clone https://github.com/barnlabs/keepkeys.git
 Set-Location keepkeys
-git checkout --detach 0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef
+git checkout --detach 534ca9c82914cc0a2a8072f4de2c0674cffd544b
 .\scripts\bootstrap.ps1
 .\scripts\check.ps1
 .\scripts\test.ps1

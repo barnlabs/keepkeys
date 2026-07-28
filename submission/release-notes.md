@@ -21,11 +21,14 @@ submission or expiry. UTF-8 byte limits are enforced in the page script and
 server. After a vault write, the page shows success only after the owned Serve
 process stops and the exact route is gone; a cleanup failure is shown
 separately from a failed vault write. A post-write lock cleanup error still
-says the key was stored, preventing a duplicate submission. Native tests reject
+says the key was stored, preventing a duplicate submission. The detached
+portal requires a launcher acknowledgment before it can survive independently,
+and it closes if foreground Serve exits after readiness. Native tests reject
 both stale create-to-replace and replace-to-create states on macOS, Windows,
 and Linux. Linux vault lookup failures fail closed, generated cleanup requires
-both items to be deleted, and a failed storage rollback is shown as uncertain
-instead of discarded. KeepKeys never enables Tailscale Funnel.
+both items to be deleted, and failed Linux or Windows storage rollback is shown
+as uncertain instead of discarded. Native uncertainty remains visible if lock
+cleanup also fails. KeepKeys never enables Tailscale Funnel.
 
 The release preserves the immutable-commit update checker, three native
 backends, and packages for Grok Build/Grok Code, Claude Code, Oh My Pi, Hermes,

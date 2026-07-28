@@ -24,6 +24,12 @@
 - Cancel and await both metadata and Tailscale startup operations after either
   fails, await Serve termination even when route verification fails, and stop
   retaining Serve output after its readiness message.
+- Keep the detached portal tied to its launcher until the launcher explicitly
+  accepts the ready link. A cancelled or terminated launcher aborts startup,
+  stops the owned Serve process, and verifies exact route removal.
+- Continue watching the foreground Serve process after readiness. If it exits
+  before link delivery or during the session, KeepKeys closes the portal
+  instead of advertising a dead route until expiry.
 - Hold the phone success response until the owned Serve process and exact route
   are gone. If storage succeeds but that cleanup fails, the page says the key
   was stored and reports the cleanup failure instead of showing a false
@@ -38,11 +44,17 @@
 - Return a structured uncertain state to the phone when Linux storage and
   rollback both fail, so the page never claims a possibly retained value was
   discarded.
+- Return the same structured uncertain state when Windows Credential Manager
+  storage and rollback both fail, while attempting both halves of the paired
+  record rollback.
 - Require both generated Linux portal items to be deleted before native CI can
   report cleanup success.
 - Preserve a successful native-vault write when closing or removing the portal
   commit lock fails: the phone receives `stored: true` with the cleanup error,
   and the session cannot report a false storage failure.
+- Preserve native-vault uncertainty when rollback and commit-lock cleanup both
+  fail, reporting both cleanup problems without claiming the value was stored
+  or discarded.
 - Enforce the 8-byte minimum with UTF-8 byte counting in JavaScript and on the
   server instead of an HTML character-count minimum.
 - Made the no-script form fail closed: controls remain disabled and the
