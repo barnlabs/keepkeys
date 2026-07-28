@@ -87,8 +87,8 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   and `Release gate`.
 - Final independent review of that evidence head found no product defect and
   requested this proof-only correction because the completed exact-head run
-  was still labeled pending. Closure review of this ledger correction remains
-  external to the immutable release record.
+  was still labeled pending. Closure review of the proof-only correction at
+  `5f5ebd6b16610aebe94b1463e4c9427c5e94f60a` returned `PASS`.
 - Exact-head GitHub Codex review
   [4801551714](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4801551714)
   reopened the prior exact head for three repairs: report failed Linux rollback
