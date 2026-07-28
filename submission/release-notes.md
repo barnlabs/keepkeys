@@ -23,7 +23,9 @@ process stops and the exact route is gone; a cleanup failure is shown
 separately from a failed vault write. A post-write lock cleanup error still
 says the key was stored, preventing a duplicate submission. Native tests reject
 both stale create-to-replace and replace-to-create states on macOS, Windows,
-and Linux. KeepKeys never enables Tailscale Funnel.
+and Linux. Linux vault lookup failures fail closed, generated cleanup requires
+both items to be deleted, and a failed storage rollback is shown as uncertain
+instead of discarded. KeepKeys never enables Tailscale Funnel.
 
 The release preserves the immutable-commit update checker, three native
 backends, and packages for Grok Build/Grok Code, Claude Code, Oh My Pi, Hermes,

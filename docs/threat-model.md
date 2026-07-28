@@ -158,7 +158,11 @@ timeout, or other subprocess failure, KeepKeys attempts to restore the complete
 previous pair before returning the failure. A rollback deletion that returns
 false is itself a cleanup failure. KeepKeys records that failure and still
 attempts the other rollback operation instead of reporting incomplete cleanup
-as success.
+as success. Secret Service search and existing-value lookup errors propagate;
+they cannot be converted into a false no-match for the phone replacement
+check. If storage and rollback both fail, the helper returns a structured
+uncertain state. The phone tells the user to inspect and remove the name before
+retrying instead of claiming that the value was discarded.
 
 KeepKeys refuses to use a plaintext keyring fallback and refuses secret entry
 when no graphical session is available.
@@ -253,7 +257,9 @@ startup operations share an abort signal and both settle before startup failure
 is returned. A successful vault write does not produce a browser success
 response until the owned Serve process exits and the exact path is absent. If
 that cleanup fails, the response says the key was stored and reports cleanup
-failure. Unconfirmed native-helper termination remains a teardown failure after
+failure. A structured native rollback uncertainty reports neither stored nor
+discarded and remains a teardown cleanup failure. Unconfirmed native-helper
+termination remains a teardown failure after
 the commit promise settles. Serve output is drained but not retained after
 readiness. Expiry teardown is scheduled from the timestamp advertised to the
 user, including time spent starting Serve. A pre-existing listener conflict

@@ -33,6 +33,13 @@
   following metadata subprocess times out or otherwise fails.
 - Report Linux rollback deletion failures instead of treating a failed delete
   as successful, while still attempting both value and metadata cleanup.
+- Propagate Linux Secret Service search and existing-value lookup errors
+  instead of treating an unavailable vault as a confirmed missing record.
+- Return a structured uncertain state to the phone when Linux storage and
+  rollback both fail, so the page never claims a possibly retained value was
+  discarded.
+- Require both generated Linux portal items to be deleted before native CI can
+  report cleanup success.
 - Preserve a successful native-vault write when closing or removing the portal
   commit lock fails: the phone receives `stored: true` with the cleanup error,
   and the session cannot report a false storage failure.
@@ -48,7 +55,8 @@
 - Added deterministic portal tests, a capability-framed generated UTF-8
   portal-to-vault round trip plus create-to-replace and replace-to-create race
   rejection on macOS, Windows, and Linux CI, and a real tailnet-to-macOS
-  Keychain smoke with verified route, process, record, and temporary-file cleanup.
+  Keychain smoke with verified route, process, record, and temporary-file
+  cleanup.
 - Made the skills-only and source archives byte-for-byte reproducible, with a
   CI rebuild check that rejects changing SHA-256 digests.
 - Updated the Agent Skill, MCP and Hermes adapters, installation guidance,

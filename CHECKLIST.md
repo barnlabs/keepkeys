@@ -53,7 +53,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     three negative directory cases.
   - Acceptance: phone intake is described as a private route to the connected
     host, never as hosted storage, synchronization, or public mobile support.
-- [x] **Independent adversarial 0.5.0 review and public matrix passed.**
+- [ ] **Independent adversarial 0.5.0 review and public matrix passed.**
   - Implementer context: exact diff, generated archives, local proof, public CI,
     immutable `F → C → docs` chain, and rollback.
   - Required tests: dedicated read-only Codex review, complete local regression
@@ -64,37 +64,18 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.5.0 release evidence
 
 - Functional source commit (`F`):
-  `561fba77ead72bef09071dd2d81be639eb76bdea`.
+  `0c036c3ad7a2fd50f48c1281229fc7ac18bab2ef`.
 - Catalog commit (`C`):
-  `486d048c92b04d47061c64b9462dffd2fe80f29e`.
-- Reviewed documentation candidate:
-  `138dd49c6f2e47e27be68690055e8197631a09d4`.
-- Candidate public CI run:
-  [30398247740](https://github.com/barnlabs/keepkeys/actions/runs/30398247740)
-  passed all six Node jobs, all three native-vault jobs, reproducible packages,
-  and `Release gate` on the exact `F → C → docs` candidate.
-- Stable promotion commit:
-  `4ab861c88043bd2cc60f3203ca29f28d69b17a4c`.
-- Promotion public CI run:
-  [30398539657](https://github.com/barnlabs/keepkeys/actions/runs/30398539657)
-  passed all six Node jobs, all three native-vault jobs, reproducible packages,
-  and `Release gate`.
-- Final evidence commit:
-  `471d0798e1817d876924f6461bc61366eb7f3f0d`.
-- Exact-head public CI run:
-  [30398737699](https://github.com/barnlabs/keepkeys/actions/runs/30398737699)
-  passed all six Node jobs, all three native-vault jobs, reproducible packages,
-  and `Release gate`.
-- Final independent review of that evidence head found no product defect and
-  requested this proof-only correction because the completed exact-head run
-  was still labeled pending. Closure review of the proof-only correction at
-  `5f5ebd6b16610aebe94b1463e4c9427c5e94f60a` returned `PASS`.
+  `28f5166c06d227261212b2172b75fa54d3b0c00b`.
+- Reviewed documentation candidate, candidate public CI, promotion, evidence,
+  and exact-head proof remain pending for this repaired chain.
 - Exact-head GitHub Codex review
-  [4801551714](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4801551714)
-  reopened the prior exact head for three repairs: report failed Linux rollback
-  deletions, preserve `stored: true` when post-write lock cleanup fails, and
-  exercise native create-to-replace plus replace-to-create races on every OS.
-- Dedicated local proof: `check`, 46 Node tests, eight Hermes tests, 14 Linux
+  [4801887230](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4801887230)
+  reopened the prior exact head for three Linux repairs: propagate Secret
+  Service lookup errors instead of treating them as absence, reject failed
+  native-test deletions, and preserve rollback uncertainty through the phone
+  response and teardown.
+- Dedicated local proof: `check`, 48 Node tests, eight Hermes tests, 18 Linux
   unit tests, macOS doctor, package and archive checks, and repeated
   `./scripts/tailnet-smoke` runs passed. Each live smoke crossed authenticated
   Tailscale Serve HTTPS, bound one browser, submitted a fresh generated UTF-8
@@ -106,9 +87,20 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   disabled fieldset, the password input had no HTML `name`, focus landed on
   the key field, and a generated submission reached the stored state.
 - Independent read-only reviewer returned `PASS` on the focused three-finding
-  repair after inspecting the Linux failed-delete regression, the post-write
-  lock cleanup state, and the native race scenarios. The reviewer then reopened
-  the exact public `F → C → docs` candidate and returned `PASS` again.
+  Linux uncertainty repair. Exact-candidate review remains pending.
+- Superseded Linux uncertainty chain: functional
+  `561fba77ead72bef09071dd2d81be639eb76bdea`, catalog
+  `486d048c92b04d47061c64b9462dffd2fe80f29e`, documentation
+  `138dd49c6f2e47e27be68690055e8197631a09d4`, promotion
+  `4ab861c88043bd2cc60f3203ca29f28d69b17a4c`, evidence
+  `471d0798e1817d876924f6461bc61366eb7f3f0d`, and proof closure
+  `2d458cf6a200b5b583ed571a194267347b17b2b5`. Public runs
+  [30398247740](https://github.com/barnlabs/keepkeys/actions/runs/30398247740),
+  [30398539657](https://github.com/barnlabs/keepkeys/actions/runs/30398539657),
+  [30398737699](https://github.com/barnlabs/keepkeys/actions/runs/30398737699),
+  and [30399131533](https://github.com/barnlabs/keepkeys/actions/runs/30399131533)
+  passed all 11 jobs, but exact-head review `4801887230` found the three Linux
+  gaps above, so that chain is not a release candidate.
 - Superseded prior final chain: functional
   `74d32f8898394e8b7203a2d4b95f3d6282aba845`, catalog
   `945626279cc015f3e9b0c0595967bc9e39514618`, documentation

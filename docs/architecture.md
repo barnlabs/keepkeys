@@ -97,8 +97,12 @@ cleanup fails, the response distinguishes that state from a failed vault write
 and the portal exits with a cleanup failure. If closing or removing the
 per-name lock fails after the native write, the response retains `stored: true`
 and reports the lock cleanup error so the user is not prompted to store the
-same value again. An unconfirmed native-helper
-termination remains attached to teardown even after the commit promise settles.
+same value again. If the Linux helper cannot confirm rollback after a failed
+write, its JSON response carries `storageState: "uncertain"` and
+`cleanupKind: "native-rollback"`. The portal preserves that cleanup error
+through teardown and tells the phone to inspect the connected host before
+retrying. An unconfirmed native-helper termination remains attached to teardown
+even after the commit promise settles.
 
 ## Platform records
 
@@ -191,6 +195,8 @@ removed before success. Each native job also sends fresh UTF-8 values through
 the portal's real capability frame and redirected-input path, verifies metadata,
 proves a normal round trip, rejects create-to-replace and replace-to-create
 stale states through the real native write path, and proves record cleanup.
+The Linux job also requires successful deletion of both generated items;
+Secret Service errors cannot be counted as absence.
 Headless tests cover phone-page escaping, identity binding, origin and cookie
 checks, size limits, one-use behavior, private dispatch, advertised-expiry
 scheduling, and confirmed process-tree teardown. A release candidate receives a
