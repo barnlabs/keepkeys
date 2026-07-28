@@ -64,14 +64,24 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.5.0 release evidence
 
 - Functional source commit (`F`):
-  `816a1b719c18453159152044b9b728ecd1f767de`.
+  `55b7095d99607267936ab64df8c65a1c13514ef8`.
 - Catalog commit (`C`):
-  `e086b858651ad1a2a38e0b10c401c3d8e3791844`.
+  `d4e383ce4a49f27de25e6fcdfa83db068bc3185b`.
 - Reviewed documentation candidate: pending this documentation commit and
   independent review.
 - Stable promotion commit: pending candidate review and public CI.
 - Candidate and stable-promotion public CI: pending on the new
   `F → C → docs` chain.
+- Superseded native-proof candidate: functional
+  `816a1b719c18453159152044b9b728ecd1f767de`, catalog
+  `e086b858651ad1a2a38e0b10c401c3d8e3791844`, and documentation
+  `e96e3a2c6d2b9e84c8544bf2cbd44cbb37d2519a`. Public CI
+  [30385488524](https://github.com/barnlabs/keepkeys/actions/runs/30385488524)
+  passed all six Node jobs, packages, and the macOS and Linux native portal
+  round trips. The new Windows portal test exposed incorrect use of
+  `Nullable[bool].HasValue` after PowerShell parameter binding; the release
+  gate failed and functional commit `55b7095d99607267936ab64df8c65a1c13514ef8`
+  repairs the replacement-state check.
 - Exact-head GitHub Codex review
   [4800221469](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4800221469)
   reopened the release for four repairs: positive capability-framed native
