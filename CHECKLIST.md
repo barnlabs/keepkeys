@@ -68,17 +68,12 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 - Catalog commit (`C`):
   `e177f405482950de39abef0fa78559a2a6043074`.
 - Reviewed documentation candidate:
-  `aab8c8605f412df0aaf1f77386aad32d43334eeb`.
+  `51f72623e27d92970b89d073eff686851b6937f4`.
 - Candidate public CI run:
-  [30391619827](https://github.com/barnlabs/keepkeys/actions/runs/30391619827)
+  [30392719709](https://github.com/barnlabs/keepkeys/actions/runs/30392719709)
   passed all six Node jobs, all three native-vault jobs, reproducible packages,
   and `Release gate` on the exact `F → C → docs` candidate.
-- Stable promotion commit:
-  `c98fd0951c129920d2810c4e36025922bba76aa0`.
-- Stable-promotion public CI run:
-  [30391841893](https://github.com/barnlabs/keepkeys/actions/runs/30391841893)
-  passed the same 11 jobs on the exact promotion commit, including native-vault
-  proof on macOS, Windows, and Linux plus `Release gate`.
+- Stable promotion commit and public promotion matrix: pending.
 - Exact-head GitHub Codex review
   [4801015633](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4801015633)
   reopened the prior exact head for three repairs: cancel and await sibling
@@ -99,7 +94,20 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 - Independent read-only reviewer returned `PASS` on the focused three-finding
   repair after the new sibling-startup, route-failure, and output-listener
   regressions passed. The reviewer then reopened the exact public
-  `F → C → docs` candidate and returned `PASS` again.
+  `F → C → docs` candidate, including the corrected publisher checksum, and
+  returned `PASS` again.
+- Superseded cleanup chain: functional
+  `af4d97691adf80dbcab2212f5fdfc091b2a97851`, catalog
+  `e177f405482950de39abef0fa78559a2a6043074`, documentation
+  `aab8c8605f412df0aaf1f77386aad32d43334eeb`, promotion
+  `c98fd0951c129920d2810c4e36025922bba76aa0`, and final proof
+  `ce65ee10202d919ae72aadb8a234b281d9771751`. Public runs
+  [30391619827](https://github.com/barnlabs/keepkeys/actions/runs/30391619827),
+  [30391841893](https://github.com/barnlabs/keepkeys/actions/runs/30391841893),
+  and [30391990018](https://github.com/barnlabs/keepkeys/actions/runs/30391990018)
+  passed all 11 jobs, but the publisher guide named a superseded upload
+  checksum instead of the generated archive checksum, so that documentation
+  candidate is not a release candidate.
 - Superseded exact chain: functional
   `039f33d6da17173e7615f266c00b656367d64dba`, catalog
   `18698ac3374633cda82650115122e9179457ad40`, documentation
