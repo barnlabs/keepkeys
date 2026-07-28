@@ -64,9 +64,9 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.5.0 release evidence
 
 - Functional source commit (`F`):
-  `4f0c7b16d6be3704b632f6f88a3adf4e76560e40`.
+  `3e1c1f1d0e84796b4c1a62604b74b347bb3685ab`.
 - Catalog commit (`C`):
-  `a704817bb8fb60db8a92906995373e0af3fae289`.
+  `b6c2a4ed5529e710e420917a1074d4727bd85db1`.
 - Reviewed documentation candidate: pending.
 - Public CI run: pending.
 - Independent reviewer verdict: pending.
