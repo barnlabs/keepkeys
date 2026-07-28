@@ -25,7 +25,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 
 ## Release candidate — 0.5.0
 
-- [ ] **Private phone intake keeps plaintext outside the agent protocol.**
+- [x] **Private phone intake keeps plaintext outside the agent protocol.**
   - Implementer context: `keepkeys_store_from_phone`, temporary localhost
     portal, Tailscale Serve route, and private native standard-input commit
     action on macOS, Windows, and Linux.
@@ -35,7 +35,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   - Acceptance: the model receives only metadata and the one-time URL; no
     plaintext reaches tool input/output, argv, files, logs, persistent
     environment, the public internet, or a BarnLabs service.
-- [ ] **Phone setup and failure states are complete.**
+- [x] **Phone setup and failure states are complete.**
   - Implementer context: ChatGPT Remote guidance, same-tailnet prerequisites,
     MagicDNS/HTTPS requirements, port conflict, unavailable Tailscale, and
     phone clipboard limitation.
@@ -44,7 +44,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     too-short/too-large value, expiry, interrupt, and native commit failure.
   - Acceptance: every failure closes the local listener and owned Serve route
     without changing unrelated Tailscale configuration.
-- [ ] **The 0.5.0 package and public copy match the seven-tool contract.**
+- [x] **The 0.5.0 package and public copy match the seven-tool contract.**
   - Implementer context: manifests, MCP, Hermes, Agent Skill, skills-only
     package, README, install guide, listing, release notes, and eight submission
     cases.
@@ -53,7 +53,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     three negative directory cases.
   - Acceptance: phone intake is described as a private route to the connected
     host, never as hosted storage, synchronization, or public mobile support.
-- [ ] **Independent adversarial 0.5.0 review and public matrix passed.**
+- [x] **Independent adversarial 0.5.0 review and public matrix passed.**
   - Implementer context: exact diff, generated archives, local proof, public CI,
     immutable `F → C → docs` chain, and rollback.
   - Required tests: dedicated read-only Codex review, complete local regression
@@ -67,11 +67,16 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `55b7095d99607267936ab64df8c65a1c13514ef8`.
 - Catalog commit (`C`):
   `d4e383ce4a49f27de25e6fcdfa83db068bc3185b`.
-- Reviewed documentation candidate: pending this documentation commit and
-  independent review.
-- Stable promotion commit: pending candidate review and public CI.
-- Candidate and stable-promotion public CI: pending on the new
-  `F → C → docs` chain.
+- Reviewed documentation candidate:
+  `b969df07aa84d50364ab8884c1345a829c17885c`.
+- Stable promotion commit: created by the commit that records this candidate
+  proof; the final-proof evidence records its exact SHA.
+- Candidate public CI run:
+  [30385917861](https://github.com/barnlabs/keepkeys/actions/runs/30385917861)
+  passed all six Node jobs, all three capability-framed generated-value native
+  portal round trips, reproducible packages, and `Release gate` on the exact
+  `F → C → docs` candidate.
+- Stable-promotion public CI: pending on the promotion evidence commit.
 - Superseded native-proof candidate: functional
   `816a1b719c18453159152044b9b728ecd1f767de`, catalog
   `e086b858651ad1a2a38e0b10c401c3d8e3791844`, and documentation
@@ -98,7 +103,12 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   UTF-8 portal-to-Keychain round trip, cleanup absence check, reproducible
   submission/source packages, archive integrity, and a forged non-portal
   Node-parent rejection passed. The cross-platform native round trip is wired
-  into all three native CI jobs and still requires public matrix proof.
+  into all three native CI jobs and passed the public matrix.
+- Independent reviewer verdict: `PASS` on the rebuilt
+  `55b7095d99607267936ab64df8c65a1c13514ef8 →`
+  `d4e383ce4a49f27de25e6fcdfa83db068bc3185b →`
+  `b969df07aa84d50364ab8884c1345a829c17885c` chain after focused review of
+  the Windows PowerShell replacement-state repair and helper fingerprint.
 - Stable update candidate: `update.json` advertises 0.5.0 with the exact `F`
   and `C` commits above.
 - Rollback: reinstall the 0.4.2 functional commit
