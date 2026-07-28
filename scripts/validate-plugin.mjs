@@ -374,8 +374,13 @@ assert.match(
 );
 assert.match(
   portalSource,
-  /missingNativeCommitReceiptError[\s\S]*?cleanupKind = "native-receipt"[\s\S]*?storageState = "uncertain"[\s\S]*?catch \(error\) \{\s+throw missingNativeCommitReceiptError\(error\);[\s\S]*?parsed\?\.status === "error"[\s\S]*?result\.code !== 0 \|\| parsed\?\.status !== "ok"[\s\S]*?missingNativeCommitReceiptError/,
+  /missingNativeCommitReceiptError[\s\S]*?cleanupKind = "native-receipt"[\s\S]*?storageState = "uncertain"[\s\S]*?catch \(error\) \{\s+throw missingNativeCommitReceiptError\(error\);[\s\S]*?parsed\?\.status === "error"[\s\S]*?nativeCommitError\(parsed\)[\s\S]*?parsed\?\.status !== "ok"[\s\S]*?typeof parsed\?\.message !== "string"[\s\S]*?missingNativeCommitReceiptError/,
   "a missing or inconsistent native commit receipt must leave storage uncertain",
+);
+assert.match(
+  portalSource,
+  /PORTAL_READY_ACK[\s\S]*?PORTAL_READY_CONFIRMED[\s\S]*?process\.send\(\s*\{ type: PORTAL_READY_CONFIRMED \}[\s\S]*?result\?\.type === PORTAL_READY_CONFIRMED[\s\S]*?resolvePromise/,
+  "the launcher must wait for the child to accept and recheck the ready link",
 );
 assert.match(
   portalSource,
@@ -407,19 +412,19 @@ const serializedStore = readFileSync(
 );
 assert.match(
   platformDispatcher,
-  /helperArguments\[0\] === "store"[\s\S]*?keepkeys-store\.mjs[\s\S]*?nativeStoreInvocation[\s\S]*?KEEPKEYS_SERIALIZED_STORE = "1"/,
-  "desktop stores must route through the shared per-name coordinator",
+  /helperArguments\[0\] === "store"[\s\S]*?helperArguments\[0\] === "remove"[\s\S]*?keepkeys-store\.mjs[\s\S]*?nativeMutationInvocation[\s\S]*?KEEPKEYS_SERIALIZED_MUTATION = "1"/,
+  "desktop stores and removals must route through the shared per-name coordinator",
 );
 assert.match(
   serializedStore,
-  /withPortalCommitLock\([\s\S]*?storeRunner\(nativeStoreInvocation\(argumentsValue\)\)/,
-  "the desktop coordinator must use the phone portal's exact per-name lock",
+  /withPortalCommitLock\([\s\S]*?storeRunner\(nativeMutationInvocation\(argumentsValue\)\)/,
+  "the desktop mutation coordinator must use the phone portal's exact per-name lock",
 );
 for (const helper of [sourceText, windowsHelper, linuxHelper]) {
   assert.match(
     helper,
-    /KEEPKEYS_SERIALIZED_STORE/,
-    "native desktop stores must reject bypass of the shared coordinator",
+    /KEEPKEYS_SERIALIZED_MUTATION/,
+    "native desktop stores and removals must reject bypass of the shared coordinator",
   );
 }
 for (const [constant, relative] of [

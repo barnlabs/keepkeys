@@ -1660,13 +1660,13 @@ private func main() {
         let result: [String: Any]
         switch action {
         case "store":
-            guard ProcessInfo.processInfo.environment["KEEPKEYS_SERIALIZED_STORE"] == "1"
+            guard ProcessInfo.processInfo.environment["KEEPKEYS_SERIALIZED_MUTATION"] == "1"
             else {
                 throw KeepKeysFailure(
-                    message: "KeepKeys store actions must use the shared per-name coordinator."
+                    message: "KeepKeys store and remove actions must use the shared per-name coordinator."
                 )
             }
-            unsetenv("KEEPKEYS_SERIALIZED_STORE")
+            unsetenv("KEEPKEYS_SERIALIZED_MUTATION")
             let rest = Array(args.dropFirst())
             result = try storeInteractively(
                 suggestedName: parseOption(rest, name: "--name"),
@@ -1680,6 +1680,13 @@ private func main() {
         case "list":
             result = ["status": "ok", "entries": try KeychainStore.entries()]
         case "remove":
+            guard ProcessInfo.processInfo.environment["KEEPKEYS_SERIALIZED_MUTATION"] == "1"
+            else {
+                throw KeepKeysFailure(
+                    message: "KeepKeys store and remove actions must use the shared per-name coordinator."
+                )
+            }
+            unsetenv("KEEPKEYS_SERIALIZED_MUTATION")
             let rest = Array(args.dropFirst())
             guard let name = try parseOption(rest, name: "--name") else {
                 throw KeepKeysFailure(message: "Remove requires --name.")

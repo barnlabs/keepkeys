@@ -7,9 +7,9 @@ import { fileURLToPath } from "node:url";
 
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const WINDOWS_HELPER_SHA256 =
-  "f87439e763a2068e8b98bc7d50031674cf5f22dd31b1f41fccc8e725b382f614";
+  "da18d09186a0868059e4cf545fae7dd239515899a86b3d66386be11f3b8c58cf";
 const LINUX_HELPER_SHA256 =
-  "8ae57315c0f8a64f5e8922a7ce137f00b283c60f5cf14d9a2b43305e2726013d";
+  "a0cfdf180c0ddf9ffe006036429d40b0425fd11cf425b14e80fa3ce181742872";
 
 function copyPresent(target, source, names) {
   for (const name of names) {
@@ -49,7 +49,10 @@ function routedInvocation(helperArguments, nativeInvocation) {
       env: nativeInvocation.env,
     };
   }
-  if (helperArguments[0] === "store") {
+  if (
+    helperArguments[0] === "store" ||
+    helperArguments[0] === "remove"
+  ) {
     return {
       command: process.execPath,
       args: [
@@ -218,13 +221,23 @@ export function portalCommitInvocation(
   return invocation;
 }
 
+export function nativeMutationInvocation(helperArguments, options = {}) {
+  if (
+    helperArguments[0] !== "store" &&
+    helperArguments[0] !== "remove"
+  ) {
+    throw new Error("KeepKeys rejected an invalid serialized mutation.");
+  }
+  const invocation = buildInvocation(helperArguments, options, false);
+  invocation.env.KEEPKEYS_SERIALIZED_MUTATION = "1";
+  return invocation;
+}
+
 export function nativeStoreInvocation(helperArguments, options = {}) {
   if (helperArguments[0] !== "store") {
     throw new Error("KeepKeys rejected an invalid serialized store action.");
   }
-  const invocation = buildInvocation(helperArguments, options, false);
-  invocation.env.KEEPKEYS_SERIALIZED_STORE = "1";
-  return invocation;
+  return nativeMutationInvocation(helperArguments, options);
 }
 
 export function processHasExited(child) {
@@ -235,10 +248,8 @@ export function processHasExited(child) {
   );
 }
 
-export function terminateProcessTree(child, platform = process.platform) {
-  if (!child?.pid || processHasExited(child)) {
-    return true;
-  }
+function signalProcessTree(child, platform, signal) {
+  if (!child?.pid) return { requested: true, processGroup: false };
   if (platform === "win32") {
     const result = spawnSync(
       resolve(
@@ -246,41 +257,88 @@ export function terminateProcessTree(child, platform = process.platform) {
         "System32",
         "taskkill.exe",
       ),
-      ["/PID", `${child.pid}`, "/T", "/F"],
+      [
+        "/PID",
+        `${child.pid}`,
+        "/T",
+        ...(signal === "SIGKILL" ? ["/F"] : []),
+      ],
       { windowsHide: true, stdio: "ignore" },
     );
-    return !result.error && result.status === 0;
+    return {
+      requested: !result.error && result.status === 0,
+      processGroup: false,
+    };
   }
   try {
-    process.kill(-child.pid, "SIGKILL");
-    return true;
-  } catch {
-    return child.kill("SIGKILL");
+    process.kill(-child.pid, signal);
+    return { requested: true, processGroup: true };
+  } catch (error) {
+    if (error?.code === "ESRCH" && processHasExited(child)) {
+      return { requested: true, processGroup: true };
+    }
+    try {
+      return {
+        requested: processHasExited(child) ? false : child.kill(signal),
+        processGroup: false,
+      };
+    } catch {
+      return { requested: false, processGroup: false };
+    }
   }
 }
 
+export function terminateProcessTree(child, platform = process.platform) {
+  return signalProcessTree(child, platform, "SIGKILL").requested;
+}
+
+function processGroupExists(pid) {
+  try {
+    process.kill(-pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code !== "ESRCH";
+  }
+}
+
+function waitForProcessGroupExit(pid, timeoutMs, message) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const deadline = Date.now() + timeoutMs;
+    const inspect = () => {
+      if (!processGroupExists(pid)) {
+        resolvePromise();
+        return;
+      }
+      if (Date.now() >= deadline) {
+        rejectPromise(new Error(message));
+        return;
+      }
+      setTimeout(inspect, 25);
+    };
+    inspect();
+  });
+}
+
 function requestGracefulTermination(child, platform, tree) {
-  if (platform === "win32" && tree) {
-    const result = spawnSync(
-      resolve(
-        process.env.SystemRoot ?? "C:\\Windows",
-        "System32",
-        "taskkill.exe",
-      ),
-      ["/PID", `${child.pid}`, "/T"],
-      { windowsHide: true, stdio: "ignore" },
-    );
-    if (!result.error && result.status === 0) return true;
+  if (tree) {
+    return signalProcessTree(child, platform, "SIGTERM");
   }
-  if (platform !== "win32" && tree) {
-    try {
-      process.kill(-child.pid, "SIGTERM");
-      return true;
-    } catch {
-      // Fall through to the direct child signal.
-    }
+  if (processHasExited(child)) {
+    return { requested: true, processGroup: false };
   }
-  return child.kill("SIGTERM");
+  try {
+    return { requested: child.kill("SIGTERM"), processGroup: false };
+  } catch {
+    return { requested: false, processGroup: false };
+  }
+}
+
+function waitForTermination(child, platform, timeoutMs, processGroup, message) {
+  if (platform !== "win32" && processGroup) {
+    return waitForProcessGroupExit(child.pid, timeoutMs, message);
+  }
+  if (processHasExited(child)) return Promise.resolve();
+  return waitForProcessClose(child, timeoutMs, message);
 }
 
 function waitForProcessClose(child, timeoutMs, message) {
@@ -309,7 +367,7 @@ async function terminateGracefullyAndWait(
   timeoutMs,
   tree,
 ) {
-  if (!child?.pid || processHasExited(child)) return;
+  if (!child?.pid) return;
   if (
     typeof child.once !== "function" ||
     typeof child.removeListener !== "function" ||
@@ -317,22 +375,17 @@ async function terminateGracefullyAndWait(
   ) {
     throw new Error("KeepKeys cannot confirm graceful process termination.");
   }
-  const close = waitForProcessClose(
-    child,
-    timeoutMs,
-    "KeepKeys could not confirm graceful process termination.",
-  );
-  let requested = false;
-  try {
-    requested = requestGracefulTermination(child, platform, tree);
-  } catch {
-    requested = false;
-  }
-  if (!requested) {
-    close.catch(() => {});
+  const termination = requestGracefulTermination(child, platform, tree);
+  if (!termination.requested) {
     throw new Error("KeepKeys could not request graceful process termination.");
   }
-  await close;
+  await waitForTermination(
+    child,
+    platform,
+    timeoutMs,
+    termination.processGroup,
+    "KeepKeys could not confirm graceful process termination.",
+  );
 }
 
 export function terminateProcessGracefullyAndWait(
@@ -359,46 +412,26 @@ export async function terminateProcessTreeGracefullyAndWait(
   }
 }
 
-export function terminateProcessTreeAndWait(
+export async function terminateProcessTreeAndWait(
   child,
   platform = process.platform,
   timeoutMs = 5000,
 ) {
-  if (!child?.pid || processHasExited(child)) {
-    return Promise.resolve();
-  }
+  if (!child?.pid) return;
   if (typeof child.once !== "function") {
-    return Promise.reject(
-      new Error("KeepKeys cannot confirm termination for this process."),
+    throw new Error("KeepKeys cannot confirm termination for this process.");
+  }
+  const termination = signalProcessTree(child, platform, "SIGKILL");
+  if (!termination.requested) {
+    throw new Error(
+      "KeepKeys could not request process-tree termination or confirm exit.",
     );
   }
-  return new Promise((resolvePromise, rejectPromise) => {
-    let settled = false;
-    let terminationRequested = false;
-    const finish = (callback, value) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      child.removeListener("close", close);
-      callback(value);
-    };
-    const close = () => finish(resolvePromise);
-    child.once("close", close);
-    const timer = setTimeout(() => {
-      finish(
-        rejectPromise,
-        new Error(
-          terminationRequested
-            ? "KeepKeys could not confirm that the process tree exited."
-            : "KeepKeys could not request process-tree termination or confirm exit.",
-        ),
-      );
-    }, timeoutMs);
-    try {
-      terminationRequested = terminateProcessTree(child, platform);
-    } catch {
-      terminationRequested = false;
-    }
-    if (processHasExited(child)) close();
-  });
+  await waitForTermination(
+    child,
+    platform,
+    timeoutMs,
+    termination.processGroup,
+    "KeepKeys could not confirm that the process tree exited.",
+  );
 }

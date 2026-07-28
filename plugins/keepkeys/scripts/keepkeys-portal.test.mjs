@@ -10,6 +10,7 @@ import test from "node:test";
 import {
   processHasExited,
   terminateProcessGracefullyAndWait,
+  terminateProcessTreeAndWait,
   terminateProcessTreeGracefullyAndWait,
 } from "./platform.mjs";
 import {
@@ -19,7 +20,10 @@ import {
   millisecondsUntilExpiry,
   missingNativeCommitReceiptError,
   nativeCommitError,
+  launchDetached,
   parsePortalMetadata,
+  PORTAL_READY_ACK,
+  PORTAL_READY_CONFIRMED,
   portalStartupProcessOptions,
   renderPortalHtml,
   runPortalStartupOperations,
@@ -199,6 +203,62 @@ test("launcher disconnects stay armed until the ready link is accepted", () => {
   accepted.emit("disconnect");
   assert.equal(acceptedWatcher.disconnected, false);
   assert.equal(disconnects, 1);
+});
+
+test("launcher waits for child-side acceptance of the ready link", async () => {
+  const child = new EventEmitter();
+  child.pid = 4242;
+  child.exitCode = null;
+  child.signalCode = null;
+  child.connected = true;
+  child.unref = () => {};
+  const sent = [];
+  child.send = (message, callback) => {
+    sent.push(message);
+    callback?.();
+  };
+  const launched = launchDetached(["--name", "demo"], {
+    forkProcess: () => child,
+  });
+  const ready = {
+    status: "ready",
+    url: "https://device.example.ts.net/keepkeys/store/demo",
+  };
+  child.emit("message", ready);
+  await new Promise((resolvePromise) => setImmediate(resolvePromise));
+  assert.deepEqual(sent, [{ type: PORTAL_READY_ACK }]);
+  let resolved = false;
+  launched.then(() => {
+    resolved = true;
+  });
+  await delay(10);
+  assert.equal(resolved, false);
+  child.emit("message", { type: PORTAL_READY_CONFIRMED });
+  assert.deepEqual(await launched, ready);
+});
+
+test("launcher rejects child exit before ready-link acceptance", async () => {
+  const child = new EventEmitter();
+  child.pid = 4343;
+  child.exitCode = null;
+  child.signalCode = null;
+  child.connected = true;
+  child.unref = () => {};
+  child.send = (_message, callback) => callback?.();
+  const launched = launchDetached(["--name", "demo"], {
+    forkProcess: () => child,
+  });
+  child.emit("message", {
+    status: "ready",
+    url: "https://device.example.ts.net/keepkeys/store/demo",
+  });
+  await new Promise((resolvePromise) => setImmediate(resolvePromise));
+  child.exitCode = 0;
+  child.emit("exit", 0);
+  await assert.rejects(
+    launched,
+    /exited before its ready link was confirmed/u,
+  );
 });
 
 test("portal startup aborts and awaits sibling work after one failure", async () => {
@@ -452,6 +512,52 @@ test("graceful process-tree cleanup waits for confirmed exit", async () => {
     await rm(temporary, { recursive: true, force: true });
   }
 });
+
+test(
+  "process-tree cleanup kills descendants after the group leader exits",
+  { skip: process.platform === "win32" },
+  async () => {
+    const temporary = await mkdtemp(
+      resolve(tmpdir(), "keepkeys-exited-leader-tree-"),
+    );
+    const marker = resolve(temporary, "survived");
+    const child = spawn(
+      process.execPath,
+      [
+        "-e",
+        [
+          "const {spawn}=require('node:child_process');",
+          "spawn(process.execPath,['-e',",
+          JSON.stringify(
+            "setTimeout(()=>require('node:fs').writeFileSync(process.env.KEEPKEYS_TREE_MARKER,'survived'),1000);setInterval(()=>{},1000)",
+          ),
+          "],{env:process.env,stdio:'ignore'});",
+          "process.exit(0);",
+        ].join(""),
+      ],
+      {
+        detached: true,
+        env: { ...process.env, KEEPKEYS_TREE_MARKER: marker },
+        stdio: "ignore",
+        windowsHide: true,
+      },
+    );
+    try {
+      await once(child, "close");
+      assert.equal(processHasExited(child), true);
+      await terminateProcessTreeAndWait(child);
+      await delay(1200);
+      await assert.rejects(access(marker));
+    } finally {
+      try {
+        process.kill(-child.pid, "SIGKILL");
+      } catch {
+        // The expected path: the process group is already gone.
+      }
+      await rm(temporary, { recursive: true, force: true });
+    }
+  },
+);
 
 test("portal cleanup closes active localhost connections", async () => {
   const server = createPortalServer({
@@ -965,6 +1071,7 @@ test("native rollback uncertainty never claims the value was discarded", async (
     commitSecret: async () => {
       throw nativeCommitError({
         status: "error",
+        message: "Synthetic native rollback failed.",
         storageState: "uncertain",
         cleanupKind: "native-rollback",
       });
@@ -1019,6 +1126,22 @@ test("a missing native commit receipt is reported as uncertain", async (context)
     async () => ({
       code: 1,
       stdout: Buffer.from('{"status":"ok"}\n', "utf8"),
+      stderr: Buffer.alloc(0),
+    }),
+    async () => ({
+      code: 1,
+      stdout: Buffer.from(
+        '{"status":"error","message":"Synthetic failure.","storageState":"uncertain"}\n',
+        "utf8",
+      ),
+      stderr: Buffer.alloc(0),
+    }),
+    async () => ({
+      code: 1,
+      stdout: Buffer.from(
+        '{"status":"error","message":"Synthetic failure.","storageState":"uncertain","cleanupKind":"unknown"}\n',
+        "utf8",
+      ),
       stderr: Buffer.alloc(0),
     }),
   ]) {
@@ -1088,6 +1211,7 @@ test("native rollback uncertainty survives simultaneous lock cleanup failure", a
       async () => {
         throw nativeCommitError({
           status: "error",
+          message: "Synthetic native rollback failed.",
           storageState: "uncertain",
           cleanupKind: "native-rollback",
         });
@@ -1369,6 +1493,7 @@ test("settled helper cleanup failures remain available to portal teardown", asyn
 test("native rollback uncertainty remains available to portal teardown", async () => {
   const cleanupError = nativeCommitError({
     status: "error",
+    message: "Synthetic native rollback failed.",
     storageState: "uncertain",
     cleanupKind: "native-rollback",
   });

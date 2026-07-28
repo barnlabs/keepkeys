@@ -8,7 +8,7 @@ import {
   missingNativeCommitReceiptError,
   withPortalCommitLock,
 } from "./keepkeys-portal.mjs";
-import { nativeStoreInvocation } from "./platform.mjs";
+import { nativeMutationInvocation } from "./platform.mjs";
 
 const MAX_HELPER_OUTPUT = 2 * 1024 * 1024;
 
@@ -70,62 +70,107 @@ export function runNativeStore(invocation) {
   });
 }
 
-function validateNativeStoreReceipt(result) {
+function missingNativeMutationReceiptError(action, cause) {
+  if (action === "store") return missingNativeCommitReceiptError(cause);
+  const receiptError = new Error(
+    "KeepKeys could not confirm whether the local removal completed because the native helper ended without a valid receipt.",
+    { cause },
+  );
+  receiptError.name = "NativeMutationReceiptError";
+  receiptError.mutationKind = "remove";
+  receiptError.cleanupKind = "native-receipt";
+  receiptError.removed = null;
+  return receiptError;
+}
+
+function validateNativeMutationReceipt(result, action) {
   let parsed;
   try {
     parsed = JSON.parse(result.stdout.toString("utf8").trim());
   } catch (error) {
-    throw missingNativeCommitReceiptError(error);
+    throw missingNativeMutationReceiptError(action, error);
   }
   if (
     result.code === 0 &&
     result.signal === null &&
-    parsed?.status === "ok"
+    parsed?.status === "ok" &&
+    typeof parsed?.message === "string" &&
+    (action !== "remove" || typeof parsed?.removed === "boolean")
   ) {
+    result.parsedReceipt = parsed;
     return result;
   }
   if (
-    (parsed?.status === "cancelled" && result.code === 0) ||
-    parsed?.status === "error"
+    parsed?.status === "cancelled" &&
+    result.code === 0 &&
+    result.signal === null &&
+    typeof parsed?.message === "string"
   ) {
     const receipt = new Error(
-      typeof parsed.message === "string"
-        ? parsed.message
-        : "KeepKeys native storage did not complete.",
+      parsed.message,
     );
     receipt.name = "NativeStoreReceipt";
     receipt.nativeResult = result;
-    receipt.stored =
-      parsed.storageState === "uncertain"
-        ? null
-        : parsed.stored === true;
-    if (parsed.storageState === "uncertain") {
-      receipt.storageState = "uncertain";
-      receipt.cleanupKind = parsed.cleanupKind ?? "native";
-    }
     throw receipt;
   }
-  throw missingNativeCommitReceiptError(
+  if (
+    parsed?.status === "error" &&
+    Number.isInteger(result.code) &&
+    result.code !== 0 &&
+    result.signal === null &&
+    typeof parsed?.message === "string" &&
+    parsed.message.length > 0
+  ) {
+    const hasStorageState = Object.hasOwn(parsed, "storageState");
+    const hasCleanupKind = Object.hasOwn(parsed, "cleanupKind");
+    const keys = Object.keys(parsed).sort().join(",");
+    const recognizedOrdinaryFailure =
+      !hasStorageState &&
+      !hasCleanupKind &&
+      !Object.hasOwn(parsed, "stored") &&
+      keys === "message,status";
+    const recognizedUncertainStore =
+      action === "store" &&
+      parsed.storageState === "uncertain" &&
+      parsed.cleanupKind === "native-rollback" &&
+      !Object.hasOwn(parsed, "stored") &&
+      keys === "cleanupKind,message,status,storageState";
+    if (recognizedOrdinaryFailure || recognizedUncertainStore) {
+      const receipt = new Error(parsed.message);
+      receipt.name = "NativeStoreReceipt";
+      receipt.nativeResult = result;
+      if (recognizedUncertainStore) {
+        receipt.stored = null;
+        receipt.storageState = "uncertain";
+        receipt.cleanupKind = "native-rollback";
+      }
+      throw receipt;
+    }
+  }
+  throw missingNativeMutationReceiptError(
+    action,
     new Error("The native helper returned an inconsistent commit receipt."),
   );
 }
 
-export async function runSerializedStore(
+export async function runSerializedMutation(
   argumentsValue,
   { lockOptions, storeRunner = runNativeStore } = {},
 ) {
-  if (argumentsValue[0] !== "store") {
-    throw new Error("KeepKeys rejected an invalid serialized store action.");
+  const action = argumentsValue[0];
+  if (action !== "store" && action !== "remove") {
+    throw new Error("KeepKeys rejected an invalid serialized mutation.");
   }
   const name = option(argumentsValue, "--name");
   try {
     return await withPortalCommitLock(
       name,
       async () =>
-        validateNativeStoreReceipt(
-          await storeRunner(nativeStoreInvocation(argumentsValue)),
+        validateNativeMutationReceipt(
+          await storeRunner(nativeMutationInvocation(argumentsValue)),
+          action,
         ),
-      lockOptions,
+      { ...lockOptions, operationKind: action },
     );
   } catch (error) {
     if (error?.name === "NativeStoreReceipt" && error.nativeResult) {
@@ -135,7 +180,37 @@ export async function runSerializedStore(
   }
 }
 
-function emitFailure(error) {
+export function runSerializedStore(argumentsValue, options) {
+  if (argumentsValue[0] !== "store") {
+    throw new Error("KeepKeys rejected an invalid serialized store action.");
+  }
+  return runSerializedMutation(argumentsValue, options);
+}
+
+function emitFailure(error, action) {
+  if (action === "remove") {
+    const removalUncertain = error?.removed === null;
+    process.stdout.write(
+      `${JSON.stringify({
+        status: "error",
+        ...(error?.removed === true || removalUncertain
+          ? { removed: error.removed }
+          : {}),
+        ...(removalUncertain ? { removalState: "uncertain" } : {}),
+        message:
+          error?.removed === true
+            ? "The credential was removed, but KeepKeys could not remove its shared per-name mutation lock. Check the local vault and lock before retrying."
+            : removalUncertain &&
+              error?.cleanupKind === "native-receipt+portal-lock"
+            ? "KeepKeys could not confirm whether the credential was removed, and it could not remove the shared per-name mutation lock. Check the local vault and lock before retrying."
+            : error instanceof Error
+            ? error.message
+            : "KeepKeys could not complete the serialized local removal.",
+      })}\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
   const stored =
     error?.storageState === "uncertain"
       ? null
@@ -165,15 +240,16 @@ function emitFailure(error) {
 }
 
 async function main() {
+  const argumentsValue = process.argv.slice(2);
   try {
-    const result = await runSerializedStore(process.argv.slice(2));
+    const result = await runSerializedMutation(argumentsValue);
     if (result.stderr.length > 0) process.stderr.write(result.stderr);
     if (result.stdout.length > 0) process.stdout.write(result.stdout);
     if (result.signal !== null || result.code !== 0) {
       process.exitCode = result.code ?? 1;
     }
   } catch (error) {
-    emitFailure(error);
+    emitFailure(error, argumentsValue[0]);
   }
 }
 

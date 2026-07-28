@@ -15,10 +15,14 @@ import {
 import {
   canonicalTextSha256,
   helperInvocation,
+  nativeMutationInvocation,
   nativeStoreInvocation,
   portalCommitInvocation,
 } from "../scripts/platform.mjs";
-import { runSerializedStore } from "../scripts/keepkeys-store.mjs";
+import {
+  runSerializedMutation,
+  runSerializedStore,
+} from "../scripts/keepkeys-store.mjs";
 
 test("tool schemas never accept a plaintext secret", () => {
   for (const tool of TOOLS) {
@@ -319,6 +323,34 @@ test("platform dispatch keeps one argv contract across macOS, Windows, and Linux
     );
     assert.notEqual(nativeStore.command, process.execPath);
     assert.equal(nativeStore.args.includes("store"), true);
+    assert.equal(nativeStore.env.KEEPKEYS_SERIALIZED_MUTATION, "1");
+
+    const remove = helperInvocation(["remove", "--name", "demo"], {
+      platform,
+      environment:
+        platform === "win32"
+          ? { SystemRoot: "C:\\Windows", USERPROFILE: "C:\\Users\\example" }
+          : {},
+      home: platform === "win32" ? "C:\\Users\\example" : "/home/example",
+    });
+    assert.equal(remove.command, process.execPath);
+    assert.match(remove.args[0], /keepkeys-store\.mjs$/u);
+    assert.deepEqual(remove.args.slice(1), ["remove", "--name", "demo"]);
+
+    const nativeRemove = nativeMutationInvocation(
+      ["remove", "--name", "demo"],
+      {
+        platform,
+        environment:
+          platform === "win32"
+            ? { SystemRoot: "C:\\Windows", USERPROFILE: "C:\\Users\\example" }
+            : {},
+        home: platform === "win32" ? "C:\\Users\\example" : "/home/example",
+      },
+    );
+    assert.notEqual(nativeRemove.command, process.execPath);
+    assert.equal(nativeRemove.args.includes("remove"), true);
+    assert.equal(nativeRemove.env.KEEPKEYS_SERIALIZED_MUTATION, "1");
 
     const portal = helperInvocation(["portal-store", "--name", "demo"], {
       platform,
@@ -334,7 +366,7 @@ test("platform dispatch keeps one argv contract across macOS, Windows, and Linux
   }
 });
 
-test("desktop and phone stores share the same per-name lock", async (context) => {
+test("desktop stores, phone stores, and removals share the same per-name lock", async (context) => {
   const lockRoot = mkdtempSync(join(tmpdir(), "keepkeys-shared-store-lock-"));
   context.after(() => rmSync(lockRoot, { recursive: true, force: true }));
   let firstEnteredResolve;
@@ -355,24 +387,29 @@ test("desktop and phone stores share the same per-name lock", async (context) =>
       return {
         code: 0,
         signal: null,
-        stdout: Buffer.from('{"status":"ok"}\n'),
+        stdout: Buffer.from('{"status":"ok","message":"Stored."}\n'),
         stderr: Buffer.alloc(0),
       };
     },
   });
   await firstEntered;
-  const second = runSerializedStore(argumentsValue, {
-    lockOptions: { lockRoot, retryMs: 10 },
-    storeRunner: async () => {
-      secondEntered = true;
-      return {
-        code: 0,
-        signal: null,
-        stdout: Buffer.from('{"status":"ok"}\n'),
-        stderr: Buffer.alloc(0),
-      };
+  const second = runSerializedMutation(
+    ["remove", "--name", "demo-service"],
+    {
+      lockOptions: { lockRoot, retryMs: 10 },
+      storeRunner: async () => {
+        secondEntered = true;
+        return {
+          code: 0,
+          signal: null,
+          stdout: Buffer.from(
+            '{"status":"ok","message":"Removed.","removed":true}\n',
+          ),
+          stderr: Buffer.alloc(0),
+        };
+      },
     },
-  });
+  );
   await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
   assert.equal(secondEntered, false);
   releaseFirst();
@@ -422,6 +459,30 @@ test("desktop stores require a valid native commit receipt", async (context) => 
     }),
   });
   assert.equal(JSON.parse(nativeFailure.stdout.toString()).status, "error");
+});
+
+test("desktop removals require a complete native receipt", async (context) => {
+  const lockRoot = mkdtempSync(join(tmpdir(), "keepkeys-remove-receipt-"));
+  context.after(() => rmSync(lockRoot, { recursive: true, force: true }));
+  await assert.rejects(
+    runSerializedMutation(["remove", "--name", "demo-service"], {
+      lockOptions: { lockRoot },
+      storeRunner: async () => ({
+        code: 0,
+        signal: null,
+        stdout: Buffer.from(
+          '{"status":"ok","message":"Removal completed."}\n',
+        ),
+        stderr: Buffer.alloc(0),
+      }),
+    }),
+    {
+      name: "NativeMutationReceiptError",
+      cleanupKind: "native-receipt",
+      mutationKind: "remove",
+      removed: null,
+    },
+  );
 });
 
 test("native helper fingerprints are stable across LF and CRLF checkouts", () => {

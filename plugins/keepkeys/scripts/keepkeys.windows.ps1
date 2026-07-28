@@ -1805,11 +1805,11 @@ try {
     $rest = if ($args.Count -gt 1) { [string[]]$args[1..($args.Count - 1)] } else { [string[]]@() }
     switch ($action) {
         "store" {
-            $serializedStore = [string]$env:KEEPKEYS_SERIALIZED_STORE
-            $env:KEEPKEYS_SERIALIZED_STORE = $null
-            if ($serializedStore -cne "1") {
+            $serializedMutation = [string]$env:KEEPKEYS_SERIALIZED_MUTATION
+            $env:KEEPKEYS_SERIALIZED_MUTATION = $null
+            if ($serializedMutation -cne "1") {
                 throw (
-                    "KeepKeys store actions must use the shared per-name " +
+                    "KeepKeys store and remove actions must use the shared per-name " +
                     "coordinator."
                 )
             }
@@ -2152,6 +2152,14 @@ try {
             $result = @{ status = "ok"; entries = $entries }
         }
         "remove" {
+            $serializedMutation = [string]$env:KEEPKEYS_SERIALIZED_MUTATION
+            $env:KEEPKEYS_SERIALIZED_MUTATION = $null
+            if ($serializedMutation -cne "1") {
+                throw (
+                    "KeepKeys store and remove actions must use the shared per-name " +
+                    "coordinator."
+                )
+            }
             $name = Get-KeepKeysOption $rest "--name" -Required
             if (-not (Test-KeepKeysName $name)) {
                 throw "The requested KeepKeys name is invalid."

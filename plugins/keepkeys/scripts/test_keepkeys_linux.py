@@ -405,7 +405,7 @@ class LinuxBackendTests(unittest.TestCase):
         with (
             patch.dict(
                 keepkeys_linux.os.environ,
-                {"KEEPKEYS_SERIALIZED_STORE": "1"},
+                {"KEEPKEYS_SERIALIZED_MUTATION": "1"},
             ),
             patch.object(
                 keepkeys_linux,
@@ -428,6 +428,20 @@ class LinuxBackendTests(unittest.TestCase):
             },
         )
 
+    def test_remove_rejects_shared_coordinator_bypass(self) -> None:
+        output = StringIO()
+        with (
+            patch.dict(keepkeys_linux.os.environ, {}, clear=True),
+            patch.object(keepkeys_linux, "action_remove") as action_remove,
+            patch.object(keepkeys_linux.sys, "stdout", output),
+            self.assertRaises(SystemExit),
+        ):
+            keepkeys_linux.main(["remove", "--name", "demo"])
+        action_remove.assert_not_called()
+        payload = json.loads(output.getvalue())
+        self.assertEqual(payload["status"], "error")
+        self.assertIn("shared per-name coordinator", payload["message"])
+
     def test_malformed_documentation_url_returns_structured_error_before_ui(self) -> None:
         completed = subprocess.run(
             [
@@ -448,7 +462,7 @@ class LinuxBackendTests(unittest.TestCase):
             check=False,
             capture_output=True,
             text=True,
-            env={**os.environ, "KEEPKEYS_SERIALIZED_STORE": "1"},
+            env={**os.environ, "KEEPKEYS_SERIALIZED_MUTATION": "1"},
         )
         self.assertEqual(completed.returncode, 1)
         self.assertEqual(completed.stderr, "")

@@ -24,7 +24,8 @@ const SESSION_TTL_MS = 10 * 60 * 1000;
 const STARTUP_TIMEOUT_MS = 20 * 1000;
 const PORTAL_PREFIX = "/keepkeys/store";
 const PORTAL_CHILD_FLAG = "KEEPKEYS_PORTAL_SESSION_CHILD";
-const PORTAL_READY_ACK = "keepkeys-portal-ready-accepted";
+export const PORTAL_READY_ACK = "keepkeys-portal-ready-accepted";
+export const PORTAL_READY_CONFIRMED = "keepkeys-portal-ready-confirmed";
 const PORTAL_NATIVE_TEST_FLAG = "KEEPKEYS_PORTAL_NATIVE_TEST";
 const PORTAL_TAILNET_TEST_FLAG = "KEEPKEYS_PORTAL_TAILNET_TEST";
 const PORTAL_CAPABILITY_BYTES = 32;
@@ -921,6 +922,7 @@ export async function withPortalCommitLock(
   operation,
   {
     signal,
+    operationKind = "store",
     lockRoot = defaultPortalLockRoot(),
     timeoutMs = PORTAL_LOCK_TIMEOUT_MS,
     retryMs = 50,
@@ -953,7 +955,7 @@ export async function withPortalCommitLock(
       if (error?.code !== "EEXIST") throw error;
       if (Date.now() >= deadline) {
         throw new Error(
-          "Another KeepKeys phone intake is still storing this name.",
+          "Another KeepKeys store or removal is still active for this name.",
         );
       }
       await waitForLockRetry(retryMs, signal);
@@ -986,17 +988,31 @@ export async function withPortalCommitLock(
       operationError
         ? [operationError, ...cleanupFailures]
         : cleanupFailures,
-      "KeepKeys could not confirm removal of its private portal commit lock.",
+      operationKind === "remove"
+        ? "KeepKeys could not confirm removal of its shared per-name mutation lock."
+        : "KeepKeys could not confirm removal of its private portal commit lock.",
     );
     cleanupError.name = "CleanupError";
     cleanupError.cleanupKind = storageUncertain
       ? `${operationError.cleanupKind ?? "native"}+portal-lock`
       : "portal-lock";
     if (storageUncertain) cleanupError.storageState = "uncertain";
-    cleanupError.stored =
-      storageUncertain
-        ? null
-        : operationCompleted || operationError?.stored === true;
+    if (operationKind === "remove") {
+      cleanupError.mutationKind = "remove";
+      cleanupError.removed =
+        operationError?.removed === null
+          ? null
+          : result?.parsedReceipt?.removed === true ||
+            operationError?.removed === true;
+      if (operationError?.removed === null) {
+        cleanupError.cleanupKind = "native-receipt+portal-lock";
+      }
+    } else {
+      cleanupError.stored =
+        storageUncertain
+          ? null
+          : operationCompleted || operationError?.stored === true;
+    }
     throw cleanupError;
   }
   if (operationError) throw operationError;
@@ -1004,10 +1020,24 @@ export async function withPortalCommitLock(
 }
 
 export function nativeCommitError(parsed) {
+  const keys =
+    parsed &&
+    typeof parsed === "object" &&
+    !Array.isArray(parsed)
+      ? Object.keys(parsed).sort()
+      : [];
+  const validMessage =
+    typeof parsed?.message === "string" && parsed.message.length > 0;
+  const hasStorageState = Object.hasOwn(parsed ?? {}, "storageState");
+  const hasCleanupKind = Object.hasOwn(parsed ?? {}, "cleanupKind");
+  const hasStored = Object.hasOwn(parsed ?? {}, "stored");
   if (
     parsed?.status === "error" &&
+    validMessage &&
     parsed?.storageState === "uncertain" &&
-    parsed?.cleanupKind === "native-rollback"
+    parsed?.cleanupKind === "native-rollback" &&
+    !hasStored &&
+    keys.join(",") === "cleanupKind,message,status,storageState"
   ) {
     const cleanupError = new Error(
       "KeepKeys could not confirm the native-vault state after rollback failed.",
@@ -1017,7 +1047,19 @@ export function nativeCommitError(parsed) {
     cleanupError.storageState = "uncertain";
     return cleanupError;
   }
-  return new Error("KeepKeys could not store the submitted key.");
+  if (
+    parsed?.status === "error" &&
+    validMessage &&
+    !hasStorageState &&
+    !hasCleanupKind &&
+    !hasStored &&
+    keys.join(",") === "message,status"
+  ) {
+    return new Error("KeepKeys could not store the submitted key.");
+  }
+  return missingNativeCommitReceiptError(
+    new Error("The native helper returned an incomplete error receipt."),
+  );
 }
 
 export function missingNativeCommitReceiptError(cause) {
@@ -1093,12 +1135,28 @@ export async function commitToNativeVault(
           throw missingNativeCommitReceiptError(error);
         }
         if (parsed?.status === "error") {
+          if (!Number.isInteger(result.code) || result.code === 0) {
+            throw missingNativeCommitReceiptError(
+              new Error(
+                "The native helper returned an inconsistent error receipt.",
+              ),
+            );
+          }
+          const commitError = nativeCommitError(parsed);
           if (nativeSelfTestScenario && typeof parsed?.message === "string") {
+            if (commitError?.cleanupKind === "native-receipt") {
+              throw commitError;
+            }
             throw new Error(parsed.message);
           }
-          throw nativeCommitError(parsed);
+          throw commitError;
         }
-        if (result.code !== 0 || parsed?.status !== "ok") {
+        if (
+          result.code !== 0 ||
+          parsed?.status !== "ok" ||
+          typeof parsed?.message !== "string" ||
+          parsed.message.length === 0
+        ) {
           throw missingNativeCommitReceiptError(
             new Error("The native helper returned an inconsistent commit receipt."),
           );
@@ -1592,6 +1650,23 @@ async function startPortalSession(argumentsValue) {
     }
     readyDelivered = true;
     launcherConnection?.disarm();
+    try {
+      await new Promise((resolvePromise, rejectPromise) => {
+        process.send(
+          { type: PORTAL_READY_CONFIRMED },
+          (error) => {
+            if (error) rejectPromise(error);
+            else resolvePromise();
+          },
+        );
+      });
+    } catch (error) {
+      await cleanup();
+      throw new Error(
+        "KeepKeys could not confirm the private phone link with its launcher.",
+        { cause: error },
+      );
+    }
     process.disconnect?.();
   } else {
     readyDelivered = true;
@@ -1824,11 +1899,15 @@ async function runTailnetPortalSelfTest() {
   }
 }
 
-async function launchDetached(
+export async function launchDetached(
   argumentsValue,
-  { environment = process.env, retainChild = false } = {},
+  {
+    environment = process.env,
+    retainChild = false,
+    forkProcess = fork,
+  } = {},
 ) {
-  const child = fork(fileURLToPath(import.meta.url), argumentsValue, {
+  const child = forkProcess(fileURLToPath(import.meta.url), argumentsValue, {
     detached: true,
     env: { ...environment, [PORTAL_CHILD_FLAG]: "1" },
     stdio: ["ignore", "ignore", "ignore", "ipc"],
@@ -1836,18 +1915,45 @@ async function launchDetached(
   return new Promise((resolvePromise, rejectPromise) => {
     let settled = false;
     let terminating = false;
+    let readyResult;
     const finish = (callback, value) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      child.removeListener("message", receive);
       callback(value);
     };
-    child.once("message", (result) => {
+    const receive = (result) => {
       if (terminating) return;
       if (result?.status === "error") {
         finish(rejectPromise, new Error(result.message));
         return;
       }
+      if (result?.type === PORTAL_READY_CONFIRMED) {
+        if (!readyResult) {
+          finish(
+            rejectPromise,
+            new Error(
+              "KeepKeys received an invalid private phone-link confirmation.",
+            ),
+          );
+          return;
+        }
+        if (!retainChild) child.unref();
+        finish(
+          resolvePromise,
+          retainChild ? { result: readyResult, child } : readyResult,
+        );
+        return;
+      }
+      if (readyResult || result?.status !== "ready") {
+        finish(
+          rejectPromise,
+          new Error("KeepKeys received an invalid private phone-link response."),
+        );
+        return;
+      }
+      readyResult = result;
       setImmediate(() => {
         if (terminating || settled) return;
         if (childHasExited(child)) {
@@ -1863,30 +1969,27 @@ async function launchDetached(
           child.send({ type: PORTAL_READY_ACK }, (error) => {
             if (error) {
               finish(rejectPromise, error);
-              return;
             }
-            if (!retainChild) child.unref();
-            finish(
-              resolvePromise,
-              retainChild ? { result, child } : result,
-            );
           });
         } catch (error) {
           finish(rejectPromise, error);
         }
       });
-    });
+    };
+    child.on("message", receive);
     child.once("error", (error) => {
       if (!terminating) finish(rejectPromise, error);
     });
     child.once("exit", (code) => {
       if (terminating) return;
-      if (code !== 0) {
-        finish(
-          rejectPromise,
-          new Error("KeepKeys could not start the private phone intake."),
-        );
-      }
+      finish(
+        rejectPromise,
+        new Error(
+          code === 0
+            ? "KeepKeys phone intake exited before its ready link was confirmed."
+            : "KeepKeys could not start the private phone intake.",
+        ),
+      );
     });
     const timer = setTimeout(() => {
       if (settled || terminating) return;

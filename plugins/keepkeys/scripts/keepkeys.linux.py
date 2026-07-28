@@ -1603,9 +1603,10 @@ def main(arguments: list[str]) -> None:
     action, rest = arguments[0], arguments[1:]
     try:
         if action == "store":
-            if os.environ.pop("KEEPKEYS_SERIALIZED_STORE", "") != "1":
+            if os.environ.pop("KEEPKEYS_SERIALIZED_MUTATION", "") != "1":
                 raise KeepKeysError(
-                    "KeepKeys store actions must use the shared per-name coordinator."
+                    "KeepKeys store and remove actions must use the shared "
+                    "per-name coordinator."
                 )
             result = action_store(rest)
         elif action == "_portal-commit":
@@ -1625,6 +1626,11 @@ def main(arguments: list[str]) -> None:
                 ],
             }
         elif action == "remove":
+            if os.environ.pop("KEEPKEYS_SERIALIZED_MUTATION", "") != "1":
+                raise KeepKeysError(
+                    "KeepKeys store and remove actions must use the shared "
+                    "per-name coordinator."
+                )
             result = action_remove(rest)
         elif action == "run":
             result = action_run(rest)
