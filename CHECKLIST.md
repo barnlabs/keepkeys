@@ -25,7 +25,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 
 ## Release candidate — 0.5.0
 
-- [ ] **Private phone intake keeps plaintext outside the agent protocol.**
+- [x] **Private phone intake keeps plaintext outside the agent protocol.**
   - Implementer context: `keepkeys_store_from_phone`, temporary localhost
     portal, Tailscale Serve route, and private native standard-input commit
     action on macOS, Windows, and Linux.
@@ -35,7 +35,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   - Acceptance: the model receives only metadata and the one-time URL; no
     plaintext reaches tool input/output, argv, files, logs, persistent
     environment, the public internet, or a BarnLabs service.
-- [ ] **Phone setup and failure states are complete.**
+- [x] **Phone setup and failure states are complete.**
   - Implementer context: ChatGPT Remote guidance, same-tailnet prerequisites,
     MagicDNS/HTTPS requirements, port conflict, unavailable Tailscale, and
     phone clipboard limitation.
@@ -44,7 +44,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     too-short/too-large value, expiry, interrupt, and native commit failure.
   - Acceptance: every failure closes the local listener and owned Serve route
     without changing unrelated Tailscale configuration.
-- [ ] **The 0.5.0 package and public copy match the seven-tool contract.**
+- [x] **The 0.5.0 package and public copy match the seven-tool contract.**
   - Implementer context: manifests, MCP, Hermes, Agent Skill, skills-only
     package, README, install guide, listing, release notes, and eight submission
     cases.
@@ -53,7 +53,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     three negative directory cases.
   - Acceptance: phone intake is described as a private route to the connected
     host, never as hosted storage, synchronization, or public mobile support.
-- [ ] **Independent adversarial 0.5.0 review and public matrix passed.**
+- [x] **Independent adversarial 0.5.0 review and public matrix passed.**
   - Implementer context: exact diff, generated archives, local proof, public CI,
     immutable `F → C → docs` chain, and rollback.
   - Required tests: dedicated read-only Codex review, complete local regression
@@ -67,7 +67,13 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `af4d97691adf80dbcab2212f5fdfc091b2a97851`.
 - Catalog commit (`C`):
   `e177f405482950de39abef0fa78559a2a6043074`.
-- Reviewed documentation candidate and public matrices: pending.
+- Reviewed documentation candidate:
+  `aab8c8605f412df0aaf1f77386aad32d43334eeb`.
+- Candidate public CI run:
+  [30391619827](https://github.com/barnlabs/keepkeys/actions/runs/30391619827)
+  passed all six Node jobs, all three native-vault jobs, reproducible packages,
+  and `Release gate` on the exact `F → C → docs` candidate.
+- Stable promotion commit and public promotion matrix: pending.
 - Exact-head GitHub Codex review
   [4801015633](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4801015633)
   reopened the prior exact head for three repairs: cancel and await sibling
@@ -87,7 +93,8 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   the key field, and a generated submission reached the stored state.
 - Independent read-only reviewer returned `PASS` on the focused three-finding
   repair after the new sibling-startup, route-failure, and output-listener
-  regressions passed.
+  regressions passed. The reviewer then reopened the exact public
+  `F → C → docs` candidate and returned `PASS` again.
 - Superseded exact chain: functional
   `039f33d6da17173e7615f266c00b656367d64dba`, catalog
   `18698ac3374633cda82650115122e9179457ad40`, documentation
