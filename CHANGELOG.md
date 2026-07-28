@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.5.0 — 2026-07-28
+
+- Added `keepkeys_store_from_phone`, which returns a ten-minute, one-use
+  Tailscale Serve link for storing a key from a phone in the same tailnet.
+- Kept phone intake off the public internet: the route uses Tailscale Serve,
+  never Funnel, and forwards only to a temporary localhost listener.
+- Bound each phone page to one authenticated Tailscale identity, one secure
+  browser cookie, an exact origin, and one submission.
+- Added browser content limits, a strict Content Security Policy, no external
+  page resources, and fail-closed replacement-race checks in every native
+  backend.
+- Sent the submitted value through redirected standard input to a private
+  native helper action, without placing it in model context, tool payloads,
+  command arguments, files, logs, or persistent environment variables.
+- Added deterministic portal tests plus a real tailnet-to-macOS-Keychain smoke
+  test with a generated value and verified route, process, record, and
+  temporary-file cleanup.
+- Updated the Agent Skill, MCP and Hermes adapters, installation guidance,
+  threat model, privacy notice, compatibility matrix, and public submission
+  materials for the seven-tool contract.
+
 ## 0.4.2 — 2026-07-25
 
 - Replaced editable store metadata and password typing with one explicit

@@ -4,7 +4,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$Script:Version = "0.4.2"
+$Script:Version = "0.5.0"
 $Script:MetadataPrefix = "net.barnlabs.keepkeys/meta/"
 $Script:SecretPrefix = "net.barnlabs.keepkeys/secret/"
 $Script:MaximumSecretBytes = 2048
@@ -1048,6 +1048,158 @@ function Get-KeepKeysCredentials {
     })
 }
 
+function Save-KeepKeysRecord {
+    param(
+        [string]$Name,
+        [string]$Variable,
+        [string]$Description,
+        [string]$Provider,
+        [string[]]$DocumentationUrls,
+        [string]$Secret,
+        [Nullable[bool]]$ExpectedExisting = $null
+    )
+    Assert-KeepKeysMetadata $Name $Variable $Description $Provider `
+        $DocumentationUrls
+    Assert-KeepKeysSecret $Secret
+    $secretBytes = [Text.Encoding]::UTF8.GetBytes($Secret)
+    $metadataBytes = ConvertTo-KeepKeysMetadataBytes `
+        $Provider $DocumentationUrls
+    $metadataTarget = $Script:MetadataPrefix + $Name
+    $secretTarget = $Script:SecretPrefix + $Name
+    $previousMetadata = [BarnLabs.KeepKeys.CredentialVault]::Read(
+        $metadataTarget,
+        $true
+    )
+    if ($ExpectedExisting.HasValue -and
+        (($null -ne $previousMetadata) -ne $ExpectedExisting.Value)) {
+        if ($null -ne $previousMetadata -and
+            $null -ne $previousMetadata.Secret) {
+            [Array]::Clear(
+                $previousMetadata.Secret,
+                0,
+                $previousMetadata.Secret.Length
+            )
+        }
+        [Array]::Clear($secretBytes, 0, $secretBytes.Length)
+        [Array]::Clear($metadataBytes, 0, $metadataBytes.Length)
+        throw (
+            "The stored KeepKeys name changed after the phone page opened. " +
+            "Start a new phone intake and review the replacement warning."
+        )
+    }
+    $previousSecret = [BarnLabs.KeepKeys.CredentialVault]::Read(
+        $secretTarget,
+        $true
+    )
+    try {
+        [BarnLabs.KeepKeys.CredentialVault]::Write(
+            $secretTarget,
+            "KEEPKEYS_SECRET",
+            "KeepKeys protected value",
+            $secretBytes
+        )
+        [BarnLabs.KeepKeys.CredentialVault]::Write(
+            $metadataTarget,
+            $Variable,
+            $Description,
+            $metadataBytes
+        )
+    } catch {
+        $writeFailure = $_
+        try {
+            if ($null -eq $previousSecret) {
+                [void][BarnLabs.KeepKeys.CredentialVault]::Delete($secretTarget)
+            } else {
+                [BarnLabs.KeepKeys.CredentialVault]::Write(
+                    $secretTarget,
+                    "KEEPKEYS_SECRET",
+                    "KeepKeys protected value",
+                    $previousSecret.Secret
+                )
+            }
+            if ($null -eq $previousMetadata) {
+                [void][BarnLabs.KeepKeys.CredentialVault]::Delete($metadataTarget)
+            } else {
+                [BarnLabs.KeepKeys.CredentialVault]::Write(
+                    $metadataTarget,
+                    $previousMetadata.UserName,
+                    $previousMetadata.Comment,
+                    $previousMetadata.Secret
+                )
+            }
+        } catch {
+            throw (
+                "Credential Manager failed during storage and rollback. " +
+                "Remove '$Name' from KeepKeys before retrying."
+            )
+        }
+        throw $writeFailure
+    } finally {
+        [Array]::Clear($secretBytes, 0, $secretBytes.Length)
+        [Array]::Clear($metadataBytes, 0, $metadataBytes.Length)
+        if ($null -ne $previousSecret -and
+            $null -ne $previousSecret.Secret) {
+            [Array]::Clear(
+                $previousSecret.Secret,
+                0,
+                $previousSecret.Secret.Length
+            )
+        }
+        if ($null -ne $previousMetadata -and
+            $null -ne $previousMetadata.Secret) {
+            [Array]::Clear(
+                $previousMetadata.Secret,
+                0,
+                $previousMetadata.Secret.Length
+            )
+        }
+    }
+    return @{
+        status = "ok"
+        message = "Stored '$Name' in Windows Credential Manager."
+        name = $Name
+        variable = $Variable
+        description = $Description
+        provider = $Provider
+        documentationUrls = $DocumentationUrls
+    }
+}
+
+function Read-KeepKeysPortalSecret {
+    if ($env:KEEPKEYS_PORTAL_COMMIT -cne "1" -or
+        -not [Console]::IsInputRedirected) {
+        throw (
+            "The private phone-intake commit is available only to a live " +
+            "KeepKeys portal."
+        )
+    }
+    $stream = [Console]::OpenStandardInput()
+    $buffer = [byte[]]::new($Script:MaximumSecretBytes + 1)
+    $count = 0
+    while ($count -lt $buffer.Length) {
+        $read = $stream.Read($buffer, $count, $buffer.Length - $count)
+        if ($read -eq 0) { break }
+        $count += $read
+    }
+    if ($count -gt $Script:MaximumSecretBytes) {
+        [Array]::Clear($buffer, 0, $buffer.Length)
+        throw (
+            "Secret values must not exceed " +
+            "$($Script:MaximumSecretBytes) UTF-8 bytes."
+        )
+    }
+    try {
+        $utf8 = [Text.UTF8Encoding]::new($false, $true)
+        return [pscustomobject]@{
+            Buffer = $buffer
+            Secret = $utf8.GetString($buffer, 0, $count)
+        }
+    } catch {
+        [Array]::Clear($buffer, 0, $buffer.Length)
+        throw "The phone submitted an invalid UTF-8 key."
+    }
+}
+
 function Get-KeepKeysRedactionPatterns {
     param([string]$Secret)
     $bytes = [Text.Encoding]::UTF8.GetBytes($Secret)
@@ -1417,87 +1569,47 @@ try {
                 $result = @{ status = "cancelled"; message = "Secret storage was cancelled." }
                 break
             }
-            $secretBytes = [Text.Encoding]::UTF8.GetBytes($entered.Secret)
-            $metadataBytes = ConvertTo-KeepKeysMetadataBytes `
-                $entered.Provider $entered.DocumentationUrls
-            $metadataTarget = $Script:MetadataPrefix + $entered.Name
-            $secretTarget = $Script:SecretPrefix + $entered.Name
-            $previousMetadata = [BarnLabs.KeepKeys.CredentialVault]::Read(
-                $metadataTarget,
-                $true
-            )
-            $previousSecret = [BarnLabs.KeepKeys.CredentialVault]::Read(
-                $secretTarget,
-                $true
-            )
             try {
-                [BarnLabs.KeepKeys.CredentialVault]::Write(
-                    $secretTarget,
-                    "KEEPKEYS_SECRET",
-                    "KeepKeys protected value",
-                    $secretBytes
-                )
-                [BarnLabs.KeepKeys.CredentialVault]::Write(
-                    $metadataTarget,
-                    $entered.Variable,
-                    $entered.Description,
-                    $metadataBytes
-                )
-            } catch {
-                $writeFailure = $_
-                try {
-                    if ($null -eq $previousSecret) {
-                        [void][BarnLabs.KeepKeys.CredentialVault]::Delete($secretTarget)
-                    } else {
-                        [BarnLabs.KeepKeys.CredentialVault]::Write(
-                            $secretTarget,
-                            "KEEPKEYS_SECRET",
-                            "KeepKeys protected value",
-                            $previousSecret.Secret
-                        )
-                    }
-                    if ($null -eq $previousMetadata) {
-                        [void][BarnLabs.KeepKeys.CredentialVault]::Delete($metadataTarget)
-                    } else {
-                        [BarnLabs.KeepKeys.CredentialVault]::Write(
-                            $metadataTarget,
-                            $previousMetadata.UserName,
-                            $previousMetadata.Comment,
-                            $previousMetadata.Secret
-                        )
-                    }
-                } catch {
-                    throw "Credential Manager failed during storage and rollback. Remove '$($entered.Name)' from KeepKeys before retrying."
-                }
-                throw $writeFailure
+                $result = Save-KeepKeysRecord `
+                    $entered.Name `
+                    $entered.Variable `
+                    $entered.Description `
+                    $entered.Provider `
+                    $entered.DocumentationUrls `
+                    $entered.Secret
             } finally {
-                [Array]::Clear($secretBytes, 0, $secretBytes.Length)
-                [Array]::Clear($metadataBytes, 0, $metadataBytes.Length)
-                if ($null -ne $previousSecret -and $null -ne $previousSecret.Secret) {
-                    [Array]::Clear(
-                        $previousSecret.Secret,
-                        0,
-                        $previousSecret.Secret.Length
-                    )
-                }
-                if ($null -ne $previousMetadata -and
-                    $null -ne $previousMetadata.Secret) {
-                    [Array]::Clear(
-                        $previousMetadata.Secret,
-                        0,
-                        $previousMetadata.Secret.Length
-                    )
-                }
                 $entered.Secret = ""
             }
-            $result = @{
-                status = "ok"
-                message = "Stored '$($entered.Name)' in Windows Credential Manager."
-                name = $entered.Name
-                variable = $entered.Variable
-                description = $entered.Description
-                provider = $entered.Provider
-                documentationUrls = $entered.DocumentationUrls
+        }
+        "portal-commit" {
+            $name = Get-KeepKeysOption $rest "--name" -Required
+            $variable = (Get-KeepKeysOption $rest "--variable" -Required).ToUpperInvariant()
+            $description = Get-KeepKeysOption $rest "--description" -Required
+            $provider = Get-KeepKeysOption $rest "--provider" -Required
+            $documentationUrls = Get-KeepKeysOptions $rest "--documentation-url"
+            $expectedValue = Get-KeepKeysOption $rest "--expect-existing" -Required
+            if ($expectedValue -cne "yes" -and $expectedValue -cne "no") {
+                throw "The private phone-intake replacement state is invalid."
+            }
+            Assert-KeepKeysMetadata $name $variable $description $provider `
+                $documentationUrls
+            $submitted = Read-KeepKeysPortalSecret
+            try {
+                $result = Save-KeepKeysRecord `
+                    $name `
+                    $variable `
+                    $description `
+                    $provider `
+                    $documentationUrls `
+                    $submitted.Secret `
+                    ($expectedValue -ceq "yes")
+            } finally {
+                $submitted.Secret = ""
+                [Array]::Clear(
+                    $submitted.Buffer,
+                    0,
+                    $submitted.Buffer.Length
+                )
             }
         }
         "list" {

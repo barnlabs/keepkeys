@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """KeepKeys native Linux helper.
 
-Secrets live in a freedesktop Secret Service implementation and enter this
-process only after a local graphical approval. This module intentionally has no
-plaintext retrieval action.
+Secrets live in a freedesktop Secret Service implementation. They enter this
+process after a local graphical paste or through the private stdin pipe owned
+by a one-time KeepKeys Tailscale portal. This module has no plaintext retrieval
+action.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ import threading
 from typing import Any, NoReturn
 from urllib.parse import quote, urlsplit
 
-VERSION = "0.4.2"
+VERSION = "0.5.0"
 METADATA_SERVICE = "net.barnlabs.keepkeys.metadata"
 SECRET_SERVICE = "net.barnlabs.keepkeys.secret"
 LABEL_PREFIX_V1 = "KeepKeys|v1|"
@@ -1106,10 +1107,29 @@ def action_store(arguments: list[str]) -> dict[str, Any]:
     if entered is None:
         return {"status": "cancelled", "message": "Secret storage was cancelled."}
     final_metadata, secret = entered
+    return store_record(final_metadata, secret)
+
+
+def store_record(
+    final_metadata: Metadata,
+    secret: str,
+    *,
+    expected_existing: bool | None = None,
+) -> dict[str, Any]:
+    validate_metadata(final_metadata)
+    validate_secret(secret)
     previous_metadata_items = search_metadata(final_metadata.name)
     previous_metadata = (
         previous_metadata_items[0] if previous_metadata_items else None
     )
+    if (
+        expected_existing is not None
+        and (previous_metadata is not None) != expected_existing
+    ):
+        raise KeepKeysError(
+            "The stored KeepKeys name changed after the phone page opened. "
+            "Start a new phone intake and review the replacement warning."
+        )
     previous_secret = (
         lookup_secret_optional(final_metadata.name)
         if previous_metadata is not None
@@ -1152,6 +1172,53 @@ def action_store(arguments: list[str]) -> dict[str, Any]:
         "provider": final_metadata.provider,
         "documentationUrls": list(final_metadata.documentation_urls),
     }
+
+
+def action_portal_commit(arguments: list[str]) -> dict[str, Any]:
+    if (
+        os.environ.get("KEEPKEYS_PORTAL_COMMIT") != "1"
+        or sys.stdin.isatty()
+    ):
+        raise KeepKeysError(
+            "The private phone-intake commit is available only to a live "
+            "KeepKeys portal."
+        )
+    metadata = Metadata(
+        name=require_option(arguments, "--name"),
+        variable=require_option(arguments, "--variable").upper(),
+        description=require_option(arguments, "--description"),
+        provider=require_option(arguments, "--provider"),
+        documentation_urls=repeated_options(arguments, "--documentation-url"),
+    )
+    validate_metadata(metadata)
+    expected_value = require_option(arguments, "--expect-existing")
+    if expected_value not in {"yes", "no"}:
+        raise KeepKeysError(
+            "The private phone-intake replacement state is invalid."
+        )
+    secret_bytes = bytearray(sys.stdin.buffer.read(MAX_SECRET_BYTES + 1))
+    try:
+        if len(secret_bytes) > MAX_SECRET_BYTES:
+            raise KeepKeysError(
+                f"Secret values must not exceed {MAX_SECRET_BYTES} UTF-8 bytes."
+            )
+        try:
+            secret = secret_bytes.decode("utf-8", errors="strict")
+        except UnicodeDecodeError as error:
+            raise KeepKeysError(
+                "The phone submitted an invalid UTF-8 key."
+            ) from error
+        try:
+            return store_record(
+                metadata,
+                secret,
+                expected_existing=expected_value == "yes",
+            )
+        finally:
+            secret = ""
+    finally:
+        for index in range(len(secret_bytes)):
+            secret_bytes[index] = 0
 
 
 def action_remove(arguments: list[str]) -> dict[str, Any]:
@@ -1318,6 +1385,8 @@ def main(arguments: list[str]) -> None:
     try:
         if action == "store":
             result = action_store(rest)
+        elif action == "portal-commit":
+            result = action_portal_commit(rest)
         elif action == "list":
             result = {
                 "status": "ok",

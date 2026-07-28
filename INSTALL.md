@@ -54,6 +54,29 @@ GNOME Keyring works directly. KDE needs a KWallet configuration that exposes
 the freedesktop Secret Service interface. KeepKeys fails closed when it cannot
 reach a secure vault or graphical prompt.
 
+### optional phone intake with Tailscale
+
+Phone intake works when ChatGPT mobile controls a connected Mac or Windows host
+through [ChatGPT Remote](https://learn.chatgpt.com/docs/remote-connections), or
+when another supported agent client runs on that host.
+
+Install [Tailscale](https://tailscale.com/download) on the host and phone, sign
+both into the same tailnet, and confirm the host has Tailscale 1.52 or newer:
+
+```sh
+tailscale version
+tailscale status
+```
+
+Tailscale Serve needs MagicDNS and HTTPS enabled for the tailnet. Follow
+[Tailscale's Serve setup](https://tailscale.com/docs/features/tailscale-serve)
+if the first phone-intake request reports that either is missing. KeepKeys does
+not install Tailscale, sign devices in, edit tailnet policy, or enable Funnel.
+
+Keep port 443 free of another foreground Tailscale Serve listener while the
+one-time page is active. KeepKeys refuses a listener conflict and does not
+reset or replace another Serve configuration.
+
 ## Reviewed source pins
 
 KeepKeys is security-sensitive, so the commands below avoid a mutable `main`
@@ -165,7 +188,7 @@ Compatible clients can load `skills/keepkeys/SKILL.md` from the reviewed
 checkout. The skills-only distribution includes a cross-platform Node launcher
 and all three native backends but intentionally omits MCP configuration.
 
-When the six `keepkeys_*` tools are available, use them. The fallback launcher
+When the seven `keepkeys_*` tools are available, use them. The fallback launcher
 is:
 
 ```sh
@@ -196,6 +219,22 @@ clipboard only after that click, clears the current clipboard immediately, and
 stores the value directly in the OS vault. Same-user software or clipboard
 history may still observe a shared clipboard value, so copy only when the
 window is ready and click immediately. Never paste it into the conversation.
+
+From a phone, ask:
+
+> Store a new secret from my phone with KeepKeys.
+
+The agent prepares the same metadata and calls
+`keepkeys_store_from_phone`. KeepKeys returns a one-time Tailscale HTTPS link
+that expires after ten minutes. Open it on a phone in the same tailnet, review
+the metadata and any replacement warning, paste the key, and press
+**Paste & Store**. The page sends the value to the host's native vault and
+closes its local listener. KeepKeys never uses Tailscale Funnel or a BarnLabs
+server.
+
+KeepKeys cannot clear the phone's clipboard or clipboard history. Copy the key
+only after the page is ready, submit it immediately, and close the page after
+it reports success.
 
 For use, ask for a concrete direct command. The native approval surface shows:
 

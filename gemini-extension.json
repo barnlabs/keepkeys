@@ -1,7 +1,7 @@
 {
   "name": "keepkeys",
-  "version": "0.4.2",
-  "description": "Local native-vault secrets for approval-gated agent commands on macOS, Windows, and Linux, without plaintext retrieval.",
+  "version": "0.5.0",
+  "description": "Native-vault secrets from the host or a private Tailscale phone page, with approval-gated agent use and no plaintext retrieval.",
   "mcpServers": {
     "keepkeys": {
       "command": "node",

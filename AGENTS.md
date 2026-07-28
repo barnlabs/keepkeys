@@ -4,8 +4,9 @@ KeepKeys is a local secret-use broker for coding agents. The agent prepares all
 non-secret metadata and official documentation links. The user copies the value
 from its provider and activates the native **Paste & Store** button; the
 operating-system vault stores it, and an approved direct child process receives
-one environment variable. The product does not expose a plaintext retrieval
-action.
+one environment variable. A user controlling the host from a phone may instead
+open a ten-minute, tailnet-only Tailscale Serve page and press **Paste & Store**
+there. The product does not expose a plaintext retrieval action.
 
 Read [DESIGN.md](DESIGN.md), [CHECKLIST.md](CHECKLIST.md),
 [CODE_REVIEW.md](CODE_REVIEW.md), and [docs/threat-model.md](docs/threat-model.md)
@@ -15,13 +16,17 @@ before changing behavior.
 
 - Never add a `get`, reveal, copy, export, agent-invoked clipboard,
   terminal-entry, chat-entry, file-backed secret, or secret-returning tool.
-- Clipboard access is permitted only inside a native Store window, in direct
-  response to the user activating **Paste & Store**, and the helper must clear
-  the current clipboard immediately after capture. The agent must prepare every
-  title, name, variable, description, provider, and documentation link.
+- Host clipboard access is permitted only inside a native Store window, in
+  direct response to the user activating **Paste & Store**, and the helper must
+  clear the current clipboard immediately after capture. Phone intake is
+  permitted only through a one-time Tailscale Serve page after the user presses
+  its **Paste & Store** button. Never use Funnel or another public tunnel. The
+  agent must prepare every title, name, variable, description, provider, and
+  documentation link.
 - Tool inputs and outputs may contain names, variable names, descriptions,
   provider names, documentation links, purposes, paths, arguments,
-  fingerprints, and status only—never a secret value.
+  fingerprints, one-time tailnet URLs, expiry times, and status only—never a
+  secret value.
 - Listing and pre-approval UI read metadata only. Read the protected value only
   after **Allow once**, then recheck metadata and executable identity before
   launch.
@@ -32,7 +37,9 @@ before changing behavior.
 - Use generated synthetic values for tests. Never inspect an existing user
   credential or add credential-shaped fixtures, logs, screenshots, or output.
 - Fail closed when the native vault, graphical approval surface, source
-  fingerprint, validation, or cleanup proof is unavailable.
+  fingerprint, validation, or cleanup proof is unavailable. Phone intake must
+  also fail closed when Tailscale, tailnet identity, private HTTPS, session
+  expiry, or exact teardown is unavailable.
 - Do not install absent agent harnesses to validate adapters. Test their
   published contracts and use disposable host smoke tests only when a
   maintainer explicitly schedules them.

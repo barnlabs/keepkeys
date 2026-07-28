@@ -76,13 +76,26 @@ for (const tool of TOOLS) {
 
 const storeTool = TOOLS.find((tool) => tool.name === "keepkeys_store");
 assert.ok(storeTool, "keepkeys_store is missing");
-assert.deepEqual(storeTool.inputSchema.required, [
+const storeFields = [
   "name",
   "variable",
   "description",
   "provider",
   "documentation_urls",
-]);
+];
+assert.deepEqual(storeTool.inputSchema.required, storeFields);
+const phoneStoreTool = TOOLS.find(
+  (tool) => tool.name === "keepkeys_store_from_phone",
+);
+assert.ok(phoneStoreTool, "keepkeys_store_from_phone is missing");
+assert.deepEqual(phoneStoreTool.inputSchema.required, storeFields);
+assert.deepEqual(
+  phoneStoreTool.inputSchema.properties,
+  storeTool.inputSchema.properties,
+  "native and phone Store must accept the same metadata-only fields",
+);
+assert.match(phoneStoreTool.description, /Tailscale Serve/);
+assert.match(phoneStoreTool.description, /never uses Tailscale Funnel/);
 
 const skill = readFileSync(
   resolve(pluginRoot, "skills", "keepkeys", "SKILL.md"),
@@ -92,6 +105,10 @@ assert.match(skill, /^---\nname: keepkeys\n/m);
 assert.match(skill, /Never ask the user to paste, type, dictate, attach, or expose a secret in chat/);
 assert.match(skill, /Paste & Store/);
 assert.match(skill, /AI-readable official\s+documentation/);
+assert.match(
+  skill,
+  /Never open, fetch,\s+preview, screenshot, or test the link/,
+);
 
 const launcher = readFileSync(resolve(pluginRoot, "scripts", "keepkeys"), "utf8");
 const source = readFileSync(resolve(pluginRoot, "scripts", "keepkeys.swift"));
@@ -214,12 +231,33 @@ assert.ok(expectedSourceHash, "launcher source-integrity digest is missing");
 assert.equal(createHash("sha256").update(source).digest("hex"), expectedSourceHash);
 for (const relative of [
   "scripts/keepkeys-cli.mjs",
+  "scripts/keepkeys-portal.mjs",
   "scripts/keepkeys.linux.py",
   "scripts/keepkeys.windows.ps1",
   "scripts/platform.mjs",
 ]) {
   assert.ok(existsSync(resolve(pluginRoot, relative)), `${relative} is missing`);
 }
+const portalSource = readFileSync(
+  resolve(pluginRoot, "scripts", "keepkeys-portal.mjs"),
+  "utf8",
+);
+assert.match(portalSource, /SESSION_TTL_MS = 10 \* 60 \* 1000/);
+assert.match(portalSource, /randomBytes\(24\)\.toString\("base64url"\)/);
+assert.match(portalSource, /tailscale-user-login/);
+assert.match(portalSource, /SameSite=Strict/);
+assert.match(portalSource, /publicInternet: false/);
+assert.match(portalSource, /\[\s*"serve",/);
+assert.doesNotMatch(
+  portalSource,
+  /["']funnel["']/i,
+  "phone intake must never invoke Tailscale Funnel",
+);
+assert.doesNotMatch(
+  portalSource,
+  /https?:\/\/(?:[a-z0-9-]+\.)+[a-z]{2,}/i,
+  "phone intake source must not contain a fixed hosted relay destination",
+);
 const platformDispatcher = readFileSync(
   resolve(pluginRoot, "scripts", "platform.mjs"),
   "utf8",

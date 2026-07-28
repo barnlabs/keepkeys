@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from io import BytesIO
 import importlib.util
 import json
 from pathlib import Path
@@ -128,6 +129,71 @@ class LinuxBackendTests(unittest.TestCase):
                     documentation_urls=("http://docs.example.com/api",),
                 )
             )
+
+    def test_phone_portal_commit_requires_private_redirected_input(self) -> None:
+        arguments = [
+            "--name",
+            "demo",
+            "--variable",
+            "DEMO_TOKEN",
+            "--description",
+            "Synthetic test credential",
+            "--provider",
+            "Example",
+            "--documentation-url",
+            "https://docs.example.com/api",
+            "--expect-existing",
+            "no",
+        ]
+        with self.assertRaisesRegex(
+            keepkeys_linux.KeepKeysError,
+            "only to a live KeepKeys portal",
+        ):
+            keepkeys_linux.action_portal_commit(arguments)
+
+    def test_phone_portal_commit_stores_redirected_bytes_without_tool_value(self) -> None:
+        class RedirectedInput:
+            buffer = BytesIO(b"synthetic_secret")
+
+            @staticmethod
+            def isatty() -> bool:
+                return False
+
+        arguments = [
+            "--name",
+            "demo",
+            "--variable",
+            "DEMO_TOKEN",
+            "--description",
+            "Synthetic test credential",
+            "--provider",
+            "Example",
+            "--documentation-url",
+            "https://docs.example.com/api",
+            "--expect-existing",
+            "no",
+        ]
+        with (
+            patch.dict(
+                keepkeys_linux.os.environ,
+                {"KEEPKEYS_PORTAL_COMMIT": "1"},
+            ),
+            patch.object(keepkeys_linux.sys, "stdin", RedirectedInput()),
+            patch.object(
+                keepkeys_linux,
+                "search_metadata",
+                return_value=[],
+            ),
+            patch.object(keepkeys_linux, "store_value") as store_value,
+            patch.object(keepkeys_linux, "store_metadata") as store_metadata,
+        ):
+            result = keepkeys_linux.action_portal_commit(arguments)
+        self.assertEqual(result["status"], "ok")
+        store_value.assert_called_once_with("demo", "synthetic_secret")
+        stored_metadata = store_metadata.call_args.args[0]
+        self.assertEqual(stored_metadata.name, "demo")
+        self.assertNotIn("secret", result)
+        self.assertNotIn("value", result)
 
     def test_malformed_documentation_url_returns_structured_error_before_ui(self) -> None:
         completed = subprocess.run(

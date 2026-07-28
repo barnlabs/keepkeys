@@ -23,6 +23,56 @@ findings to the same implementer, repair only those failures, rerun regression
 checks, and send the new diff to the same reviewer. Default to two repair
 cycles. Check the box only after reviewer `PASS` and root integration proof.
 
+## Release candidate — 0.5.0
+
+- [ ] **Private phone intake keeps plaintext outside the agent protocol.**
+  - Implementer context: `keepkeys_store_from_phone`, temporary localhost
+    portal, Tailscale Serve route, and private native standard-input commit
+    action on macOS, Windows, and Linux.
+  - Required tests: schema rejection of value fields; identity, cookie, origin,
+    content type, content length, one-use, expiry, replacement-race, cleanup,
+    and no-Funnel regressions; generated-value tailnet-to-vault smoke test.
+  - Acceptance: the model receives only metadata and the one-time URL; no
+    plaintext reaches tool input/output, argv, files, logs, persistent
+    environment, the public internet, or a BarnLabs service.
+- [ ] **Phone setup and failure states are complete.**
+  - Implementer context: ChatGPT Remote guidance, same-tailnet prerequisites,
+    MagicDNS/HTTPS requirements, port conflict, unavailable Tailscale, and
+    phone clipboard limitation.
+  - Required tests: missing/offline/old Tailscale, absent DNS name, Serve
+    startup failure, unauthorized identity, second browser, second submit,
+    too-short/too-large value, expiry, interrupt, and native commit failure.
+  - Acceptance: every failure closes the local listener and owned Serve route
+    without changing unrelated Tailscale configuration.
+- [ ] **The 0.5.0 package and public copy match the seven-tool contract.**
+  - Implementer context: manifests, MCP, Hermes, Agent Skill, skills-only
+    package, README, install guide, listing, release notes, and eight submission
+    cases.
+  - Required tests: cross-adapter schema equality, archive inventory,
+    checksums, documentation links, direct-copy review, and five positive plus
+    three negative directory cases.
+  - Acceptance: phone intake is described as a private route to the connected
+    host, never as hosted storage, synchronization, or public mobile support.
+- [ ] **Independent adversarial 0.5.0 review passed.**
+  - Implementer context: exact diff, generated archives, local proof, public CI,
+    immutable `F → C → docs` chain, and rollback.
+  - Required tests: dedicated read-only Codex review, complete local regression
+    suite, all-platform public CI, and serious-finding disposition.
+  - Acceptance: reviewer returns `PASS`; root reopens the exact evidence and
+    records it below.
+
+### 0.5.0 release evidence
+
+- Functional source commit (`F`): pending.
+- Catalog commit (`C`): pending.
+- Reviewed documentation candidate: pending.
+- Public CI run: pending.
+- Independent reviewer verdict: pending.
+- Stable update promotion: pending.
+- Rollback: reinstall the 0.4.2 functional commit
+  `e5276925d390704fccdf4aaeba47280464762a1c`; plugin rollback does not remove
+  native-vault records.
+
 ## Production baseline — 0.4.2
 
 - [x] **Secret-use boundary is closed.**

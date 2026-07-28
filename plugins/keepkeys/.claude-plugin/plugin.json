@@ -1,8 +1,8 @@
 {
   "name": "keepkeys",
   "displayName": "KeepKeys",
-  "version": "0.4.2",
-  "description": "Paste local secrets into the native OS vault and let your agent use them through approval-gated commands.",
+  "version": "0.5.0",
+  "description": "Store secrets in a native OS vault from the host or a private Tailscale phone page, then approve each agent command.",
   "author": {
     "name": "BarnLabs",
     "url": "https://github.com/barnlabs"
@@ -15,6 +15,8 @@
     "credential-vault",
     "windows",
     "linux",
+    "tailscale",
+    "mobile",
     "agents",
     "mcp"
   ],

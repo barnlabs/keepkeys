@@ -25,7 +25,7 @@ const update = parse("update.json");
 const version = codex.version;
 const releaseCommit = "e5276925d390704fccdf4aaeba47280464762a1c";
 const catalogCommit = "c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd";
-assert.equal(version, "0.4.2");
+assert.equal(version, "0.5.0");
 const expectedUpdate = {
   schemaVersion: 1,
   product: "KeepKeys",
@@ -141,6 +141,7 @@ for (const helper of [
   "plugins/keepkeys/scripts/keepkeys.windows.ps1",
   "plugins/keepkeys/scripts/keepkeys.linux.py",
   "plugins/keepkeys/scripts/keepkeys-cli.mjs",
+  "plugins/keepkeys/scripts/keepkeys-portal.mjs",
   "plugins/keepkeys/scripts/platform.mjs",
 ]) {
   assert.ok(read(helper).length > 0, `${helper} is missing`);

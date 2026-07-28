@@ -91,9 +91,9 @@ def _helper_arguments(tool_name: str, raw_args: Any) -> list[str]:
     if any(key not in allowed for key in args):
         raise ValueError("Tool arguments contain an unsupported field.")
 
-    if tool_name == "keepkeys_store":
+    if tool_name in {"keepkeys_store", "keepkeys_store_from_phone"}:
         command = [
-            "store",
+            "store" if tool_name == "keepkeys_store" else "portal-store",
             "--name",
             _required_string(args, "name", 128),
             "--variable",

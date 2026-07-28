@@ -1,7 +1,7 @@
 # Publish KeepKeys in the Codex plugin directory
 
 This is the handoff for the BarnLabs publisher. It follows the official OpenAI
-plugin submission workflow reviewed on 2026-07-25 and keeps account-owned
+plugin submission workflow reviewed on 2026-07-28 and keeps account-owned
 attestations with a human publisher.
 
 ## Choose the correct submission type
@@ -12,7 +12,7 @@ The repository edition includes a local stdio MCP server, but KeepKeys has no
 public production MCP URL. OpenAI's **With MCP** path requires a publicly
 reachable production server and domain verification. Do not deploy a cloud
 secret service or select **With MCP** merely to satisfy that form; doing so
-would contradict KeepKeys' local-only design.
+would contradict KeepKeys' local-host design.
 
 The skills-only package carries the Agent Skill, native helper sources,
 launcher, brand assets, license, privacy notice, and terms. The skill uses the
@@ -38,17 +38,17 @@ From a reviewed checkout:
 ./scripts/check
 ./scripts/test
 ./scripts/package-submission
-(cd dist && shasum -a 256 -c keepkeys-skills-0.4.2.zip.sha256)
+(cd dist && shasum -a 256 -c keepkeys-skills-0.5.0.zip.sha256)
 ```
 
 Upload:
 
-`dist/keepkeys-skills-0.4.2.zip`
+`dist/keepkeys-skills-0.5.0.zip`
 
 The packaging gate verifies that the archive has the plugin manifest, skill,
-native helper sources, launcher, brand assets, policies, and executable bit. It
-also verifies that a skills-only upload contains no MCP configuration or MCP
-server directory.
+native helper sources, phone portal, launcher, brand assets, policies, and
+executable bit. It also verifies that a skills-only upload contains no MCP
+configuration or MCP server directory.
 
 ## Portal fields
 
@@ -79,8 +79,8 @@ reveals, exports, synchronizes, or remotely stores secrets.
 
 Enter all eight cases in [test-cases.md](test-cases.md):
 
-- five positive cases covering explicit native paste, metadata listing, approved direct
-  use, cancellation, and confirmed removal;
+- five positive cases covering explicit native paste, private phone intake,
+  metadata listing, approved direct use, and confirmed removal;
 - three negative cases covering a pasted secret, plaintext retrieval, and
   environment-dump or shell use.
 
@@ -97,9 +97,12 @@ Verify the rendered listing:
   surfaces;
 - macOS, Windows, and Linux support is stated with the Linux desktop/Secret
   Service prerequisite;
-- the local-only, no-account, no-telemetry, and no-plaintext-retrieval
-  boundaries are present;
-- release notes say 0.4.2;
+- the local-host, no-account, no-telemetry, and no-plaintext-retrieval
+  boundaries are present, with the optional tailnet-only phone route described
+  separately;
+- release notes say 0.5.0;
+- ChatGPT mobile Remote is described as using a connected Mac or Windows host,
+  not as a hosted BarnLabs service;
 - every URL resolves to the public BarnLabs repository;
 - the upload is the freshly checksummed skills archive.
 
@@ -123,4 +126,6 @@ them.
 
 - [Build plugins](https://developers.openai.com/plugins/build/plugins)
 - [Submit plugins](https://developers.openai.com/plugins/deploy/submission)
+- [ChatGPT Remote](https://learn.chatgpt.com/docs/remote-connections)
+- [Tailscale Serve](https://tailscale.com/docs/features/tailscale-serve)
 - [Plugin submission portal](https://platform.openai.com/plugins)

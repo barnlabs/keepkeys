@@ -80,6 +80,28 @@ test("store carries metadata but never a secret value", () => {
       "https://github.com/github/rest-api-description",
     ],
   );
+  assert.deepEqual(
+    helperArguments("keepkeys_store_from_phone", {
+      name: "github-release",
+      variable: "GITHUB_TOKEN",
+      description: "Publishes approved BarnLabs releases",
+      provider: "GitHub",
+      documentation_urls: ["https://docs.github.com/en/rest"],
+    }),
+    [
+      "portal-store",
+      "--name",
+      "github-release",
+      "--variable",
+      "GITHUB_TOKEN",
+      "--description",
+      "Publishes approved BarnLabs releases",
+      "--provider",
+      "GitHub",
+      "--documentation-url",
+      "https://docs.github.com/en/rest",
+    ],
+  );
 });
 
 test("store rejects missing, insecure, or excessive documentation links", () => {
@@ -161,6 +183,14 @@ test("runtime validation rejects every undeclared field before helper dispatch",
       documentation_urls: ["https://docs.example.com"],
       value: "synthetic-only-not-a-credential",
     }],
+    ["keepkeys_store_from_phone", {
+      name: "demo",
+      variable: "DEMO_TOKEN",
+      description: "Synthetic test metadata",
+      provider: "Example",
+      documentation_urls: ["https://docs.example.com"],
+      secret: "synthetic-only-not-a-credential",
+    }],
     ["keepkeys_run", {
       name: "demo",
       purpose: "Synthetic test",
@@ -198,7 +228,7 @@ test("MCP handler returns structured helper output", async () => {
   const calls = [];
   const handler = createRequestHandler(async (name, args) => {
     calls.push({ name, args });
-    return { status: "ok", platform: "macOS", version: "0.4.2" };
+    return { status: "ok", platform: "macOS", version: "0.5.0" };
   });
   const response = await handler({
     jsonrpc: "2.0",
@@ -210,7 +240,7 @@ test("MCP handler returns structured helper output", async () => {
   assert.deepEqual(response.result.structuredContent, {
     status: "ok",
     platform: "macOS",
-    version: "0.4.2",
+    version: "0.5.0",
   });
 });
 
@@ -258,6 +288,20 @@ test("platform dispatch keeps one argv contract across macOS, Windows, and Linux
     "unix:path=/run/user/1000/bus",
   );
   assert.equal(linux.env.DISPLAY, ":0");
+
+  for (const platform of ["darwin", "win32", "linux"]) {
+    const portal = helperInvocation(["portal-store", "--name", "demo"], {
+      platform,
+      environment:
+        platform === "win32"
+          ? { SystemRoot: "C:\\Windows", USERPROFILE: "C:\\Users\\example" }
+          : {},
+      home: platform === "win32" ? "C:\\Users\\example" : "/home/example",
+    });
+    assert.equal(portal.command, process.execPath);
+    assert.match(portal.args[0], /keepkeys-portal\.mjs$/u);
+    assert.deepEqual(portal.args.slice(1), ["--name", "demo"]);
+  }
 });
 
 test("native helper fingerprints are stable across LF and CRLF checkouts", () => {
@@ -317,7 +361,7 @@ test("stdio server handles a complete protocol transcript through a symlinked pl
     const responses = result.stdout.trim().split("\n").map(JSON.parse);
     assert.equal(responses.length, 4, "notifications must not produce responses");
     assert.equal(responses[0].result.serverInfo.name, "keepkeys");
-    assert.equal(responses[0].result.serverInfo.version, "0.4.2");
+    assert.equal(responses[0].result.serverInfo.version, "0.5.0");
     assert.deepEqual(responses[1].result.tools, TOOLS);
     assert.deepEqual(responses[2], {
       jsonrpc: "2.0",

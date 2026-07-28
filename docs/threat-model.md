@@ -6,7 +6,9 @@ KeepKeys lets a supported local agent cause one user-approved process to use one
 named secret without placing the plaintext value in the model prompt, tool
 arguments or results, plugin metadata, repository, persistent environment,
 terminal, or plaintext file. Clipboard access occurs only inside the native
-helper after the user explicitly presses **Paste & Store**.
+helper after the user explicitly presses **Paste & Store**. A user on a phone
+may instead press **Paste & Store** on a one-time, tailnet-only Tailscale Serve
+page connected to the host.
 
 This is scoped delegation, not containment after delegation. The approved
 program and its descendants receive the value.
@@ -17,6 +19,8 @@ program and its descendants receive the value.
 - friendly names, variable names, descriptions, provider names, documentation
   URLs, and command purposes;
 - user intent for store, replacement, deletion, and each use;
+- one-time phone-intake URLs, Tailscale identity metadata held for the active
+  session, and the user's intent to submit from the phone;
 - integrity of the plugin source, dispatcher, native helper, approval window,
   target executable, and optional script entrypoint;
 - availability and correctness of the native credential vault;
@@ -30,6 +34,8 @@ program and its descendants receive the value.
 | Agent/client | Untrusted with plaintext through the KeepKeys protocol. It can propose metadata and a command through fixed schemas. A host with unrestricted same-user command execution is not contained while a value is on the shared clipboard. |
 | MCP/Hermes adapter | Trusted code boundary. It validates arguments, selects one bundled backend, uses no shell, and returns bounded JSON. |
 | Native helper | Trusted secret-bearing boundary. It owns click-gated clipboard ingestion, vault access, approval, fingerprints, child environment, and redaction. |
+| Phone portal process | Trusted, temporary secret-bearing boundary. It owns the localhost listener, Tailscale identity binding, browser checks, one submitted byte buffer, and a private redirected pipe to the native helper. |
+| Tailscale Serve | Trusted private transport and identity boundary for phone intake. It terminates tailnet HTTPS on the host and forwards only to `127.0.0.1`. Funnel is forbidden. |
 | OS credential vault | Trusted for per-user at-rest protection and its own lock/unlock policy. |
 | Approved executable | Trusted only for this action. It and descendants can read, transform, persist, or transmit the secret. |
 | Same-user malware / administrator | Out of the defended boundary. It can inspect memory, replace local code, automate UI, or access the signed-in vault. |
@@ -41,7 +47,9 @@ program and its descendants receive the value.
 No input schema includes `secret`, `value`, or an equivalent plaintext field.
 The behavioral skill forbids asking for the value. Store carries only name,
 variable, description, provider, and official documentation URLs. There is no
-plaintext retrieval action.
+plaintext retrieval action. `keepkeys_store_from_phone` carries the same
+metadata and returns only a one-time tailnet URL, expiry, replacement state,
+and status.
 
 The MCP server and Hermes adapter form argument arrays and start a
 repository-relative helper with `shell=false`. The dispatcher keeps only
@@ -166,6 +174,49 @@ ready and activate **Paste & Store** immediately.
 Metadata remains visible to the active agent when list is authorized, so
 descriptions should be useful but minimal.
 
+### Phone to host
+
+Phone intake is opt-in and requires Tailscale 1.52 or newer on the host, a
+signed-in phone in the same tailnet, MagicDNS, and tailnet HTTPS. KeepKeys
+starts one localhost HTTP listener and invokes `tailscale serve` in the
+foreground with an unguessable path. It never invokes `tailscale funnel`,
+listens on a LAN address, creates a BarnLabs account, or sends the key through a
+BarnLabs server.
+
+Tailscale Serve strips caller-supplied identity headers and adds the
+authenticated Tailscale user identity for tailnet traffic. KeepKeys rejects
+requests without that header. The first GET binds the session to one identity,
+sets a Secure, HttpOnly, SameSite=Strict cookie, and returns a page with no
+third-party resources. POST requires the same identity, exact HTTPS origin,
+cookie, content type, path, and 8-2048-byte body. The session accepts one
+successful submission and expires after ten minutes.
+
+The URL is a short-lived capability visible to the active agent and user.
+Skill instructions forbid the agent from opening, previewing, or testing it
+because the first GET binds the session. Another authorized tailnet user who
+obtains the unused URL could bind it first. Tailscale ACLs remain the user's
+network-level control. A local agent host with arbitrary command execution can
+also call its own Tailscale URL and is outside KeepKeys' containment boundary,
+as it already is for the shared host clipboard.
+
+The page shows metadata and whether the name existed when the page opened. The
+native helper rechecks that existence state immediately before writing. A
+create-to-replace or replace-to-create race fails closed and requires a new
+page. The submitted bytes travel from the localhost portal process to the
+native helper through redirected stdin. They never appear in argv, a tool
+payload, a file, a log, or a persistent environment. KeepKeys clears mutable
+Node, Swift, .NET, and Python buffers where possible, but those runtimes and
+operating-system APIs may retain copies.
+
+KeepKeys cannot clear the phone's clipboard or clipboard history. The page
+tells the user to copy only when it is ready and submit immediately. Tailscale
+and the user's identity provider can observe normal connection and identity
+metadata; the key stays inside the encrypted connection to the host.
+
+Success, expiry, startup failure, or termination closes the listener and kills
+the foreground Serve process group. A pre-existing listener conflict fails
+closed rather than changing another Tailscale Serve configuration.
+
 ### Approved target disclosure
 
 Approval is authority to deliver the secret to the displayed executable, not a
@@ -191,7 +242,7 @@ release metadata. It caps and validates the response, requires full commit
 SHAs, and performs no installation. A compromised repository or GitHub account
 could still publish malicious commit identifiers; the user must review the
 linked diff and green public evidence before updating. KeepKeys does not claim
-signed update metadata in version 0.4.2.
+signed update metadata.
 
 ## Explicit non-goals
 
@@ -202,7 +253,8 @@ signed update metadata in version 0.4.2.
 - confinement after delivery to an approved executable;
 - general output DLP or network egress control;
 - team sharing, cloud synchronization, backup, recovery, or rotation;
-- browser, mobile, server, or headless approval support;
+- public browser intake, Tailscale Funnel, server-side secret storage, or
+  headless secret entry;
 - absolute, “unbreakable,” or formal-verification claims.
 
 ## Required regression invariants
@@ -225,3 +277,11 @@ signed update metadata in version 0.4.2.
 13. Update discovery is explicit, bounded, read-only, and cannot install code.
 14. Agent-supplied names, providers, and documentation links are validated
     before native UI opens and are never editable by the user.
+15. Phone intake uses Tailscale Serve only, binds one identity and browser
+    session, accepts one bounded submission, and expires within ten minutes.
+16. Phone-submitted bytes reach the native helper only through redirected
+    stdin and never enter a tool payload, argv, file, log, or persistent
+    environment.
+17. Portal success, expiry, startup failure, and termination remove the
+    localhost listener and foreground Serve route without resetting unrelated
+    Tailscale configuration.

@@ -13,13 +13,18 @@
   <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-1F2D27.svg" />
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-1F2D27.svg" />
   <img alt="desktop Linux" src="https://img.shields.io/badge/Linux-desktop-1F2D27.svg" />
-  <img alt="KeepKeys 0.4.2" src="https://img.shields.io/badge/version-0.4.2-D96C4D.svg" />
+  <img alt="KeepKeys 0.5.0" src="https://img.shields.io/badge/version-0.5.0-D96C4D.svg" />
 </p>
 
 KeepKeys is the open-source, local secret-use broker for coding agents. It
 opens a native paste-and-store window, stores the value in the operating system's
 credential vault, and gives the agent one narrow capability: run a specific
 command with one named secret after you review the exact request.
+
+If you are talking to ChatGPT Remote from a phone, KeepKeys can also open a
+one-time page inside your private Tailscale network. Paste the key there and it
+goes straight to the connected computer's native vault. KeepKeys does not use
+Tailscale Funnel or a BarnLabs server.
 
 There is no `get`, `show`, `copy`, reveal, or export tool. Friendly names,
 environment-variable names, descriptions, providers, and official
@@ -37,7 +42,7 @@ KeepKeys is deliberately narrower:
 | Property | KeepKeys |
 | --- | --- |
 | At-rest storage | macOS Keychain, Windows Credential Manager, or Linux Secret Service |
-| Secret entry | Explicit native **Paste & Store**, never chat or terminal |
+| Secret entry | Explicit native **Paste & Store**, or a one-time tailnet-only phone page |
 | Agent API | Research and store metadata, list metadata, remove, and approval-gated Run |
 | Plaintext retrieval | No tool or helper action |
 | Authorization | One native **Allow once** decision per command |
@@ -45,7 +50,7 @@ KeepKeys is deliberately narrower:
 | Executable identity | Canonical path and SHA-256, rechecked after approval |
 | Interpreter identity | Detected script entrypoint gets a second SHA-256 |
 | Output | Concurrent 1 MiB bounds and common-representation redaction |
-| Service model | Local, offline, no KeepKeys account, cloud, daemon, or telemetry |
+| Service model | Local helper; optional private Tailscale transport; no KeepKeys account, cloud service, daemon, or telemetry |
 
 The distinction is simple: KeepKeys provides approval-gated use without adding
 a reveal operation to the agent protocol.
@@ -77,10 +82,11 @@ It never falls back to a plaintext keyring, terminal password prompt, or file.
 | **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref e5276925d390704fccdf4aaeba47280464762a1c` |
 | **Agent Skills clients** | standard `skills/keepkeys/SKILL.md` | reviewed checkout or skills-only archive |
 
-All integrations expose the same six tools and dispatch to the same
+All integrations expose the same seven tools and dispatch to the same
 platform-native boundary:
 
 - `keepkeys_store`
+- `keepkeys_store_from_phone`
 - `keepkeys_list`
 - `keepkeys_remove`
 - `keepkeys_run`
@@ -105,6 +111,22 @@ Store:
    clears the current clipboard, then the operating-system vault stores the
    value without returning it through the agent protocol.
 
+Store from a phone:
+
+1. The agent prepares and validates the same non-secret metadata.
+2. KeepKeys starts a ten-minute, one-use HTTPS page on an unguessable Tailscale
+   Serve path.
+3. The user opens the link on a phone in the same tailnet, reviews the metadata
+   and any replacement warning, pastes the key, and presses
+   **Paste & Store**.
+4. The page sends the value through the private tailnet to the connected
+   computer, where the native helper writes it to the operating-system vault.
+   The listener and Serve route then close.
+
+Phone intake requires Tailscale 1.52 or newer, MagicDNS, tailnet HTTPS, and a
+phone signed into the same tailnet. See the
+[install guide](INSTALL.md#optional-phone-intake-with-tailscale).
+
 Run:
 
 1. The agent proposes an absolute executable, fixed argument list, purpose, and
@@ -124,6 +146,9 @@ KeepKeys does:
 
 - keep plaintext out of model prompts, tool inputs/results, plugin metadata,
   argv, persistent environment, and plaintext files;
+- keep the optional phone page inside the user's tailnet, bind it to one
+  Tailscale identity and browser session, and close it after one submission or
+  ten minutes;
 - read the system clipboard only after **Paste & Store** and clear its current
   contents immediately after capture;
 - pin native helper sources and fail closed on integrity mismatch;
@@ -141,6 +166,8 @@ KeepKeys does not:
 - prevent same-user software, a coding host with unrestricted local-command
   execution, or operating-system clipboard history from observing a value
   while it is on the shared clipboard;
+- clear a phone's clipboard or clipboard history after phone intake;
+- make a Tailscale account, device, ACL, or signed-in host trustworthy;
 - protect against malware, a compromised signed-in account, administrator/root,
   debuggers, keyloggers, or modified local plugin code;
 - promise forensic erasure inside operating-system-managed storage;

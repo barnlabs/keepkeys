@@ -1,7 +1,8 @@
 # Architecture
 
 KeepKeys is a local secret-use broker for desktop coding agents. It has one
-agent-facing contract and three native security backends:
+agent-facing contract, one optional private phone intake, and three native
+security backends:
 
 ```text
 Codex · Grok Build · Claude Code · Oh My Pi · Gemini CLI
@@ -11,9 +12,13 @@ Codex · Grok Build · Claude Code · Oh My Pi · Gemini CLI
 Hermes ── Python bridge ─┤
                          ▼
              fixed cross-platform dispatcher
+                 │                    │
+        native Paste & Store    Tailscale Serve page
+                 │              on 127.0.0.1 only
+                 └─────────┬──────────┘
+                    private pipe
                 │          │          │
               macOS      Windows     Linux
-             AppKit/WPF/Tk native human gates
                 │          │          │
              Keychain   Credential   Secret
                         Manager       Service
@@ -22,9 +27,10 @@ Hermes ── Python bridge ─┤
 ## Stable agent contract
 
 Every supported client loads the canonical definitions in
-`plugins/keepkeys/mcp/tools.json`. The six operations are:
+`plugins/keepkeys/mcp/tools.json`. The seven operations are:
 
 - `keepkeys_store`
+- `keepkeys_store_from_phone`
 - `keepkeys_list`
 - `keepkeys_remove`
 - `keepkeys_run`
@@ -34,7 +40,9 @@ Every supported client loads the canonical definitions in
 There is deliberately no `get`, `show`, `copy`, `reveal`, `export`, or generic
 command tool. Store accepts a friendly name, an environment-variable name, a
 description, provider, and one to three official HTTPS documentation URLs, but
-no secret value. The helper emits one bounded JSON result.
+no secret value. Phone store accepts the same metadata and returns a one-time
+tailnet URL without accepting or returning the value. The helper emits one
+bounded JSON result.
 
 The Node MCP server and Hermes adapter validate the same limits and build the
 same fixed argument vector. Neither constructs a shell command. The platform
@@ -49,6 +57,29 @@ the native vault and desktop, then launches exactly one bundled backend:
 
 `scripts/keepkeys-cli.mjs` provides the same dispatch for skills-only packages
 and direct local diagnostics.
+
+## Private phone intake
+
+`keepkeys_store_from_phone` starts `scripts/keepkeys-portal.mjs` as a detached,
+ten-minute session. The session:
+
+1. confirms Tailscale 1.52 or newer is online with a tailnet DNS name;
+2. reads only native-vault metadata to determine whether the name exists;
+3. binds an HTTP server to an ephemeral `127.0.0.1` port;
+4. runs Tailscale Serve in the foreground at an unguessable
+   `/keepkeys/store/...` path;
+5. returns the tailnet HTTPS URL and expiry to the user;
+6. binds the first browser GET to one Tailscale identity and a Secure,
+   HttpOnly, SameSite=Strict cookie;
+7. accepts one same-origin POST of 8-2048 UTF-8 bytes;
+8. sends those bytes through redirected stdin to the selected native helper;
+9. closes the server and foreground Tailscale route on success or expiry.
+
+The browser page has no external scripts, styles, images, analytics, or
+network destinations. The native helper rechecks whether the name existed
+before writing, so a replacement-state race fails without changing the vault.
+The session never runs Tailscale Funnel and never changes unrelated Serve
+configuration.
 
 ## Platform records
 
@@ -135,4 +166,7 @@ The repository exercises shared contracts on macOS, Windows, and Ubuntu for
 Node.js 18 and 22. Native jobs compile and round-trip a temporary credential
 through macOS Keychain, Windows Credential Manager, and a disposable Linux
 Secret Service session. The temporary value is generated during the job and
-removed before success.
+removed before success. Headless tests also cover phone-page escaping,
+identity binding, origin and cookie checks, size limits, one-use behavior,
+private dispatch, and route teardown. A release candidate receives a
+same-tailnet synthetic-value smoke test on a supported host.

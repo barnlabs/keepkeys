@@ -1,9 +1,10 @@
 import AppKit
 import CryptoKit
+import Darwin
 import Foundation
 import Security
 
-private let keepKeysVersion = "0.4.2"
+private let keepKeysVersion = "0.5.0"
 private let keychainService = "net.barnlabs.keepkeys"
 private let maximumSecretBytes = 2_048
 private let maximumCapturedBytes = 1_048_576
@@ -700,6 +701,80 @@ private func storeInteractively(
     }
 }
 
+private func storeFromPortal(arguments: [String]) throws -> [String: Any] {
+    guard ProcessInfo.processInfo.environment["KEEPKEYS_PORTAL_COMMIT"] == "1",
+          isatty(STDIN_FILENO) == 0
+    else {
+        throw KeepKeysFailure(
+            message: "The private phone-intake commit is available only to a live KeepKeys portal."
+        )
+    }
+    guard let rawName = try parseOption(arguments, name: "--name"),
+          let rawVariable = try parseOption(arguments, name: "--variable"),
+          let rawDescription = try parseOption(arguments, name: "--description"),
+          let rawProvider = try parseOption(arguments, name: "--provider"),
+          let expectedValue = try parseOption(arguments, name: "--expect-existing")
+    else {
+        throw KeepKeysFailure(message: "The private phone-intake request is incomplete.")
+    }
+    let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+    let variable = rawVariable.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    let description = rawDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+    let provider = rawProvider.trimmingCharacters(in: .whitespacesAndNewlines)
+    let documentationURLs = try parseOptions(arguments, name: "--documentation-url").map {
+        $0.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    let metadata = EntryMetadata(
+        version: 2,
+        variable: variable,
+        description: description,
+        provider: provider,
+        documentationURLs: documentationURLs
+    )
+    guard validName(name), validMetadata(metadata) else {
+        throw KeepKeysFailure(message: "The agent supplied invalid KeepKeys metadata.")
+    }
+    guard expectedValue == "yes" || expectedValue == "no" else {
+        throw KeepKeysFailure(message: "The private phone-intake replacement state is invalid.")
+    }
+    let expectedExisting = expectedValue == "yes"
+    let currentlyExists = try KeychainStore.exists(name: name)
+    guard currentlyExists == expectedExisting else {
+        throw KeepKeysFailure(
+            message: "The stored KeepKeys name changed after the phone page opened. Start a new phone intake and review the replacement warning."
+        )
+    }
+
+    var secretData = try FileHandle.standardInput.read(
+        upToCount: maximumSecretBytes + 1
+    ) ?? Data()
+    defer { secretData.resetBytes(in: 0..<secretData.count) }
+    guard secretData.count <= maximumSecretBytes,
+          var secret = String(data: secretData, encoding: .utf8)
+    else {
+        throw KeepKeysFailure(message: "The phone submitted an invalid UTF-8 key.")
+    }
+    defer { secret = "" }
+    try validateSecret(secret)
+    try KeychainStore.store(
+        name: name,
+        variable: variable,
+        description: description,
+        provider: provider,
+        documentationURLs: documentationURLs,
+        secret: secret
+    )
+    return [
+        "status": "ok",
+        "message": "Stored '\(name)' in macOS Keychain.",
+        "name": name,
+        "variable": variable,
+        "description": description,
+        "provider": provider,
+        "documentationUrls": documentationURLs,
+    ]
+}
+
 private func removeInteractively(name: String) throws -> [String: Any] {
     guard validName(name) else {
         throw KeepKeysFailure(message: "The requested KeepKeys name is invalid.")
@@ -1307,6 +1382,8 @@ private func main() {
                 suggestedProvider: parseOption(rest, name: "--provider"),
                 suggestedDocumentationURLs: parseOptions(rest, name: "--documentation-url")
             )
+        case "portal-commit":
+            result = try storeFromPortal(arguments: Array(args.dropFirst()))
         case "list":
             result = ["status": "ok", "entries": try KeychainStore.entries()]
         case "remove":

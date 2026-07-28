@@ -45,6 +45,7 @@ for member in \
   "keepkeys/plugins/keepkeys/mcp/server.mjs" \
   "keepkeys/plugins/keepkeys/scripts/check-for-update.mjs" \
   "keepkeys/plugins/keepkeys/scripts/keepkeys" \
+  "keepkeys/plugins/keepkeys/scripts/keepkeys-portal.mjs" \
   "keepkeys/plugins/keepkeys/scripts/keepkeys.linux.py" \
   "keepkeys/plugins/keepkeys/scripts/keepkeys.windows.ps1" \
   "keepkeys/plugins/keepkeys/scripts/platform.mjs" \

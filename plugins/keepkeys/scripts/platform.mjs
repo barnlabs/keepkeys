@@ -7,9 +7,9 @@ import { fileURLToPath } from "node:url";
 
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const WINDOWS_HELPER_SHA256 =
-  "ab40d476aa1bc540295573e2cf72575c9d8722ae94581c98ba44bb2ce7c17cbb";
+  "f7b4306e8b5d29f6d8b444727d5465da08aef86ac5dfd1396b89c6ee2eef459c";
 const LINUX_HELPER_SHA256 =
-  "d7a1e07b01eb3c0705507e5ab871622e9c8acce15cf6de13baee37a2c2289323";
+  "38e36d7e753bf17d8381664691b51a728eb841e4f561d8155a027901590cfab4";
 
 function copyPresent(target, source, names) {
   for (const name of names) {
@@ -38,6 +38,18 @@ function verifiedHelper(relativePath, expectedHash) {
   return path;
 }
 
+function routedInvocation(helperArguments, nativeInvocation) {
+  if (helperArguments[0] !== "portal-store") return nativeInvocation;
+  return {
+    command: process.execPath,
+    args: [
+      resolve(pluginRoot, "scripts", "keepkeys-portal.mjs"),
+      ...helperArguments.slice(1),
+    ],
+    env: nativeInvocation.env,
+  };
+}
+
 export function helperInvocation(
   helperArguments,
   {
@@ -59,11 +71,11 @@ export function helperInvocation(
       KEEPKEYS_ASSETS_DIR: resolve(pluginRoot, "assets"),
     };
     copyPresent(env, environment, ["LANG", "LC_ALL", "TMPDIR"]);
-    return {
+    return routedInvocation(helperArguments, {
       command: resolve(pluginRoot, "scripts", "keepkeys"),
       args: helperArguments,
       env,
-    };
+    });
   }
 
   if (platform === "win32") {
@@ -99,7 +111,7 @@ export function helperInvocation(
       "USERNAME",
       "USERDOMAIN",
     ]);
-    return {
+    return routedInvocation(helperArguments, {
       command: powershell,
       args: [
         "-NoLogo",
@@ -113,7 +125,7 @@ export function helperInvocation(
         ...helperArguments,
       ],
       env,
-    };
+    });
   }
 
   if (platform === "linux") {
@@ -138,14 +150,14 @@ export function helperInvocation(
       "XDG_RUNTIME_DIR",
       "XDG_SESSION_TYPE",
     ]);
-    return {
+    return routedInvocation(helperArguments, {
       command: "/usr/bin/python3",
       args: [
         helper,
         ...helperArguments,
       ],
       env,
-    };
+    });
   }
 
   throw new Error(
