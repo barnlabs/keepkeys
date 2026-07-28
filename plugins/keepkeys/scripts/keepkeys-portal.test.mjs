@@ -2,17 +2,27 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 
-import { processHasExited } from "./platform.mjs";
 import {
+  processHasExited,
+  terminateProcessGracefullyAndWait,
+  terminateProcessTreeGracefullyAndWait,
+} from "./platform.mjs";
+import {
+  closePortalServer,
   createPortalServer,
   millisecondsUntilExpiry,
   parsePortalMetadata,
+  portalStartupProcessOptions,
   renderPortalHtml,
   runProcess,
+  serveStatusContainsPath,
+  stopOwnedServeProcess,
+  waitForServeReady,
   withPortalCommitLock,
 } from "./keepkeys-portal.mjs";
 
@@ -127,7 +137,195 @@ test("portal HTML escapes metadata and loads no third-party resources", () => {
   assert.doesNotMatch(html, /<script>wrong\(\)<\/script>/u);
   assert.match(html, /This name already exists/u);
   assert.match(html, /KeepKeys cannot clear the phone's clipboard/u);
+  assert.match(html, /<form id="store-form" method="post">/u);
+  assert.match(html, /<fieldset id="store-controls" disabled>/u);
+  assert.doesNotMatch(html, /<input[^>]*\sname=/u);
+  assert.match(html, /controls\.disabled = false/u);
+  assert.match(html, /This form is disabled and will not submit a key/u);
   assert.doesNotMatch(html, /https:\/\/(?!example\.com)/u);
+});
+
+test("portal startup children stay in the detached portal process group", () => {
+  assert.deepEqual(
+    portalStartupProcessOptions({
+      cwd: "/tmp/keepkeys",
+      environment: { PATH: "/usr/bin" },
+    }),
+    {
+      cwd: "/tmp/keepkeys",
+      env: { PATH: "/usr/bin" },
+      detached: false,
+    },
+  );
+});
+
+test("Serve cleanup recognizes only the exact owned path", () => {
+  const path = "/keepkeys/store/owned-test-path";
+  const status = {
+    Foreground: {
+      session: {
+        Web: {
+          "device.example.ts.net:443": {
+            Handlers: {
+              [path]: { Proxy: "http://127.0.0.1:12345" },
+              "/unrelated": { Proxy: "http://127.0.0.1:54321" },
+            },
+          },
+        },
+      },
+    },
+  };
+  assert.equal(serveStatusContainsPath(status, path), true);
+  assert.equal(
+    serveStatusContainsPath(status, "/keepkeys/store/different"),
+    false,
+  );
+});
+
+test("graceful process cleanup waits for confirmed exit", async () => {
+  const child = spawn(
+    process.execPath,
+    [
+      "-e",
+      "process.on('SIGTERM',()=>process.exit(0));setInterval(()=>{},1000)",
+    ],
+    {
+      detached: process.platform !== "win32",
+      stdio: "ignore",
+      windowsHide: true,
+    },
+  );
+  await terminateProcessGracefullyAndWait(child);
+  assert.equal(processHasExited(child), true);
+});
+
+test("a slow Serve startup is gracefully stopped before timeout rejection", async () => {
+  const child = spawn(
+    process.execPath,
+    [
+      "-e",
+      "process.on('SIGTERM',()=>process.exit(0));setInterval(()=>{},1000)",
+    ],
+    {
+      detached: process.platform !== "win32",
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    },
+  );
+  await assert.rejects(
+    waitForServeReady(child, 50),
+    /Tailscale Serve did not become ready/u,
+  );
+  assert.equal(processHasExited(child), true);
+});
+
+test("Serve cleanup fails closed when the route is absent but its child survives", async () => {
+  const child = spawn(
+    process.execPath,
+    [
+      "-e",
+      "process.on('SIGTERM',()=>{});process.stdout.write('ready\\n');setInterval(()=>{},1000)",
+    ],
+    {
+      detached: process.platform !== "win32",
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+    },
+  );
+  await once(child.stdout, "data");
+  let routeChecks = 0;
+  await assert.rejects(
+    stopOwnedServeProcess(
+      child,
+      async () => {
+        routeChecks += 1;
+      },
+      {
+        platform: process.platform,
+        timeoutMs: 50,
+        signalProcessGroup: () => {},
+      },
+    ),
+    /forced Tailscale Serve to stop/u,
+  );
+  assert.equal(routeChecks, 1);
+  assert.equal(processHasExited(child), true);
+});
+
+test("graceful process-tree cleanup waits for confirmed exit", async () => {
+  const temporary = await mkdtemp(resolve(tmpdir(), "keepkeys-tree-"));
+  const marker = resolve(temporary, "survived");
+  let grandchildPid;
+  const child = spawn(
+    process.execPath,
+    [
+      "-e",
+      [
+        "const {spawn}=require('node:child_process');",
+        "const child=spawn(process.execPath,['-e',",
+        JSON.stringify(
+          "process.on('SIGTERM',()=>process.exit(0));setTimeout(()=>require('node:fs').writeFileSync(process.env.KEEPKEYS_TREE_MARKER,'survived'),750);setInterval(()=>{},1000)",
+        ),
+        "],{env:{...process.env,KEEPKEYS_TREE_MARKER:process.env.KEEPKEYS_TREE_MARKER},stdio:'ignore'});",
+        "process.stdout.write(`${child.pid}\\n`);",
+        "process.on('SIGTERM',()=>process.exit(0));",
+        "setInterval(()=>{},1000);",
+      ].join(""),
+    ],
+    {
+      detached: process.platform !== "win32",
+      env: { ...process.env, KEEPKEYS_TREE_MARKER: marker },
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+    },
+  );
+  try {
+    const [pidOutput] = await once(child.stdout, "data");
+    grandchildPid = Number.parseInt(pidOutput.toString("utf8"), 10);
+    assert(Number.isSafeInteger(grandchildPid));
+    await terminateProcessTreeGracefullyAndWait(child);
+    assert.equal(processHasExited(child), true);
+    await delay(1000);
+    await assert.rejects(access(marker));
+  } finally {
+    if (!processHasExited(child)) child.kill("SIGKILL");
+    if (grandchildPid) {
+      try {
+        process.kill(grandchildPid, "SIGKILL");
+      } catch {
+        // The expected path: the process tree is already gone.
+      }
+    }
+    await rm(temporary, { recursive: true, force: true });
+  }
+});
+
+test("portal cleanup closes active localhost connections", async () => {
+  const server = createPortalServer({
+    metadata,
+    replacing: false,
+    path: "/keepkeys/store/cleanup-test",
+    cookieToken: "cleanup-cookie-token",
+    expectedOrigin: "https://device.example.ts.net",
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    commitSecret: async () => ({ status: "ok" }),
+  });
+  const base = await listen(server);
+  const address = new URL(base);
+  const socket = createConnection({
+    host: address.hostname,
+    port: Number(address.port),
+  });
+  socket.on("error", () => {});
+  await once(socket, "connect");
+  socket.write("GET /keepkeys/store/cleanup-test HTTP/1.1\r\n");
+  await closePortalServer(server);
+  if (!socket.destroyed) {
+    await new Promise((resolvePromise) => {
+      socket.once("close", resolvePromise);
+    });
+  }
+  assert.equal(server.listening, false);
 });
 
 test("portal requires Tailscale identity, same-origin cookie, and one use", async (context) => {

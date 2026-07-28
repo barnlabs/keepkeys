@@ -30,6 +30,7 @@ sh -n scripts/test
 sh -n scripts/doctor
 sh -n scripts/package-submission
 sh -n scripts/package-release
+sh -n scripts/tailnet-smoke
 
 if command -v grok >/dev/null 2>&1; then
   grok plugin validate plugins/keepkeys >/dev/null

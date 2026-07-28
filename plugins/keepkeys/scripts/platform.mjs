@@ -238,6 +238,106 @@ export function terminateProcessTree(child, platform = process.platform) {
   }
 }
 
+function requestGracefulTermination(child, platform, tree) {
+  if (platform === "win32" && tree) {
+    const result = spawnSync(
+      resolve(
+        process.env.SystemRoot ?? "C:\\Windows",
+        "System32",
+        "taskkill.exe",
+      ),
+      ["/PID", `${child.pid}`, "/T"],
+      { windowsHide: true, stdio: "ignore" },
+    );
+    if (!result.error && result.status === 0) return true;
+  }
+  if (platform !== "win32" && tree) {
+    try {
+      process.kill(-child.pid, "SIGTERM");
+      return true;
+    } catch {
+      // Fall through to the direct child signal.
+    }
+  }
+  return child.kill("SIGTERM");
+}
+
+function waitForProcessClose(child, timeoutMs, message) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.removeListener("close", close);
+      callback(value);
+    };
+    const close = () => finish(resolvePromise);
+    child.once("close", close);
+    const timer = setTimeout(
+      () => finish(rejectPromise, new Error(message)),
+      timeoutMs,
+    );
+    if (processHasExited(child)) close();
+  });
+}
+
+async function terminateGracefullyAndWait(
+  child,
+  platform,
+  timeoutMs,
+  tree,
+) {
+  if (!child?.pid || processHasExited(child)) return;
+  if (
+    typeof child.once !== "function" ||
+    typeof child.removeListener !== "function" ||
+    typeof child.kill !== "function"
+  ) {
+    throw new Error("KeepKeys cannot confirm graceful process termination.");
+  }
+  const close = waitForProcessClose(
+    child,
+    timeoutMs,
+    "KeepKeys could not confirm graceful process termination.",
+  );
+  let requested = false;
+  try {
+    requested = requestGracefulTermination(child, platform, tree);
+  } catch {
+    requested = false;
+  }
+  if (!requested) {
+    close.catch(() => {});
+    throw new Error("KeepKeys could not request graceful process termination.");
+  }
+  await close;
+}
+
+export function terminateProcessGracefullyAndWait(
+  child,
+  platform = process.platform,
+  timeoutMs = 5000,
+) {
+  return terminateGracefullyAndWait(child, platform, timeoutMs, false);
+}
+
+export async function terminateProcessTreeGracefullyAndWait(
+  child,
+  platform = process.platform,
+  timeoutMs = 5000,
+) {
+  try {
+    await terminateGracefullyAndWait(child, platform, timeoutMs, true);
+  } catch (error) {
+    await terminateProcessTreeAndWait(child, platform, timeoutMs);
+    throw new Error(
+      "KeepKeys forced a process tree to stop after graceful cleanup could not be confirmed.",
+      { cause: error },
+    );
+  }
+}
+
 export function terminateProcessTreeAndWait(
   child,
   platform = process.platform,

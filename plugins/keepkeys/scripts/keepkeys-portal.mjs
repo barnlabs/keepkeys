@@ -12,8 +12,10 @@ import { fileURLToPath } from "node:url";
 import {
   helperInvocation,
   portalCommitInvocation,
+  terminateProcessGracefullyAndWait,
   terminateProcessTree,
   terminateProcessTreeAndWait,
+  terminateProcessTreeGracefullyAndWait,
 } from "./platform.mjs";
 
 const MAX_SECRET_BYTES = 2048;
@@ -23,8 +25,12 @@ const STARTUP_TIMEOUT_MS = 20 * 1000;
 const PORTAL_PREFIX = "/keepkeys/store";
 const PORTAL_CHILD_FLAG = "KEEPKEYS_PORTAL_SESSION_CHILD";
 const PORTAL_NATIVE_TEST_FLAG = "KEEPKEYS_PORTAL_NATIVE_TEST";
+const PORTAL_TAILNET_TEST_FLAG = "KEEPKEYS_PORTAL_TAILNET_TEST";
 const PORTAL_CAPABILITY_BYTES = 32;
 const PORTAL_LOCK_TIMEOUT_MS = 30 * 1000;
+const TAILNET_TEST_CLEANUP_TIMEOUT_MS = 15 * 1000;
+const SELF_TEST_DOCUMENTATION_URL =
+  "https://github.com/barnlabs/keepkeys";
 const RESERVED_VARIABLES = new Set([
   "BASH_ENV",
   "CDPATH",
@@ -221,6 +227,7 @@ export function renderPortalHtml({ metadata, replacing, nonce, expiresAt }) {
     dd { margin: 0; overflow-wrap: anywhere; }
     ul { margin: 7px 0 20px; padding-left: 20px; }
     a { color: #8b492f; }
+    fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
     label { display: block; margin-bottom: 8px; font-weight: 800; }
     input { width: 100%; min-height: 52px; padding: 13px 14px; border: 2px solid #41544c; border-radius: 10px; background: white; color: #14211d; font: inherit; font-size: 16px; }
     input:focus { outline: 3px solid rgba(217,108,77,.35); border-color: #d96c4d; }
@@ -245,19 +252,25 @@ export function renderPortalHtml({ metadata, replacing, nonce, expiresAt }) {
     <p class="eyebrow">Official documentation</p>
     <ul>${links}</ul>
     ${replacement}
-    <form id="store-form">
-      <label for="secret">Key</label>
-      <input id="secret" name="secret" type="password" minlength="8" maxlength="2048" autocomplete="off" autocapitalize="none" spellcheck="false" required autofocus>
-      <button id="store-button" type="submit">Paste &amp; Store</button>
-      <p id="status" role="status" aria-live="polite"></p>
+    <form id="store-form" method="post">
+      <fieldset id="store-controls" disabled>
+        <label for="secret">Key</label>
+        <input id="secret" type="password" minlength="8" maxlength="2048" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+        <button id="store-button" type="submit">Paste &amp; Store</button>
+        <p id="status" role="status" aria-live="polite"></p>
+      </fieldset>
+      <noscript><p class="warning">JavaScript is required. This form is disabled and will not submit a key.</p></noscript>
     </form>
     <p class="fine">The page expires at ${escapeHtml(expiresAt)}. KeepKeys cannot clear the phone's clipboard or its clipboard history, so copy the key only when this page is ready and submit it right away.</p>
   </main>
   <script nonce="${nonce}">
     const form = document.getElementById("store-form");
+    const controls = document.getElementById("store-controls");
     const input = document.getElementById("secret");
     const button = document.getElementById("store-button");
     const status = document.getElementById("status");
+    controls.disabled = false;
+    input.focus();
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       button.disabled = true;
@@ -555,6 +568,20 @@ export function createPortalServer({
   return server;
 }
 
+export function closePortalServer(server) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    if (!server.listening) {
+      resolvePromise();
+      return;
+    }
+    server.close((error) => {
+      if (error) rejectPromise(error);
+      else resolvePromise();
+    });
+    server.closeAllConnections?.();
+  });
+}
+
 function appendBounded(current, chunk) {
   const next = Buffer.concat([current, chunk]);
   if (next.length > MAX_PROCESS_OUTPUT) {
@@ -574,7 +601,7 @@ export function runProcess(command, argumentsValue, options = {}) {
         "pipe",
       ],
       shell: false,
-      detached: process.platform !== "win32",
+      detached: options.detached ?? process.platform !== "win32",
       windowsHide: true,
     });
     let stdout = Buffer.alloc(0);
@@ -644,9 +671,9 @@ export function runProcess(command, argumentsValue, options = {}) {
 function tailscaleCandidates() {
   if (process.platform === "darwin") {
     return [
-      "/usr/local/bin/tailscale",
-      "/opt/homebrew/bin/tailscale",
       "/Applications/Tailscale.app/Contents/MacOS/tailscale",
+      "/opt/homebrew/bin/tailscale",
+      "/usr/local/bin/tailscale",
     ];
   }
   if (process.platform === "win32") {
@@ -668,11 +695,23 @@ export function resolveTailscaleBinary(candidates = tailscaleCandidates()) {
   );
 }
 
+export function portalStartupProcessOptions({
+  cwd = homedir(),
+  environment = process.env,
+} = {}) {
+  return {
+    cwd,
+    env: environment,
+    detached: false,
+  };
+}
+
 async function tailscaleState(tailscale) {
-  const versionResult = await runProcess(tailscale, ["version"], {
-    cwd: homedir(),
-    env: process.env,
-  });
+  const versionResult = await runProcess(
+    tailscale,
+    ["version"],
+    portalStartupProcessOptions(),
+  );
   const versionText = versionResult.stdout.toString("utf8");
   const match = versionText.match(/^(\d+)\.(\d+)\.(\d+)/u);
   if (
@@ -683,10 +722,11 @@ async function tailscaleState(tailscale) {
   ) {
     throw new Error("KeepKeys phone intake needs Tailscale 1.52 or newer.");
   }
-  const statusResult = await runProcess(tailscale, ["status", "--json"], {
-    cwd: homedir(),
-    env: process.env,
-  });
+  const statusResult = await runProcess(
+    tailscale,
+    ["status", "--json"],
+    portalStartupProcessOptions(),
+  );
   if (statusResult.code !== 0) {
     throw new Error("Tailscale is not available on this computer.");
   }
@@ -712,10 +752,14 @@ async function tailscaleState(tailscale) {
 
 async function readExisting(metadata) {
   const invocation = helperInvocation(["list"]);
-  const result = await runProcess(invocation.command, invocation.args, {
-    cwd: invocation.env.KEEPKEYS_PLUGIN_ROOT,
-    env: invocation.env,
-  });
+  const result = await runProcess(
+    invocation.command,
+    invocation.args,
+    portalStartupProcessOptions({
+      cwd: invocation.env.KEEPKEYS_PLUGIN_ROOT,
+      environment: invocation.env,
+    }),
+  );
   if (result.code !== 0) {
     throw new Error("KeepKeys could not read local credential metadata.");
   }
@@ -893,7 +937,10 @@ async function commitToNativeVault(
   );
 }
 
-async function waitForServeReady(child) {
+export async function waitForServeReady(
+  child,
+  timeoutMs = STARTUP_TIMEOUT_MS,
+) {
   return new Promise((resolvePromise, rejectPromise) => {
     let output = "";
     let settled = false;
@@ -908,7 +955,7 @@ async function waitForServeReady(child) {
       if (settled || terminating) return;
       terminating = true;
       try {
-        await terminateProcessTreeAndWait(child);
+        await terminateProcessGracefullyAndWait(child);
         finish(rejectPromise, error);
       } catch (terminationError) {
         finish(
@@ -953,12 +1000,112 @@ async function waitForServeReady(child) {
           "Tailscale Serve did not become ready. Enable HTTPS for this tailnet and try again.",
         ),
       );
-    }, STARTUP_TIMEOUT_MS);
+    }, timeoutMs);
   });
+}
+
+export function serveStatusContainsPath(value, path) {
+  if (!value || typeof value !== "object") return false;
+  if (
+    !Array.isArray(value) &&
+    Object.prototype.hasOwnProperty.call(value, path)
+  ) {
+    return true;
+  }
+  return Object.values(value).some((child) =>
+    serveStatusContainsPath(child, path),
+  );
+}
+
+async function verifyServePathRemoved(tailscale, path) {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const result = await runProcess(
+      tailscale,
+      ["serve", "status", "--json"],
+      {
+        ...portalStartupProcessOptions(),
+        signal: AbortSignal.timeout(2000),
+      },
+    );
+    let status;
+    try {
+      status = JSON.parse(result.stdout.toString("utf8"));
+    } catch {
+      throw new Error(
+        "KeepKeys could not verify removal of its Tailscale Serve route.",
+      );
+    }
+    if (
+      result.code === 0 &&
+      !serveStatusContainsPath(status, path)
+    ) {
+      return;
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
+  }
+  throw new Error(
+    "KeepKeys could not verify removal of its Tailscale Serve route.",
+  );
+}
+
+export async function stopOwnedServeProcess(
+  serveProcess,
+  verifyRouteRemoved,
+  {
+    platform = process.platform,
+    timeoutMs = 5000,
+    signalProcessGroup = () => {},
+  } = {},
+) {
+  if (!serveProcess) return;
+  if (platform !== "win32") {
+    try {
+      signalProcessGroup();
+    } catch {
+      // Direct graceful termination below remains mandatory.
+    }
+  }
+  const stopProcess = (async () => {
+    try {
+      if (platform === "win32") {
+        await terminateProcessTreeGracefullyAndWait(
+          serveProcess,
+          platform,
+          timeoutMs,
+        );
+      } else {
+        await terminateProcessGracefullyAndWait(
+          serveProcess,
+          platform,
+          timeoutMs,
+        );
+      }
+    } catch (error) {
+      await terminateProcessTreeAndWait(
+        serveProcess,
+        platform,
+        timeoutMs,
+      );
+      throw new Error(
+        "KeepKeys forced Tailscale Serve to stop after graceful cleanup could not be confirmed.",
+        { cause: error },
+      );
+    }
+  })();
+  await Promise.all([
+    stopProcess,
+    verifyRouteRemoved(),
+  ]);
 }
 
 async function startPortalSession(argumentsValue) {
   const metadata = parsePortalMetadata(argumentsValue);
+  const nativeSelfTest = process.env[PORTAL_TAILNET_TEST_FLAG] === "1";
+  delete process.env[PORTAL_TAILNET_TEST_FLAG];
+  if (nativeSelfTest && !metadata.name.startsWith("keepkeys-portal-test-")) {
+    throw new Error("KeepKeys rejected an unauthorized tailnet portal test.");
+  }
   const tailscale = resolveTailscaleBinary();
   const [{ dnsName }, replacing] = await Promise.all([
     tailscaleState(tailscale),
@@ -972,18 +1119,21 @@ async function startPortalSession(argumentsValue) {
   let expiryTimer;
   let cleanupPromise;
   let activeCommit;
+  let stoppingOwnedProcessGroup = false;
   const commitController = new AbortController();
-  const closeServer = () =>
-    new Promise((resolvePromise, rejectPromise) => {
-      if (!server.listening) {
-        resolvePromise();
-        return;
-      }
-      server.close((error) => {
-        if (error) rejectPromise(error);
-        else resolvePromise();
-      });
-    });
+  const stopOwnedServe = async () => {
+    if (!serveProcess) return;
+    await stopOwnedServeProcess(
+      serveProcess,
+      () => verifyServePathRemoved(tailscale, path),
+      {
+        signalProcessGroup: () => {
+          stoppingOwnedProcessGroup = true;
+          process.kill(-process.pid, "SIGTERM");
+        },
+      },
+    );
+  };
   const cleanup = () => {
     if (cleanupPromise) return cleanupPromise;
     cleanupPromise = (async () => {
@@ -998,10 +1148,8 @@ async function startPortalSession(argumentsValue) {
         }
       }
       const cleanupResults = await Promise.allSettled([
-        closeServer(),
-        serveProcess
-          ? terminateProcessTreeAndWait(serveProcess)
-          : Promise.resolve(),
+        closePortalServer(server),
+        stopOwnedServe(),
       ]);
       const cleanupFailures = cleanupResults
         .filter((result) => result.status === "rejected")
@@ -1028,6 +1176,15 @@ async function startPortalSession(argumentsValue) {
       })}\n`,
     );
   };
+  const cleanupAndExit = (successCode = 0) => {
+    void cleanup().then(
+      () => process.exit(successCode),
+      (error) => {
+        reportCleanupFailure(error);
+        process.exit(1);
+      },
+    );
+  };
   const server = createPortalServer({
     metadata,
     replacing,
@@ -1042,6 +1199,7 @@ async function startPortalSession(argumentsValue) {
         replacing,
         secret,
         signal,
+        { nativeSelfTest },
       );
       const tracked = operation.finally(() => {
         if (activeCommit === tracked) activeCommit = undefined;
@@ -1051,7 +1209,7 @@ async function startPortalSession(argumentsValue) {
     },
     onTerminal: () => {
       setTimeout(() => {
-        void cleanup().catch(reportCleanupFailure);
+        cleanupAndExit();
       }, 500);
     },
   });
@@ -1064,7 +1222,8 @@ async function startPortalSession(argumentsValue) {
       },
     );
   });
-  process.once("SIGTERM", () => {
+  process.on("SIGTERM", () => {
+    if (stoppingOwnedProcessGroup) return;
     void cleanup().then(
       () => process.exit(143),
       (error) => {
@@ -1094,11 +1253,9 @@ async function startPortalSession(argumentsValue) {
       `http://127.0.0.1:${address.port}`,
     ],
     {
-      cwd: homedir(),
-      env: process.env,
+      ...portalStartupProcessOptions(),
       stdio: ["ignore", "pipe", "pipe"],
       shell: false,
-      detached: process.platform !== "win32",
       windowsHide: true,
     },
   );
@@ -1109,7 +1266,7 @@ async function startPortalSession(argumentsValue) {
     throw error;
   }
   expiryTimer = setTimeout(() => {
-    void cleanup().catch(reportCleanupFailure);
+    cleanupAndExit();
   }, millisecondsUntilExpiry(expiresAt));
   expiryTimer.unref?.();
   const result = {
@@ -1151,7 +1308,7 @@ async function runNativePortalSelfTest() {
     variable: "KEEPKEYS_PORTAL_TEST",
     description: "Temporary UTF-8 phone intake verification",
     provider: "BarnLabs",
-    documentationUrls: ["https://github.com/barnlabs/keepkeys"],
+    documentationUrls: [SELF_TEST_DOCUMENTATION_URL],
   };
   const secret = Buffer.from(
     `keepkeys-portal-test-\u2713-${randomBytes(32).toString("base64url")}`,
@@ -1182,10 +1339,176 @@ async function runNativePortalSelfTest() {
   }
 }
 
-async function launchDetached(argumentsValue) {
+function childHasExited(child) {
+  return (
+    child.exitCode !== null ||
+    child.signalCode !== null
+  );
+}
+
+async function waitForChildExit(child, timeoutMs = 5000) {
+  const requireCleanExit = () => {
+    if (child.exitCode !== 0 || child.signalCode !== null) {
+      throw new Error(
+        "The private portal reported a cleanup failure before exit.",
+      );
+    }
+  };
+  if (childHasExited(child)) {
+    requireCleanExit();
+    return;
+  }
+  await new Promise((resolvePromise, rejectPromise) => {
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.removeListener("close", close);
+      callback(value);
+    };
+    const close = () => {
+      try {
+        requireCleanExit();
+        finish(resolvePromise);
+      } catch (error) {
+        finish(rejectPromise, error);
+      }
+    };
+    child.once("close", close);
+    const timer = setTimeout(
+      () =>
+        finish(
+          rejectPromise,
+          new Error("The private portal did not exit after confirmed cleanup."),
+        ),
+      timeoutMs,
+    );
+  });
+}
+
+async function waitForTailnetRouteRemoval(url, cookie) {
+  const deadline = Date.now() + TAILNET_TEST_CLEANUP_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url, {
+        headers: { Cookie: cookie },
+        cache: "no-store",
+        redirect: "error",
+        signal: AbortSignal.timeout(2000),
+      });
+      await response.body?.cancel();
+      if (response.headers.get("x-frame-options") !== "DENY") return;
+    } catch {
+      return;
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
+  }
+  throw new Error("The authenticated Tailscale Serve route remained active.");
+}
+
+async function runTailnetPortalSelfTest() {
+  if (process.env[PORTAL_TAILNET_TEST_FLAG] !== "1") {
+    throw new Error(
+      "The tailnet portal integration test requires an explicit test environment.",
+    );
+  }
+  delete process.env[PORTAL_TAILNET_TEST_FLAG];
+  const metadata = {
+    name: `keepkeys-portal-test-${randomBytes(12).toString("hex")}`,
+    variable: "KEEPKEYS_PORTAL_TEST",
+    description: "Temporary authenticated tailnet intake verification",
+    provider: "BarnLabs",
+    documentationUrls: [SELF_TEST_DOCUMENTATION_URL],
+  };
+  const secret = Buffer.from(
+    `keepkeys-tailnet-test-\u2713-${randomBytes(32).toString("base64url")}`,
+    "utf8",
+  );
+  let child;
+  let url;
+  let cookie;
+  try {
+    const launched = await launchDetached(metadataArguments(metadata), {
+      environment: {
+        ...process.env,
+        [PORTAL_TAILNET_TEST_FLAG]: "1",
+      },
+      retainChild: true,
+    });
+    child = launched.child;
+    url = launched.result.url;
+    const page = await fetch(url, {
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (page.status !== 200) {
+      throw new Error("The authenticated tailnet portal did not open.");
+    }
+    const setCookie = page.headers.get("set-cookie");
+    cookie = setCookie?.split(";")[0];
+    const body = await page.text();
+    if (
+      !cookie?.startsWith("keepkeys_session=") ||
+      !body.includes("KeepKeys private phone intake")
+    ) {
+      throw new Error(
+        "The authenticated tailnet portal did not bind a browser session.",
+      );
+    }
+    const submission = await fetch(url, {
+      method: "POST",
+      headers: {
+        Cookie: cookie,
+        Origin: new URL(url).origin,
+        "Content-Type": "text/plain;charset=UTF-8",
+      },
+      body: secret,
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(30_000),
+    });
+    const result = await submission.json();
+    if (submission.status !== 200 || result?.status !== "ok") {
+      throw new Error("The authenticated tailnet submission did not complete.");
+    }
+    if (await readExisting(metadata)) {
+      throw new Error("The temporary native-vault test record was not removed.");
+    }
+    await waitForTailnetRouteRemoval(url, cookie);
+    await waitForChildExit(child);
+    child = undefined;
+    return {
+      status: "ok",
+      message:
+        "Authenticated Tailscale Serve, browser binding, native-vault round trip, and cleanup verified.",
+      platform: process.platform,
+      network: "Tailscale Serve",
+      publicInternet: false,
+      cleaned: true,
+      routeRemoved: true,
+    };
+  } finally {
+    secret.fill(0);
+    if (child) await terminateProcessTreeGracefullyAndWait(child);
+    if (url) {
+      await verifyServePathRemoved(
+        resolveTailscaleBinary(),
+        new URL(url).pathname,
+      );
+    }
+    if (url && cookie) await waitForTailnetRouteRemoval(url, cookie);
+  }
+}
+
+async function launchDetached(
+  argumentsValue,
+  { environment = process.env, retainChild = false } = {},
+) {
   const child = fork(fileURLToPath(import.meta.url), argumentsValue, {
     detached: true,
-    env: { ...process.env, [PORTAL_CHILD_FLAG]: "1" },
+    env: { ...environment, [PORTAL_CHILD_FLAG]: "1" },
     stdio: ["ignore", "ignore", "ignore", "ipc"],
   });
   return new Promise((resolvePromise, rejectPromise) => {
@@ -1203,8 +1526,11 @@ async function launchDetached(argumentsValue) {
         finish(rejectPromise, new Error(result.message));
         return;
       }
-      child.unref();
-      finish(resolvePromise, result);
+      if (!retainChild) child.unref();
+      finish(
+        resolvePromise,
+        retainChild ? { result, child } : result,
+      );
     });
     child.once("error", (error) => {
       if (!terminating) finish(rejectPromise, error);
@@ -1221,7 +1547,7 @@ async function launchDetached(argumentsValue) {
     const timer = setTimeout(() => {
       if (settled || terminating) return;
       terminating = true;
-      void terminateProcessTreeAndWait(child).then(
+      void terminateProcessTreeGracefullyAndWait(child).then(
         () =>
           finish(
             rejectPromise,
@@ -1242,6 +1568,22 @@ async function launchDetached(argumentsValue) {
 
 async function main() {
   const argumentsValue = process.argv.slice(2);
+  if (argumentsValue[0] === "--tailnet-portal-self-test") {
+    try {
+      if (argumentsValue.length !== 1) {
+        throw new Error("The tailnet portal integration test takes no arguments.");
+      }
+      const result = await runTailnetPortalSelfTest();
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+    } catch (error) {
+      fail(
+        error instanceof Error
+          ? error.message
+          : "KeepKeys tailnet portal integration test failed.",
+      );
+    }
+    return;
+  }
   if (argumentsValue[0] === "--native-portal-self-test") {
     try {
       if (argumentsValue.length !== 1) {

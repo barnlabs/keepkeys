@@ -250,13 +250,23 @@ assert.match(portalSource, /publicInternet: false/);
 assert.match(portalSource, /\[\s*"serve",/);
 assert.match(
   portalSource,
-  /onTerminal: \(\) => \{\s+setTimeout\(\(\) => \{\s+void cleanup\(\)\.catch\(reportCleanupFailure\)/,
+  /<form id="store-form" method="post">[\s\S]*?<fieldset id="store-controls" disabled>[\s\S]*?<input id="secret" type="password"/,
+  "phone intake must keep the no-script form disabled and must not name the secret input",
+);
+assert.match(
+  portalSource,
+  /portalStartupProcessOptions\([\s\S]*?detached: false/,
+  "portal startup children must remain in the detached portal process group",
+);
+assert.match(
+  portalSource,
+  /onTerminal: \(\) => \{\s+setTimeout\(\(\) => \{\s+cleanupAndExit\(\)/,
   "every terminal submission must schedule portal and Serve cleanup",
 );
 assert.match(
   portalSource,
-  /serveProcess\s+\?\s+terminateProcessTreeAndWait\(serveProcess\)/,
-  "portal cleanup must confirm termination of the session-owned Serve process tree",
+  /stopOwnedServeProcess\([\s\S]*?verifyServePathRemoved\(tailscale, path\)[\s\S]*?process\.kill\(-process\.pid, "SIGTERM"\)/,
+  "portal cleanup must confirm Serve exit and removal of the exact owned route",
 );
 assert.match(
   portalSource,
