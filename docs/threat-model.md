@@ -221,10 +221,13 @@ also call its own Tailscale URL and is outside KeepKeys' containment boundary,
 as it already is for the shared host clipboard.
 
 The page shows metadata and whether the name existed when the page opened. A
-per-name, user-owned exclusive lock serializes portal commits across processes
-and remains held across the native existence recheck and write. A
-create-to-replace or replace-to-create race therefore fails closed and requires
-a new page. A process crash can leave an orphaned lock file; subsequent intake
+per-name, user-owned exclusive lock serializes both native paste-and-store and
+phone commits. Public desktop dispatch runs through
+`scripts/keepkeys-store.mjs`; each native backend rejects a store that bypasses
+that coordinator. The lock remains held across the replacement check and
+write. A desktop-versus-phone, create-to-replace, or replace-to-create race
+therefore fails closed or proceeds only after the displayed replacement
+approval. A process crash can leave an orphaned lock file; subsequent store
 fails closed until that file is removed from
 `~/Library/Caches/net.barnlabs.keepkeys/portal-locks` on macOS,
 `%LOCALAPPDATA%\BarnLabs\KeepKeys\portal-locks` on Windows, or
@@ -261,18 +264,23 @@ is returned. The detached child requires an IPC acknowledgment before it
 releases the launcher; launcher disconnect before that acknowledgment aborts
 startup and runs verified cleanup. KeepKeys continues watching foreground
 Serve after readiness. An exit before link delivery fails startup, and a later
-unexpected exit terminates the portal rather than leaving a dead page until
-expiry. A successful vault write does not produce a browser success response
+unexpected exit—including an exit while the launcher acknowledgment is
+pending—terminates the portal rather than leaving a dead page until expiry. A
+successful vault write does not produce a browser success response
 until the owned Serve process exits and the exact path is absent. If that
 cleanup fails, the response says the key was stored and reports cleanup
 failure. A structured native rollback uncertainty reports neither stored nor
 discarded and remains a teardown cleanup failure. If commit-lock cleanup also
 fails, both failures are preserved. Unconfirmed native-helper termination
-remains a teardown failure after the commit promise settles. Serve output is
-drained but not retained after readiness. Expiry teardown is scheduled from the
-timestamp advertised to the user, including time spent starting Serve. A
-pre-existing listener conflict fails closed rather than changing another
-Tailscale Serve configuration.
+remains a teardown failure after the commit promise settles. If the helper
+exits, returns malformed JSON, or otherwise ends without a consistent commit
+receipt, KeepKeys reports an uncertain vault state instead of claiming the
+value was discarded. Metadata and Tailscale startup helpers each receive an
+independent process group; sibling cancellation terminates and awaits their
+descendants. Serve output is drained but not retained after readiness. Expiry
+teardown is scheduled from the timestamp advertised to the user, including
+time spent starting Serve. A pre-existing listener conflict fails closed
+rather than changing another Tailscale Serve configuration.
 
 ### Approved target disclosure
 

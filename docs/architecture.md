@@ -76,15 +76,17 @@ ten-minute session. The session:
    HttpOnly, SameSite=Strict cookie that a second browser cannot reacquire;
 6. atomically claims the first authenticated same-origin POST of 8-2048 UTF-8
    bytes and makes that submission attempt terminal;
-7. holds a per-name cross-process lock while sending a capability frame and
-   those bytes through redirected stdin to the selected native helper;
+7. holds the same per-name cross-process lock used by native paste-and-store,
+   then sends a capability frame and those bytes through redirected stdin to
+   the selected native helper;
 8. requires that helper to verify its direct parent is Node executing the exact
    bundled `keepkeys-portal.mjs`;
 9. after a successful native write, stops the owned Serve process and queries
    Tailscale until the exact route is absent before the browser receives its
    success response;
-10. watches the foreground Serve process after readiness and closes the portal
-    if Serve exits unexpectedly;
+10. watches the foreground Serve process after readiness, including the
+    launcher-acknowledgment window, and closes the portal if Serve exits
+    unexpectedly;
 11. closes every localhost connection and aborts any in-flight helper during
     terminal or expiry cleanup.
 
@@ -92,9 +94,12 @@ The browser page has no external scripts, styles, images, analytics, or
 network destinations. Its form starts disabled, and the password input has no
 HTML `name`, so missing or blocked JavaScript cannot serialize the key into a
 URL or form body. The nonce-authorized script enables the controls and sends
-only the explicit same-origin text POST. The per-name lock spans the native
-existence recheck and write, so concurrent sessions cannot both accept a stale
-replacement state. The session never runs Tailscale Funnel and never changes
+only the explicit same-origin text POST. `scripts/keepkeys-store.mjs` routes
+native paste-and-store through the same per-name lock used by phone intake.
+The native helpers reject public store dispatch that bypasses that
+coordinator. The lock spans the replacement check and write, so desktop and
+phone stores cannot silently overwrite a name whose displayed replacement
+state has changed. The session never runs Tailscale Funnel and never changes
 unrelated Serve configuration. After Serve reports readiness, KeepKeys drains
 but no longer retains its later process output. If the key is stored but Serve
 cleanup fails, the response distinguishes that state from a failed vault write
@@ -109,7 +114,11 @@ retrying. Windows uses the same structured uncertainty when paired-record
 rollback fails. If commit-lock cleanup fails at the same time, the portal
 retains the uncertain vault state and reports both cleanup problems. An
 unconfirmed native-helper termination remains attached to teardown even after
-the commit promise settles.
+the commit promise settles. A helper exit, malformed JSON, or inconsistent
+success response without a valid commit receipt is also uncertain; the phone
+never reports that value as discarded. Metadata and Tailscale startup helpers
+run in their own process groups so cancellation can terminate their
+descendants before startup settles.
 
 ## Platform records
 

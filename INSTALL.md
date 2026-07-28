@@ -92,10 +92,10 @@ checkout:
 
 ```text
 functional plugin commit
-534ca9c82914cc0a2a8072f4de2c0674cffd544b
+7eba25e76778337cbcc3aff68dd9e3cbc843a31d
 
 Claude/OMP catalog commit
-c021deb6c0f2d649b899cc11914adbef43dc7432
+c046ff9c04b28b57a5c3a6c206389b4fa467046e
 ```
 
 The catalog commit pins its plugin source to the functional commit. Review both
@@ -105,7 +105,7 @@ before installation.
 
 ```sh
 codex plugin marketplace add barnlabs/keepkeys \
-  --ref 534ca9c82914cc0a2a8072f4de2c0674cffd544b
+  --ref 7eba25e76778337cbcc3aff68dd9e3cbc843a31d
 codex plugin add keepkeys@barnlabs
 ```
 
@@ -120,7 +120,7 @@ plugin hosts.
 
 ```sh
 grok plugin install \
-  'barnlabs/keepkeys@534ca9c82914cc0a2a8072f4de2c0674cffd544b#plugins/keepkeys' \
+  'barnlabs/keepkeys@7eba25e76778337cbcc3aff68dd9e3cbc843a31d#plugins/keepkeys' \
   --trust
 grok plugin list
 grok plugin details keepkeys
@@ -133,20 +133,20 @@ The exact-SHA subdirectory install is the credential-sensitive route.
 
 ```sh
 claude plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keepkeys/c021deb6c0f2d649b899cc11914adbef43dc7432/.claude-plugin/marketplace.json
+  https://raw.githubusercontent.com/barnlabs/keepkeys/c046ff9c04b28b57a5c3a6c206389b4fa467046e/.claude-plugin/marketplace.json
 claude plugin install keepkeys@barnlabs
 claude plugin list
 ```
 
 Claude Code does not expose a raw commit option for a Git marketplace checkout.
 The immutable raw catalog above pins `plugins/keepkeys` to functional commit
-`534ca9c82914cc0a2a8072f4de2c0674cffd544b`. Start a new Claude Code session.
+`7eba25e76778337cbcc3aff68dd9e3cbc843a31d`. Start a new Claude Code session.
 
 ## Oh My Pi
 
 ```sh
 omp plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keepkeys/c021deb6c0f2d649b899cc11914adbef43dc7432/.omp-plugin/marketplace.json
+  https://raw.githubusercontent.com/barnlabs/keepkeys/c046ff9c04b28b57a5c3a6c206389b4fa467046e/.omp-plugin/marketplace.json
 omp plugin install keepkeys@barnlabs
 omp plugin list
 ```
@@ -161,7 +161,7 @@ Hermes installs the repository root. Use a detached reviewed checkout:
 ```sh
 git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.5.0
 git -C keepkeys-0.5.0 checkout --detach \
-  534ca9c82914cc0a2a8072f4de2c0674cffd544b
+  7eba25e76778337cbcc3aff68dd9e3cbc843a31d
 hermes plugins install "file://$(cd keepkeys-0.5.0 && pwd)" --enable
 hermes plugins list
 ```
@@ -170,7 +170,7 @@ On Windows PowerShell:
 
 ```powershell
 git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.5.0
-git -C keepkeys-0.5.0 checkout --detach 534ca9c82914cc0a2a8072f4de2c0674cffd544b
+git -C keepkeys-0.5.0 checkout --detach 7eba25e76778337cbcc3aff68dd9e3cbc843a31d
 $path = (Resolve-Path .\keepkeys-0.5.0).Path
 hermes plugins install "file://$path" --enable
 hermes plugins list
@@ -183,7 +183,7 @@ Hermes plugins are opt-in. If installed without `--enable`, run
 
 ```sh
 gemini extensions install https://github.com/barnlabs/keepkeys \
-  --ref 534ca9c82914cc0a2a8072f4de2c0674cffd544b
+  --ref 7eba25e76778337cbcc3aff68dd9e3cbc843a31d
 gemini extensions list
 ```
 
@@ -239,8 +239,13 @@ the metadata and any replacement warning, paste the key, and press
 **Paste & Store**. The page sends the value to the host's native vault and
 closes its local listener. KeepKeys never uses Tailscale Funnel or a BarnLabs
 server. The detached portal stays coupled to its launcher until the ready link
-is acknowledged. If ChatGPT Remote cancels during startup or foreground Serve
-exits, KeepKeys closes the portal and the user starts a new phone intake.
+is acknowledged. Native paste-and-store and phone intake use the same per-name
+coordinator, so a concurrent store cannot silently bypass a replacement
+warning. If ChatGPT Remote cancels during startup or foreground Serve exits,
+including while the launcher is acknowledging the link, KeepKeys closes the
+portal and the user starts a new phone intake. If a native helper ends without
+a valid commit receipt, KeepKeys reports the vault state as uncertain and asks
+the user to inspect the named record before retrying.
 
 KeepKeys cannot clear the phone's clipboard or clipboard history. Copy the key
 only after the page is ready, submit it immediately, and close the page after
@@ -266,7 +271,7 @@ macOS or Linux:
 ```sh
 git clone https://github.com/barnlabs/keepkeys.git
 cd keepkeys
-git checkout --detach 534ca9c82914cc0a2a8072f4de2c0674cffd544b
+git checkout --detach 7eba25e76778337cbcc3aff68dd9e3cbc843a31d
 ./scripts/bootstrap
 ./scripts/check
 ./scripts/test
@@ -278,7 +283,7 @@ Windows:
 ```powershell
 git clone https://github.com/barnlabs/keepkeys.git
 Set-Location keepkeys
-git checkout --detach 534ca9c82914cc0a2a8072f4de2c0674cffd544b
+git checkout --detach 7eba25e76778337cbcc3aff68dd9e3cbc843a31d
 .\scripts\bootstrap.ps1
 .\scripts\check.ps1
 .\scripts\test.ps1
