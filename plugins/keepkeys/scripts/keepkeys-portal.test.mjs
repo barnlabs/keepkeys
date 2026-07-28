@@ -103,7 +103,7 @@ test("portal requires Tailscale identity, same-origin cookie, and one use", asyn
       committed = Buffer.from(secret);
       return { status: "ok", message: "Stored the synthetic key." };
     },
-    onStored: storedResolve,
+    onTerminal: storedResolve,
   });
   context.after(() => {
     server.close();
@@ -292,4 +292,66 @@ test("portal refuses an expired page before binding a browser", async (context) 
   });
   assert.equal(response.status, 410);
   assert.equal(calls, 0);
+});
+
+test("native commit failure makes the phone session terminal", async (context) => {
+  let terminalCalls = 0;
+  let terminalResolve;
+  const terminal = new Promise((resolvePromise) => {
+    terminalResolve = resolvePromise;
+  });
+  const path = "/keepkeys/store/failed-commit";
+  const expectedOrigin = "https://device.example.ts.net";
+  const server = createPortalServer({
+    metadata,
+    replacing: false,
+    path,
+    cookieToken: "failed-commit-cookie",
+    expectedOrigin,
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    commitSecret: async () => {
+      throw new Error("Synthetic native-vault failure.");
+    },
+    onTerminal: () => {
+      terminalCalls += 1;
+      terminalResolve();
+    },
+  });
+  context.after(() => server.close());
+  const base = await listen(server);
+  const page = await fetch(`${base}${path}`, {
+    headers: { "Tailscale-User-Login": "owner@example.com" },
+  });
+  const cookie = (page.headers.get("set-cookie") ?? "").split(";")[0];
+
+  const failed = await fetch(`${base}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8",
+      Cookie: cookie,
+      Origin: expectedOrigin,
+      "Tailscale-User-Login": "owner@example.com",
+    },
+    body: "synthetic_secret",
+  });
+  assert.equal(failed.status, 500);
+  assert.deepEqual(await failed.json(), {
+    status: "error",
+    message:
+      "KeepKeys could not store this key. The value was discarded. Start a new phone intake and try again.",
+  });
+  await terminal;
+  assert.equal(terminalCalls, 1);
+
+  const reused = await fetch(`${base}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8",
+      Cookie: cookie,
+      Origin: expectedOrigin,
+      "Tailscale-User-Login": "owner@example.com",
+    },
+    body: "another_synthetic_secret",
+  });
+  assert.equal(reused.status, 410);
 });

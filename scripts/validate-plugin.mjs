@@ -248,6 +248,16 @@ assert.match(portalSource, /tailscale-user-login/);
 assert.match(portalSource, /SameSite=Strict/);
 assert.match(portalSource, /publicInternet: false/);
 assert.match(portalSource, /\[\s*"serve",/);
+assert.match(
+  portalSource,
+  /onTerminal: \(\) => \{\s+setTimeout\(cleanup, 500\)/,
+  "every terminal submission must schedule portal and Serve cleanup",
+);
+assert.match(
+  portalSource,
+  /if \(serveProcess\) terminateProcessTree\(serveProcess\)/,
+  "portal cleanup must terminate the session-owned Serve process tree",
+);
 assert.doesNotMatch(
   portalSource,
   /["']funnel["']/i,

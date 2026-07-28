@@ -319,7 +319,7 @@ export function createPortalServer({
   expectedOrigin,
   expiresAt,
   commitSecret,
-  onStored = () => {},
+  onTerminal = () => {},
 }) {
   const nonce = randomBytes(18).toString("base64url");
   let boundIdentity;
@@ -391,7 +391,12 @@ export function createPortalServer({
       request.resume();
       return;
     }
-    if (completed || committing) {
+    if (completed) {
+      sendJson(response, 410, { status: "error", message: "This KeepKeys link has already been used." }, nonce);
+      request.resume();
+      return;
+    }
+    if (committing) {
       sendJson(response, 409, { status: "error", message: "This KeepKeys link is already being used." }, nonce);
       request.resume();
       return;
@@ -455,7 +460,6 @@ export function createPortalServer({
       committing = true;
       try {
         const result = await commitSecret(secret);
-        completed = true;
         sendJson(
           response,
           200,
@@ -468,7 +472,6 @@ export function createPortalServer({
           },
           nonce,
         );
-        setImmediate(onStored);
       } catch {
         sendJson(
           response,
@@ -481,8 +484,10 @@ export function createPortalServer({
           nonce,
         );
       } finally {
+        completed = true;
         secret.fill(0);
         committing = false;
+        setImmediate(onTerminal);
       }
     });
   });
@@ -719,7 +724,7 @@ async function startPortalSession(argumentsValue) {
     expectedOrigin,
     expiresAt,
     commitSecret: (secret) => commitToNativeVault(metadata, replacing, secret),
-    onStored: () => {
+    onTerminal: () => {
       setTimeout(cleanup, 500);
     },
   });

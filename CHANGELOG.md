@@ -11,6 +11,8 @@
 - Added browser content limits, a strict Content Security Policy, no external
   page resources, and fail-closed replacement-race checks in every native
   backend.
+- Made both successful and failed native-vault submissions terminal so the
+  session-owned listener and Serve route cannot be reused after one attempt.
 - Sent the submitted value through redirected standard input to a private
   native helper action, without placing it in model context, tool payloads,
   command arguments, files, logs, or persistent environment variables.
