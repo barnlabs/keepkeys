@@ -3,8 +3,8 @@
   "product": "KeepKeys",
   "channel": "stable",
   "version": "0.5.0",
-  "sourceCommit": "af4d97691adf80dbcab2212f5fdfc091b2a97851",
-  "catalogCommit": "e177f405482950de39abef0fa78559a2a6043074",
+  "sourceCommit": "74d32f8898394e8b7203a2d4b95f3d6282aba845",
+  "catalogCommit": "945626279cc015f3e9b0c0595967bc9e39514618",
   "installGuide": "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
   "releaseNotes": "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md"
 }

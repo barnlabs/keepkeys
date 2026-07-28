@@ -47,7 +47,7 @@ Upload:
 
 Expected SHA-256:
 
-`3428c6978bc5d09b63fafa6273a23a626afa914e48ade8568fbcf17b05ed14fd`
+`1b3d5c632925f88cfc001d1586944dddfd4fcbfb08460b6779570e84aeb73a3d`
 
 The packaging gate verifies that the archive has the plugin manifest, skill,
 native helper sources, phone portal, launcher, brand assets, policies, and

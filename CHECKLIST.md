@@ -25,7 +25,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 
 ## Release candidate — 0.5.0
 
-- [x] **Private phone intake keeps plaintext outside the agent protocol.**
+- [ ] **Private phone intake keeps plaintext outside the agent protocol.**
   - Implementer context: `keepkeys_store_from_phone`, temporary localhost
     portal, Tailscale Serve route, and private native standard-input commit
     action on macOS, Windows, and Linux.
@@ -35,7 +35,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   - Acceptance: the model receives only metadata and the one-time URL; no
     plaintext reaches tool input/output, argv, files, logs, persistent
     environment, the public internet, or a BarnLabs service.
-- [x] **Phone setup and failure states are complete.**
+- [ ] **Phone setup and failure states are complete.**
   - Implementer context: ChatGPT Remote guidance, same-tailnet prerequisites,
     MagicDNS/HTTPS requirements, port conflict, unavailable Tailscale, and
     phone clipboard limitation.
@@ -44,7 +44,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     too-short/too-large value, expiry, interrupt, and native commit failure.
   - Acceptance: every failure closes the local listener and owned Serve route
     without changing unrelated Tailscale configuration.
-- [x] **The 0.5.0 package and public copy match the seven-tool contract.**
+- [ ] **The 0.5.0 package and public copy match the seven-tool contract.**
   - Implementer context: manifests, MCP, Hermes, Agent Skill, skills-only
     package, README, install guide, listing, release notes, and eight submission
     cases.
@@ -53,7 +53,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     three negative directory cases.
   - Acceptance: phone intake is described as a private route to the connected
     host, never as hosted storage, synchronization, or public mobile support.
-- [x] **Independent adversarial 0.5.0 review and public matrix passed.**
+- [ ] **Independent adversarial 0.5.0 review and public matrix passed.**
   - Implementer context: exact diff, generated archives, local proof, public CI,
     immutable `F → C → docs` chain, and rollback.
   - Required tests: dedicated read-only Codex review, complete local regression
@@ -64,28 +64,17 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.5.0 release evidence
 
 - Functional source commit (`F`):
-  `af4d97691adf80dbcab2212f5fdfc091b2a97851`.
+  `74d32f8898394e8b7203a2d4b95f3d6282aba845`.
 - Catalog commit (`C`):
-  `e177f405482950de39abef0fa78559a2a6043074`.
-- Reviewed documentation candidate:
-  `51f72623e27d92970b89d073eff686851b6937f4`.
-- Candidate public CI run:
-  [30392719709](https://github.com/barnlabs/keepkeys/actions/runs/30392719709)
-  passed all six Node jobs, all three native-vault jobs, reproducible packages,
-  and `Release gate` on the exact `F → C → docs` candidate.
-- Stable promotion commit:
-  `c4d0bc3bec1d686cfeb09ebf2872d07a9f9b3f39`.
-- Stable-promotion public CI run:
-  [30392872749](https://github.com/barnlabs/keepkeys/actions/runs/30392872749)
-  passed the same 11 jobs on the exact promotion commit, including native-vault
-  proof on macOS, Windows, and Linux plus `Release gate`.
+  `945626279cc015f3e9b0c0595967bc9e39514618`.
+- Reviewed documentation candidate and public matrices: pending.
 - Exact-head GitHub Codex review
-  [4801015633](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4801015633)
-  reopened the prior exact head for three repairs: cancel and await sibling
-  startup operations after a partial failure, await Serve-process termination
-  even when route verification fails, and stop retaining Serve output after
-  readiness.
-- Dedicated local proof: `check`, 42 Node tests, eight Hermes tests, 12 Linux
+  [4801311339](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4801311339)
+  reopened the prior exact head for four repairs: roll back Linux writes on
+  subprocess failures, retain unconfirmed native-helper termination through
+  teardown, wait for Serve cleanup before browser success, and enforce the
+  minimum key size in UTF-8 bytes instead of HTML characters.
+- Dedicated local proof: `check`, 45 Node tests, eight Hermes tests, 13 Linux
   unit tests, macOS doctor, package and archive checks, and repeated
   `./scripts/tailnet-smoke` runs passed. Each live smoke crossed authenticated
   Tailscale Serve HTTPS, bound one browser, submitted a fresh generated UTF-8
@@ -96,11 +85,20 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   overflow or console warnings/errors. JavaScript enabled the initially
   disabled fieldset, the password input had no HTML `name`, focus landed on
   the key field, and a generated submission reached the stored state.
-- Independent read-only reviewer returned `PASS` on the focused three-finding
-  repair after the new sibling-startup, route-failure, and output-listener
-  regressions passed. The reviewer then reopened the exact public
-  `F → C → docs` candidate, including the corrected publisher checksum, and
-  returned `PASS` again.
+- Independent read-only reviewer returned `PASS` on the focused four-finding
+  repair after the Linux rollback, retained cleanup error, deferred success,
+  observable cleanup failure, and exact eight-byte Unicode regressions passed.
+- Superseded publisher-checksum chain: functional
+  `af4d97691adf80dbcab2212f5fdfc091b2a97851`, catalog
+  `e177f405482950de39abef0fa78559a2a6043074`, documentation
+  `51f72623e27d92970b89d073eff686851b6937f4`, promotion
+  `c4d0bc3bec1d686cfeb09ebf2872d07a9f9b3f39`, and final proof
+  `0bb986864e21e22793d40c42979a1f6191b8787f`. Public runs
+  [30392719709](https://github.com/barnlabs/keepkeys/actions/runs/30392719709),
+  [30392872749](https://github.com/barnlabs/keepkeys/actions/runs/30392872749),
+  and [30393019397](https://github.com/barnlabs/keepkeys/actions/runs/30393019397)
+  passed all 11 jobs, but exact-head review `4801311339` found the four gaps
+  above, so that chain is not a release candidate.
 - Superseded cleanup chain: functional
   `af4d97691adf80dbcab2212f5fdfc091b2a97851`, catalog
   `e177f405482950de39abef0fa78559a2a6043074`, documentation
