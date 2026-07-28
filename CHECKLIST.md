@@ -80,7 +80,16 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 - Stable-promotion public CI:
   [30401202501](https://github.com/barnlabs/keepkeys/actions/runs/30401202501)
   — the same 11 proof jobs passed on the exact promotion commit.
-- Evidence and exact-head proof remain pending for this repaired chain.
+- Evidence commit (`E`):
+  `03a27b2e509270896d29ec36c3a1c17aca46be70`.
+- Evidence public CI:
+  [30401418081](https://github.com/barnlabs/keepkeys/actions/runs/30401418081)
+  — all 11 proof jobs passed on the exact evidence commit.
+- The commit containing this proof-only ledger is the final source head. Its
+  exact-head public CI, independent review, GitHub Codex review,
+  unresolved-thread audit, and rebuilt archive checks are recorded on PR #4
+  after the commit exists; recording those external IDs does not mutate the
+  reviewed source head.
 - Exact-head GitHub Codex review
   [4801887230](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4801887230)
   reopened the prior exact head for three Linux repairs: propagate Secret
