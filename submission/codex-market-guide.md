@@ -45,6 +45,10 @@ Upload:
 
 `dist/keepkeys-skills-0.5.0.zip`
 
+Expected SHA-256:
+
+`9acb23f8618bd3d3e77e09f53d79b5b47b4de0de14f47ce7262e1cd6539e03cc`
+
 The packaging gate verifies that the archive has the plugin manifest, skill,
 native helper sources, phone portal, launcher, brand assets, policies, and
 executable bit. It also verifies that a skills-only upload contains no MCP
