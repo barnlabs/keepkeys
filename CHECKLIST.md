@@ -69,11 +69,17 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `e6f8702a1c8f9e129135b901ef77e4e5307a4b33`.
 - Reviewed documentation candidate:
   `7908a78c7667f48a643fa6dd0538cd5c741bca1f`.
+- Stable promotion commit:
+  `1e76479dbcce00fd124bb91d6ba2df8bdf0737e5`.
 - Candidate public CI run:
   [30380783494](https://github.com/barnlabs/keepkeys/actions/runs/30380783494)
   passed macOS, Windows, and Linux on Node 18/22; all three native-vault
   doctors; reproducible packages; and `Release gate` on the exact
   `F → C → docs` chain.
+- Stable-promotion public CI run:
+  [30381058951](https://github.com/barnlabs/keepkeys/actions/runs/30381058951)
+  passed the same 11 proof jobs on the exact promotion commit, including both
+  Windows Node versions and the native Windows vault doctor.
 - Superseded repair run:
   [30380289420](https://github.com/barnlabs/keepkeys/actions/runs/30380289420)
   passed macOS, Linux, all three native-vault doctors, and reproducible
@@ -92,8 +98,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   a generated tailnet HTTPS-to-Keychain smoke all passed. The smoke removed its
   vault record and session-owned route.
 - Stable update candidate: `update.json` advertises 0.5.0 with the exact `F`
-  and `C` commits above. Exact candidate proof passed; stable-promotion proof
-  remains pending.
+  and `C` commits above. Exact candidate and stable-promotion proof passed.
 - Rollback: reinstall the 0.4.2 functional commit
   `e5276925d390704fccdf4aaeba47280464762a1c`; plugin rollback does not remove
   native-vault records.
