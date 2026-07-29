@@ -76,8 +76,13 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 - Independent read-only review returned `PASS` on the exact `F → C → D` chain
   after independently rerunning `check`, all 60 Node tests, eight Hermes tests,
   19 Linux tests, `doctor`, and both package builders.
-- Promotion, evidence, proof closure, and final ledger review remain pending
-  for this repaired chain.
+- Stable promotion (`P`):
+  `d1c50c7e9e50e9d9daeb016fadc357c879bc631e`.
+- Promotion public CI
+  [30411469791](https://github.com/barnlabs/keepkeys/actions/runs/30411469791)
+  passed all 11 jobs.
+- Evidence, proof closure, and final ledger review remain pending for this
+  repaired chain.
 - Exact-head GitHub Codex review
   [4802681598](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4802681598)
   reopened the prior ledger head for four additional repairs: wait for the
