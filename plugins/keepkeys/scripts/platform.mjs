@@ -612,7 +612,13 @@ async function terminateGracefullyAndWait(
   }
   const termination = requestGracefulTermination(child, platform, tree);
   if (!termination.requested) {
-    throw new Error("KeepKeys could not request graceful process termination.");
+    const requestError = new Error(
+      "KeepKeys could not request graceful process termination.",
+    );
+    if (termination.windowsProcesses) {
+      requestError.windowsProcesses = termination.windowsProcesses;
+    }
+    throw requestError;
   }
   try {
     await waitForTermination(
