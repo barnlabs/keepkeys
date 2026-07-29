@@ -64,9 +64,9 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.5.0 release evidence
 
 - Functional source commit (`F`):
-  `9335564192b5d505d618a8413b84a9e2e6969b12`.
+  `8a099cab8c80aea7c1773054448fb25f2bf01045`.
 - Catalog commit (`C`):
-  `85c958738cef2f907b226622382cc2fe5276c4da`.
+  `b0da10f158fb2a5aac7cccbb8cea14693f98e38a`.
 - Reviewed documentation candidate, candidate public CI, promotion, evidence,
   proof closure, and final ledger review remain pending for this repaired
   chain.
@@ -95,6 +95,16 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   the key field, and a generated submission reached the stored state.
 - Focused independent review and exact-candidate review remain pending for this
   repaired chain.
+- Superseded initial process-tree repair: functional
+  `9335564192b5d505d618a8413b84a9e2e6969b12`, catalog
+  `85c958738cef2f907b226622382cc2fe5276c4da`, and documentation
+  `b50a6fcb94ff0633c6ce0c7c511fb62e3c9fe30a`. Public run
+  [30409331772](https://github.com/barnlabs/keepkeys/actions/runs/30409331772)
+  passed both Unix Node matrices, all three native-vault jobs, and reproducible
+  packaging, but both Windows Node jobs exposed unverified process-tree exit
+  handling. That candidate was stopped before promotion. The current repair
+  snapshots and retains Windows PID ancestry so teardown can find descendants
+  after the leader exits.
 - Superseded serialized-store chain: functional
   `7eba25e76778337cbcc3aff68dd9e3cbc843a31d`, catalog
   `c046ff9c04b28b57a5c3a6c206389b4fa467046e`, documentation

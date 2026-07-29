@@ -68,8 +68,9 @@
   discarded.
 - Give concurrent startup helpers independent process groups so sibling
   cancellation terminates and awaits their descendants even if a group leader
-  has already exited. Windows cleanup must successfully stop the full process
-  tree or report a cleanup failure.
+  has already exited. Windows records the owned PID ancestry before signaling,
+  follows surviving descendants after leader exit, and reports a cleanup
+  failure unless every tracked process is gone.
 - Enforce the 8-byte minimum with UTF-8 byte counting in JavaScript and on the
   server instead of an HTML character-count minimum.
 - Made the no-script form fail closed: controls remain disabled and the

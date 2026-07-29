@@ -34,8 +34,10 @@ failed Linux or Windows storage rollback is shown as uncertain instead of
 discarded. A missing, incomplete, or inconsistent native commit receipt is
 also uncertain. Native uncertainty remains visible if lock cleanup also fails.
 Startup helper process groups are terminated and verified on cancellation even
-if a leader exited first; Windows cleanup fails closed if the full tree cannot
-be stopped. KeepKeys never enables Tailscale Funnel.
+if a leader exited first. Windows snapshots owned PID ancestry before
+signaling, follows surviving descendants through exited ancestors, and fails
+cleanup unless every tracked process is gone. KeepKeys never enables Tailscale
+Funnel.
 
 The release preserves the immutable-commit update checker, three native
 backends, and packages for Grok Build/Grok Code, Claude Code, Oh My Pi, Hermes,
