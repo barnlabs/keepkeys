@@ -92,10 +92,10 @@ checkout:
 
 ```text
 functional plugin commit
-8a099cab8c80aea7c1773054448fb25f2bf01045
+b99b30051ba339c34f70775d3be2fd819a322377
 
 Claude/OMP catalog commit
-b0da10f158fb2a5aac7cccbb8cea14693f98e38a
+401488ae90f83b5878d9d79fcc873497515b488e
 ```
 
 The catalog commit pins its plugin source to the functional commit. Review both
@@ -105,7 +105,7 @@ before installation.
 
 ```sh
 codex plugin marketplace add barnlabs/keepkeys \
-  --ref 8a099cab8c80aea7c1773054448fb25f2bf01045
+  --ref b99b30051ba339c34f70775d3be2fd819a322377
 codex plugin add keepkeys@barnlabs
 ```
 
@@ -120,7 +120,7 @@ plugin hosts.
 
 ```sh
 grok plugin install \
-  'barnlabs/keepkeys@8a099cab8c80aea7c1773054448fb25f2bf01045#plugins/keepkeys' \
+  'barnlabs/keepkeys@b99b30051ba339c34f70775d3be2fd819a322377#plugins/keepkeys' \
   --trust
 grok plugin list
 grok plugin details keepkeys
@@ -133,20 +133,20 @@ The exact-SHA subdirectory install is the credential-sensitive route.
 
 ```sh
 claude plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keepkeys/b0da10f158fb2a5aac7cccbb8cea14693f98e38a/.claude-plugin/marketplace.json
+  https://raw.githubusercontent.com/barnlabs/keepkeys/401488ae90f83b5878d9d79fcc873497515b488e/.claude-plugin/marketplace.json
 claude plugin install keepkeys@barnlabs
 claude plugin list
 ```
 
 Claude Code does not expose a raw commit option for a Git marketplace checkout.
 The immutable raw catalog above pins `plugins/keepkeys` to functional commit
-`8a099cab8c80aea7c1773054448fb25f2bf01045`. Start a new Claude Code session.
+`b99b30051ba339c34f70775d3be2fd819a322377`. Start a new Claude Code session.
 
 ## Oh My Pi
 
 ```sh
 omp plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keepkeys/b0da10f158fb2a5aac7cccbb8cea14693f98e38a/.omp-plugin/marketplace.json
+  https://raw.githubusercontent.com/barnlabs/keepkeys/401488ae90f83b5878d9d79fcc873497515b488e/.omp-plugin/marketplace.json
 omp plugin install keepkeys@barnlabs
 omp plugin list
 ```
@@ -161,7 +161,7 @@ Hermes installs the repository root. Use a detached reviewed checkout:
 ```sh
 git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.5.0
 git -C keepkeys-0.5.0 checkout --detach \
-  8a099cab8c80aea7c1773054448fb25f2bf01045
+  b99b30051ba339c34f70775d3be2fd819a322377
 hermes plugins install "file://$(cd keepkeys-0.5.0 && pwd)" --enable
 hermes plugins list
 ```
@@ -170,7 +170,7 @@ On Windows PowerShell:
 
 ```powershell
 git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.5.0
-git -C keepkeys-0.5.0 checkout --detach 8a099cab8c80aea7c1773054448fb25f2bf01045
+git -C keepkeys-0.5.0 checkout --detach b99b30051ba339c34f70775d3be2fd819a322377
 $path = (Resolve-Path .\keepkeys-0.5.0).Path
 hermes plugins install "file://$path" --enable
 hermes plugins list
@@ -183,7 +183,7 @@ Hermes plugins are opt-in. If installed without `--enable`, run
 
 ```sh
 gemini extensions install https://github.com/barnlabs/keepkeys \
-  --ref 8a099cab8c80aea7c1773054448fb25f2bf01045
+  --ref b99b30051ba339c34f70775d3be2fd819a322377
 gemini extensions list
 ```
 
@@ -273,7 +273,7 @@ macOS or Linux:
 ```sh
 git clone https://github.com/barnlabs/keepkeys.git
 cd keepkeys
-git checkout --detach 8a099cab8c80aea7c1773054448fb25f2bf01045
+git checkout --detach b99b30051ba339c34f70775d3be2fd819a322377
 ./scripts/bootstrap
 ./scripts/check
 ./scripts/test
@@ -285,7 +285,7 @@ Windows:
 ```powershell
 git clone https://github.com/barnlabs/keepkeys.git
 Set-Location keepkeys
-git checkout --detach 8a099cab8c80aea7c1773054448fb25f2bf01045
+git checkout --detach b99b30051ba339c34f70775d3be2fd819a322377
 .\scripts\bootstrap.ps1
 .\scripts\check.ps1
 .\scripts\test.ps1

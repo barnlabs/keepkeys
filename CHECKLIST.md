@@ -64,9 +64,9 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.5.0 release evidence
 
 - Functional source commit (`F`):
-  `8a099cab8c80aea7c1773054448fb25f2bf01045`.
+  `b99b30051ba339c34f70775d3be2fd819a322377`.
 - Catalog commit (`C`):
-  `b0da10f158fb2a5aac7cccbb8cea14693f98e38a`.
+  `401488ae90f83b5878d9d79fcc873497515b488e`.
 - Reviewed documentation candidate, candidate public CI, promotion, evidence,
   proof closure, and final ledger review remain pending for this repaired
   chain.
@@ -77,7 +77,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   incomplete error receipt as uncertain, terminate a startup process group
   even after its leader exits, and serialize removal with every same-name
   store path.
-- Dedicated local proof: `check`, 59 Node tests, eight Hermes tests, 19 Linux
+- Dedicated local proof: `check`, 60 Node tests, eight Hermes tests, 19 Linux
   unit tests, macOS doctor, package and archive checks, and repeated
   `./scripts/tailnet-smoke` runs passed. Each live smoke crossed authenticated
   Tailscale Serve HTTPS, bound one browser, submitted a fresh generated UTF-8

@@ -280,10 +280,11 @@ or success receipt, KeepKeys reports an uncertain vault state instead of
 claiming the value was discarded. Metadata and Tailscale startup helpers each
 receive an independent process group. Cancellation signals and verifies the
 owned group even after its leader exits. On Windows, KeepKeys snapshots the
-owned PID ancestry before signaling, keeps exited ancestors in that ownership
-set while finding live descendants, and reports a cleanup failure unless every
-tracked process disappears. Serve output is drained but not retained after
-readiness. Expiry
+owned PID ancestry and process creation identity before signaling, keeps exited
+ancestors in that ownership set while finding live descendants, refuses to
+signal a PID whose creation identity changed, and reports a cleanup failure
+unless every tracked process disappears. Serve output is drained but not
+retained after readiness. Expiry
 teardown is scheduled from the timestamp advertised to the user, including
 time spent starting Serve. A pre-existing listener conflict fails closed
 rather than changing another Tailscale Serve configuration.

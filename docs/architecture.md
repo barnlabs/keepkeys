@@ -120,9 +120,10 @@ the commit promise settles. A helper exit, malformed JSON, or incomplete or
 inconsistent error or success receipt is also uncertain; the phone never
 reports that value as discarded. Metadata and Tailscale startup helpers run in
 their own process groups. Cancellation verifies the group is gone even if its
-leader exited first. Windows snapshots owned PID ancestry before signaling,
-retains exited ancestors while following surviving descendants, and fails
-cleanup unless every tracked process is gone.
+leader exited first. Windows snapshots owned PID ancestry and process creation
+identity before signaling, retains exited ancestors while following surviving
+descendants, rejects PID reuse, and fails cleanup unless every tracked process
+is gone.
 
 ## Platform records
 
