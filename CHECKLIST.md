@@ -67,9 +67,17 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d`.
 - Catalog commit (`C`):
   `33afe85cf245c0b8003c0d1638c90c56defeb128`.
-- Reviewed documentation candidate, candidate public CI, promotion, evidence,
-  proof closure, and final ledger review remain pending for this repaired
-  chain.
+- Reviewed documentation candidate (`D`):
+  `b097643a5c266c61fe3376b042b2269ae7b20bf0`.
+- Candidate public CI
+  [30411325064](https://github.com/barnlabs/keepkeys/actions/runs/30411325064)
+  passed all 11 jobs, including both Windows Node versions, all three native
+  vault jobs, reproducible packaging, and the release gate.
+- Independent read-only review returned `PASS` on the exact `F → C → D` chain
+  after independently rerunning `check`, all 60 Node tests, eight Hermes tests,
+  19 Linux tests, `doctor`, and both package builders.
+- Promotion, evidence, proof closure, and final ledger review remain pending
+  for this repaired chain.
 - Exact-head GitHub Codex review
   [4802681598](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4802681598)
   reopened the prior ledger head for four additional repairs: wait for the
@@ -93,8 +101,8 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   overflow or console warnings/errors. JavaScript enabled the initially
   disabled fieldset, the password input had no HTML `name`, focus landed on
   the key field, and a generated submission reached the stored state.
-- Focused independent review and exact-candidate review remain pending for this
-  repaired chain.
+- Focused independent review passed; exact-head GitHub Codex review remains
+  pending for this repaired chain.
 - Superseded Windows ownership chain: functional
   `8e9cc1be510c45bcaea9698293d137af85086bdb`, catalog
   `0f8b2a3c2d1e4130cbaa5daf2dbbc0b599f8c5d4`, and documentation
