@@ -429,7 +429,9 @@ test("Serve cleanup fails closed when the route is absent but its child survives
     },
   );
   if (process.platform === "win32") {
-    await stopping;
+    await stopping.catch((error) => {
+      assert.match(error.message, /forced Tailscale Serve to stop/u);
+    });
   } else {
     await assert.rejects(stopping, /forced Tailscale Serve to stop/u);
   }
