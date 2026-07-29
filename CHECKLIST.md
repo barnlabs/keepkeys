@@ -81,8 +81,12 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 - Promotion public CI
   [30411469791](https://github.com/barnlabs/keepkeys/actions/runs/30411469791)
   passed all 11 jobs.
-- Evidence, proof closure, and final ledger review remain pending for this
-  repaired chain.
+- Evidence commit (`E`):
+  `9d8160e4f1d286cb420f6ce9823b58e235db49a6`.
+- Evidence public CI
+  [30411621867](https://github.com/barnlabs/keepkeys/actions/runs/30411621867)
+  passed all 11 jobs.
+- Proof closure and final ledger review remain pending for this repaired chain.
 - Exact-head GitHub Codex review
   [4802681598](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4802681598)
   reopened the prior ledger head for four additional repairs: wait for the
