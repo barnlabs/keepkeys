@@ -425,21 +425,35 @@ function signalProcessTree(
       };
     }
     let requested = false;
-    for (const record of [...ownedTree.liveRecords].reverse()) {
-      requested =
-        runWindowsTaskkill(record.processId, signal) || requested;
+    const attempted = new Set();
+    while (true) {
+      const record = ownedTree.liveRecords.find(
+        (candidate) =>
+          !attempted.has(
+            `${candidate.processId}:${candidate.creationToken}`,
+          ),
+      );
+      if (!record) break;
+      attempted.add(`${record.processId}:${record.creationToken}`);
+      requested = runWindowsTaskkill(record.processId, signal) || requested;
+      try {
+        ownedTree = windowsOwnedTreeRecords(ownedTree.records);
+      } catch {
+        return {
+          requested: false,
+          processGroup: false,
+          windowsProcesses: ownedTree.records,
+        };
+      }
+      if (ownedTree.ambiguous) {
+        return {
+          requested: false,
+          processGroup: false,
+          windowsProcesses: ownedTree.records,
+        };
+      }
     }
-    try {
-      const remaining = windowsOwnedTreeRecords(ownedTree.records);
-      if (remaining.liveRecords.length === 0) requested = true;
-      ownedTree = remaining;
-    } catch {
-      return {
-        requested: false,
-        processGroup: false,
-        windowsProcesses: ownedTree.records,
-      };
-    }
+    if (ownedTree.liveRecords.length === 0) requested = true;
     return {
       requested,
       processGroup: false,
