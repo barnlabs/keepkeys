@@ -64,9 +64,9 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.5.0 release evidence
 
 - Functional source commit (`F`):
-  `276fb96db88b7b93552260bb13583ad9f4c9f20a`.
+  `8e9cc1be510c45bcaea9698293d137af85086bdb`.
 - Catalog commit (`C`):
-  `288245c2e6538e5fff6b42f0d999afe6729c96cc`.
+  `0f8b2a3c2d1e4130cbaa5daf2dbbc0b599f8c5d4`.
 - Reviewed documentation candidate, candidate public CI, promotion, evidence,
   proof closure, and final ledger review remain pending for this repaired
   chain.
