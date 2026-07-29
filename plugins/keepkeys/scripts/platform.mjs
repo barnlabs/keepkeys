@@ -373,7 +373,9 @@ function windowsOwnedTreeRecords(rootRecords, options) {
   );
 }
 
-function runWindowsTaskkill(processId, signal) {
+function runWindowsTaskkill(processId) {
+  // Windows has no portable SIGTERM for console process trees. Node also maps
+  // its supported termination signals to a forced stop on this platform.
   const result = spawnSync(
     resolve(
       process.env.SystemRoot ?? "C:\\Windows",
@@ -384,7 +386,7 @@ function runWindowsTaskkill(processId, signal) {
       "/PID",
       `${processId}`,
       "/T",
-      ...(signal === "SIGKILL" ? ["/F"] : []),
+      "/F",
     ],
     { windowsHide: true, stdio: "ignore" },
   );
@@ -435,7 +437,7 @@ function signalProcessTree(
       );
       if (!record) break;
       attempted.add(`${record.processId}:${record.creationToken}`);
-      requested = runWindowsTaskkill(record.processId, signal) || requested;
+      requested = runWindowsTaskkill(record.processId) || requested;
       try {
         ownedTree = windowsOwnedTreeRecords(ownedTree.records);
       } catch {
@@ -558,7 +560,7 @@ function waitForWindowsTreeExit(windowsProcesses, timeoutMs, message) {
   });
 }
 
-function waitForTermination(
+async function waitForTermination(
   child,
   platform,
   timeoutMs,
@@ -567,7 +569,16 @@ function waitForTermination(
   windowsProcesses = [],
 ) {
   if (platform === "win32" && windowsProcesses.length > 0) {
-    return waitForWindowsTreeExit(windowsProcesses, timeoutMs, message);
+    const deadline = Date.now() + timeoutMs;
+    await waitForWindowsTreeExit(windowsProcesses, timeoutMs, message);
+    if (!processHasExited(child)) {
+      await waitForProcessClose(
+        child,
+        Math.max(0, deadline - Date.now()),
+        message,
+      );
+    }
+    return;
   }
   if (platform !== "win32" && processGroup) {
     return waitForProcessGroupExit(child.pid, timeoutMs, message);
