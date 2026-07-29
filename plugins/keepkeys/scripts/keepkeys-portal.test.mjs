@@ -8,6 +8,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import {
+  ownedWindowsTreeFromSnapshot,
   processHasExited,
   terminateProcessGracefullyAndWait,
   terminateProcessTreeAndWait,
@@ -131,6 +132,76 @@ test("process exit detection does not mistake PID-only cleanup handles for exite
     processHasExited({ pid: 123, exitCode: null, signalCode: "SIGKILL" }),
     true,
   );
+});
+
+test("Windows process ownership rejects reused PIDs", () => {
+  const originalTree = ownedWindowsTreeFromSnapshot(
+    new Map([
+      [
+        200,
+        { parentProcessId: 100, creationToken: "200-created" },
+      ],
+      [
+        300,
+        { parentProcessId: 200, creationToken: "300-created" },
+      ],
+    ]),
+    [{ processId: 100 }],
+    { discoverFromMissingRoots: true },
+  );
+  assert.equal(originalTree.ambiguous, false);
+  assert.deepEqual(
+    originalTree.liveRecords.map((record) => record.processId),
+    [200, 300],
+  );
+
+  const reusedTree = ownedWindowsTreeFromSnapshot(
+    new Map([
+      [
+        100,
+        { parentProcessId: 1, creationToken: "reused-root" },
+      ],
+      [
+        200,
+        { parentProcessId: 1, creationToken: "reused-child" },
+      ],
+      [
+        400,
+        { parentProcessId: 100, creationToken: "unrelated-root-child" },
+      ],
+      [
+        500,
+        { parentProcessId: 200, creationToken: "unrelated-child-child" },
+      ],
+    ]),
+    [
+      { processId: 100, creationToken: "original-root" },
+      { processId: 200, creationToken: "200-created" },
+      { processId: 300, creationToken: "300-created" },
+    ],
+  );
+  assert.equal(reusedTree.ambiguous, false);
+  assert.deepEqual(reusedTree.liveRecords, []);
+  assert.equal(
+    reusedTree.records.some((record) => record.processId === 400),
+    false,
+  );
+  assert.equal(
+    reusedTree.records.some((record) => record.processId === 500),
+    false,
+  );
+
+  const ambiguousRoot = ownedWindowsTreeFromSnapshot(
+    new Map([
+      [
+        100,
+        { parentProcessId: 1, creationToken: "unknown-current-root" },
+      ],
+    ]),
+    [{ processId: 100 }],
+    { discoverFromMissingRoots: true },
+  );
+  assert.equal(ambiguousRoot.ambiguous, true);
 });
 
 test("portal HTML escapes metadata and loads no third-party resources", () => {
