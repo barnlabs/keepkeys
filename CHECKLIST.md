@@ -64,9 +64,9 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.5.0 release evidence
 
 - Functional source commit (`F`):
-  `8e9cc1be510c45bcaea9698293d137af85086bdb`.
+  `3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d`.
 - Catalog commit (`C`):
-  `0f8b2a3c2d1e4130cbaa5daf2dbbc0b599f8c5d4`.
+  `33afe85cf245c0b8003c0d1638c90c56defeb128`.
 - Reviewed documentation candidate, candidate public CI, promotion, evidence,
   proof closure, and final ledger review remain pending for this repaired
   chain.
@@ -95,6 +95,17 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   the key field, and a generated submission reached the stored state.
 - Focused independent review and exact-candidate review remain pending for this
   repaired chain.
+- Superseded Windows ownership chain: functional
+  `8e9cc1be510c45bcaea9698293d137af85086bdb`, catalog
+  `0f8b2a3c2d1e4130cbaa5daf2dbbc0b599f8c5d4`, and documentation
+  `7806b048c050f151e6d6419a639090bf239eb650`. Public run
+  [30410825036](https://github.com/barnlabs/keepkeys/actions/runs/30410825036)
+  passed packaging, both Unix Node matrices, and all three native-vault jobs.
+  Both Windows Node jobs showed that `taskkill` without `/F` cannot stop a
+  console process tree and that OS-level disappearance must still be followed
+  by the Node child close event. The candidate was stopped before promotion.
+  The current repair uses Windows' native forced tree stop and waits for both
+  forms of exit confirmation.
 - Superseded initial process-tree repair: functional
   `9335564192b5d505d618a8413b84a9e2e6969b12`, catalog
   `85c958738cef2f907b226622382cc2fe5276c4da`, and documentation
