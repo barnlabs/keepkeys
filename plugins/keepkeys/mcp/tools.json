@@ -60,6 +60,66 @@
     }
   },
   {
+    "name": "keepkeys_store_from_phone",
+    "title": "Store a secret from a phone with KeepKeys",
+    "description": "Create a one-time, tailnet-only Tailscale Serve page that sends a pasted secret directly to this computer's native credential vault. The page expires after 10 minutes. This tool never accepts or returns the secret value and never uses Tailscale Funnel.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Suggested friendly name, such as github-release.",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "variable": {
+          "type": "string",
+          "description": "Suggested uppercase environment-variable name, such as GITHUB_TOKEN.",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "description": {
+          "type": "string",
+          "description": "One-line description of what the secret is for, such as publishing approved releases.",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "provider": {
+          "type": "string",
+          "description": "Provider or system that issued the credential, such as GitHub.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "documentation_urls": {
+          "type": "array",
+          "description": "One to three official HTTPS documentation links researched by the agent, preferring AI-readable references such as llms.txt, OpenAPI, or plain-text API documentation.",
+          "items": {
+            "type": "string",
+            "minLength": 9,
+            "maxLength": 1024,
+            "pattern": "^https://"
+          },
+          "minItems": 1,
+          "maxItems": 3
+        }
+      },
+      "required": [
+        "name",
+        "variable",
+        "description",
+        "provider",
+        "documentation_urls"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "openWorldHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false
+    }
+  },
+  {
     "name": "keepkeys_list",
     "title": "List KeepKeys names",
     "description": "List friendly names, variable names, and descriptions stored by KeepKeys. Secret values are never returned.",

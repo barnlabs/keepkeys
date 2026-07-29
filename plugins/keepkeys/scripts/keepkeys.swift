@@ -1,12 +1,17 @@
 import AppKit
 import CryptoKit
+import Darwin
 import Foundation
 import Security
 
-private let keepKeysVersion = "0.4.2"
+private let keepKeysVersion = "0.5.0"
 private let keychainService = "net.barnlabs.keepkeys"
 private let maximumSecretBytes = 2_048
 private let maximumCapturedBytes = 1_048_576
+private let portalCapabilityBytes = 32
+private let portalReplacementStateMessage =
+    "The stored KeepKeys name changed after the phone page opened. "
+    + "Start a new phone intake and review the replacement warning."
 
 private struct KeepKeysFailure: LocalizedError {
     let message: String
@@ -700,6 +705,362 @@ private func storeInteractively(
     }
 }
 
+private func constantTimeEqual(_ first: String, _ second: String) -> Bool {
+    let firstBytes = Array(first.utf8)
+    let secondBytes = Array(second.utf8)
+    guard firstBytes.count == secondBytes.count else {
+        return false
+    }
+    var difference: UInt8 = 0
+    for index in firstBytes.indices {
+        difference |= firstBytes[index] ^ secondBytes[index]
+    }
+    return difference == 0
+}
+
+private func processArguments(_ processID: Int32) -> [String]? {
+    var query: [Int32] = [CTL_KERN, KERN_PROCARGS2, processID]
+    var byteCount = 0
+    let sizeStatus = query.withUnsafeMutableBufferPointer {
+        sysctl($0.baseAddress, UInt32($0.count), nil, &byteCount, nil, 0)
+    }
+    guard sizeStatus == 0, byteCount > MemoryLayout<Int32>.size else {
+        return nil
+    }
+    var buffer = [UInt8](repeating: 0, count: byteCount)
+    let readStatus = query.withUnsafeMutableBufferPointer { queryPointer in
+        buffer.withUnsafeMutableBytes { bufferPointer in
+            sysctl(
+                queryPointer.baseAddress,
+                UInt32(queryPointer.count),
+                bufferPointer.baseAddress,
+                &byteCount,
+                nil,
+                0
+            )
+        }
+    }
+    guard readStatus == 0, byteCount > MemoryLayout<Int32>.size else {
+        return nil
+    }
+    var argumentCount: Int32 = 0
+    withUnsafeMutableBytes(of: &argumentCount) { destination in
+        buffer.withUnsafeBytes { source in
+            destination.copyBytes(
+                from: source.prefix(MemoryLayout<Int32>.size)
+            )
+        }
+    }
+    guard argumentCount > 0 else {
+        return nil
+    }
+    var cursor = MemoryLayout<Int32>.size
+    while cursor < byteCount, buffer[cursor] != 0 {
+        cursor += 1
+    }
+    while cursor < byteCount, buffer[cursor] == 0 {
+        cursor += 1
+    }
+    var arguments: [String] = []
+    while cursor < byteCount, arguments.count < Int(argumentCount) {
+        let start = cursor
+        while cursor < byteCount, buffer[cursor] != 0 {
+            cursor += 1
+        }
+        guard let argument = String(
+            bytes: buffer[start..<cursor],
+            encoding: .utf8
+        ) else {
+            return nil
+        }
+        arguments.append(argument)
+        while cursor < byteCount, buffer[cursor] == 0 {
+            cursor += 1
+        }
+    }
+    return arguments.count == Int(argumentCount) ? arguments : nil
+}
+
+private func portalParentIsBundledPortal(_ parentPID: Int32) -> Bool {
+    var path = [CChar](repeating: 0, count: 4_096)
+    let length = proc_pidpath(parentPID, &path, UInt32(path.count))
+    guard length > 0,
+          let arguments = processArguments(parentPID),
+          arguments.count > 1,
+          let assetsDirectory =
+              ProcessInfo.processInfo.environment["KEEPKEYS_ASSETS_DIR"]
+    else {
+        return false
+    }
+    let executableName = URL(fileURLWithPath: String(cString: path))
+        .lastPathComponent
+        .lowercased()
+    let expectedPortal = URL(fileURLWithPath: assetsDirectory)
+        .deletingLastPathComponent()
+        .appendingPathComponent("scripts", isDirectory: true)
+        .appendingPathComponent("keepkeys-portal.mjs")
+        .resolvingSymlinksInPath()
+        .standardizedFileURL
+    let parentScript = URL(fileURLWithPath: arguments[1])
+        .resolvingSymlinksInPath()
+        .standardizedFileURL
+    return (executableName == "node" || executableName == "nodejs") &&
+        parentScript == expectedPortal
+}
+
+private func authorizePortalChannel() throws {
+    let environment = ProcessInfo.processInfo.environment
+    let expectedDigest = environment["KEEPKEYS_PORTAL_CAPABILITY_SHA256"] ?? ""
+    let expectedParent = environment["KEEPKEYS_PORTAL_PARENT_PID"] ?? ""
+    unsetenv("KEEPKEYS_PORTAL_CAPABILITY_SHA256")
+    unsetenv("KEEPKEYS_PORTAL_PARENT_PID")
+    guard isatty(STDIN_FILENO) == 0,
+          expectedDigest.count == 64,
+          expectedDigest.allSatisfy({
+              ("0"..."9").contains($0) || ("a"..."f").contains($0)
+          }),
+          let parentPID = Int32(expectedParent),
+          parentPID > 0,
+          parentPID == getppid(),
+          portalParentIsBundledPortal(parentPID)
+    else {
+        throw KeepKeysFailure(
+            message: "The private phone-intake commit requires the live KeepKeys portal channel."
+        )
+    }
+    var capability = Data()
+    while capability.count < portalCapabilityBytes {
+        let remaining = portalCapabilityBytes - capability.count
+        guard let chunk = try FileHandle.standardInput.read(upToCount: remaining),
+              !chunk.isEmpty
+        else {
+            break
+        }
+        capability.append(chunk)
+    }
+    defer { capability.resetBytes(in: 0..<capability.count) }
+    guard capability.count == portalCapabilityBytes else {
+        throw KeepKeysFailure(
+            message: "The private phone-intake channel ended before authorization."
+        )
+    }
+    let actualDigest = SHA256.hash(data: capability)
+        .map { String(format: "%02x", $0) }
+        .joined()
+    guard constantTimeEqual(actualDigest, expectedDigest) else {
+        throw KeepKeysFailure(
+            message: "The private phone-intake channel was not authorized."
+        )
+    }
+}
+
+private func requirePortalReplacementState(
+    name: String,
+    expectedExisting: Bool
+) throws {
+    guard try KeychainStore.exists(name: name) == expectedExisting else {
+        throw KeepKeysFailure(message: portalReplacementStateMessage)
+    }
+}
+
+private func portalReplacementStateWasRejected(
+    name: String,
+    expectedExisting: Bool
+) throws -> Bool {
+    do {
+        try requirePortalReplacementState(
+            name: name,
+            expectedExisting: expectedExisting
+        )
+        return false
+    } catch let error as KeepKeysFailure {
+        guard error.message == portalReplacementStateMessage else {
+            throw error
+        }
+        return true
+    }
+}
+
+private func storeFromPortal(arguments: [String]) throws -> [String: Any] {
+    guard let rawName = try parseOption(arguments, name: "--name"),
+          let rawVariable = try parseOption(arguments, name: "--variable"),
+          let rawDescription = try parseOption(arguments, name: "--description"),
+          let rawProvider = try parseOption(arguments, name: "--provider"),
+          let expectedValue = try parseOption(arguments, name: "--expect-existing")
+    else {
+        throw KeepKeysFailure(message: "The private phone-intake request is incomplete.")
+    }
+    let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+    let variable = rawVariable.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    let description = rawDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+    let provider = rawProvider.trimmingCharacters(in: .whitespacesAndNewlines)
+    let documentationURLs = try parseOptions(arguments, name: "--documentation-url").map {
+        $0.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    let metadata = EntryMetadata(
+        version: 2,
+        variable: variable,
+        description: description,
+        provider: provider,
+        documentationURLs: documentationURLs
+    )
+    guard validName(name), validMetadata(metadata) else {
+        throw KeepKeysFailure(message: "The agent supplied invalid KeepKeys metadata.")
+    }
+    guard expectedValue == "yes" || expectedValue == "no" else {
+        throw KeepKeysFailure(message: "The private phone-intake replacement state is invalid.")
+    }
+    let nativeSelfTestValue = try parseOption(arguments, name: "--native-self-test") ?? "no"
+    let nativeSelfTestScenarios: Set<String> = [
+        "round-trip",
+        "create-to-replace",
+        "replace-to-create",
+    ]
+    guard nativeSelfTestValue == "no"
+            || nativeSelfTestScenarios.contains(nativeSelfTestValue)
+    else {
+        throw KeepKeysFailure(message: "The private native portal test request is invalid.")
+    }
+    let nativeSelfTest = nativeSelfTestValue != "no"
+    let nativeSelfTestFlag =
+        ProcessInfo.processInfo.environment["KEEPKEYS_PORTAL_NATIVE_TEST"]
+    unsetenv("KEEPKEYS_PORTAL_NATIVE_TEST")
+    if nativeSelfTest {
+        guard nativeSelfTestFlag == "1",
+              name.hasPrefix("keepkeys-portal-test-"),
+              (
+                  nativeSelfTestValue == "replace-to-create"
+                      ? expectedValue == "yes"
+                      : expectedValue == "no"
+              )
+        else {
+            throw KeepKeysFailure(
+                message: "KeepKeys rejected an unauthorized native portal test."
+            )
+        }
+    }
+    try authorizePortalChannel()
+    if nativeSelfTest {
+        try KeychainStore.remove(name: name)
+    }
+    defer {
+        if nativeSelfTest {
+            try? KeychainStore.remove(name: name)
+        }
+    }
+    if nativeSelfTestValue == "create-to-replace" {
+        var baselineSecret = UUID().uuidString + UUID().uuidString
+        defer { baselineSecret = "" }
+        try KeychainStore.store(
+            name: name,
+            variable: variable,
+            description: description,
+            provider: provider,
+            documentationURLs: documentationURLs,
+            secret: baselineSecret
+        )
+        let rejected = try portalReplacementStateWasRejected(
+            name: name,
+            expectedExisting: false
+        )
+        var stored = try KeychainStore.load(name: name)
+        let preserved =
+            stored.secret == baselineSecret
+            && stored.metadata == metadata
+        stored.secret = ""
+        try KeychainStore.remove(name: name)
+        guard rejected, preserved, !(try KeychainStore.exists(name: name)) else {
+            throw KeepKeysFailure(
+                message: "The temporary native portal create-to-replace rejection did not verify."
+            )
+        }
+        return [
+            "status": "ok",
+            "message": "Temporary native portal create-to-replace rejection verified.",
+            "cleaned": true,
+            "scenario": nativeSelfTestValue,
+        ]
+    }
+    if nativeSelfTestValue == "replace-to-create" {
+        let rejected = try portalReplacementStateWasRejected(
+            name: name,
+            expectedExisting: true
+        )
+        guard rejected, !(try KeychainStore.exists(name: name)) else {
+            throw KeepKeysFailure(
+                message: "The temporary native portal replace-to-create rejection did not verify."
+            )
+        }
+        return [
+            "status": "ok",
+            "message": "Temporary native portal replace-to-create rejection verified.",
+            "cleaned": true,
+            "scenario": nativeSelfTestValue,
+        ]
+    }
+    let expectedExisting = expectedValue == "yes"
+    try requirePortalReplacementState(
+        name: name,
+        expectedExisting: expectedExisting
+    )
+
+    var secretData = try FileHandle.standardInput.read(
+        upToCount: maximumSecretBytes + 1
+    ) ?? Data()
+    defer { secretData.resetBytes(in: 0..<secretData.count) }
+    guard secretData.count <= maximumSecretBytes,
+          var secret = String(data: secretData, encoding: .utf8)
+    else {
+        throw KeepKeysFailure(message: "The phone submitted an invalid UTF-8 key.")
+    }
+    defer { secret = "" }
+    try validateSecret(secret)
+    try KeychainStore.store(
+        name: name,
+        variable: variable,
+        description: description,
+        provider: provider,
+        documentationURLs: documentationURLs,
+        secret: secret
+    )
+    if nativeSelfTest {
+        var stored = try KeychainStore.load(name: name)
+        defer { stored.secret = "" }
+        let listed = try KeychainStore.entries().contains { entry in
+            entry["name"] as? String == name
+                && entry["variable"] as? String == variable
+        }
+        let matches =
+            stored.secret == secret
+            && stored.metadata.variable == variable
+            && stored.metadata.description == description
+            && stored.metadata.provider == provider
+            && stored.metadata.documentationURLs == documentationURLs
+            && listed
+        try KeychainStore.remove(name: name)
+        guard matches, !(try KeychainStore.exists(name: name)) else {
+            throw KeepKeysFailure(
+                message: "The temporary native portal Keychain round trip did not verify."
+            )
+        }
+        return [
+            "status": "ok",
+            "message": "Temporary native portal Keychain round trip verified.",
+            "cleaned": true,
+            "scenario": nativeSelfTestValue,
+        ]
+    }
+    return [
+        "status": "ok",
+        "message": "Stored '\(name)' in macOS Keychain.",
+        "name": name,
+        "variable": variable,
+        "description": description,
+        "provider": provider,
+        "documentationUrls": documentationURLs,
+    ]
+}
+
 private func removeInteractively(name: String) throws -> [String: Any] {
     guard validName(name) else {
         throw KeepKeysFailure(message: "The requested KeepKeys name is invalid.")
@@ -1299,6 +1660,13 @@ private func main() {
         let result: [String: Any]
         switch action {
         case "store":
+            guard ProcessInfo.processInfo.environment["KEEPKEYS_SERIALIZED_MUTATION"] == "1"
+            else {
+                throw KeepKeysFailure(
+                    message: "KeepKeys store and remove actions must use the shared per-name coordinator."
+                )
+            }
+            unsetenv("KEEPKEYS_SERIALIZED_MUTATION")
             let rest = Array(args.dropFirst())
             result = try storeInteractively(
                 suggestedName: parseOption(rest, name: "--name"),
@@ -1307,9 +1675,18 @@ private func main() {
                 suggestedProvider: parseOption(rest, name: "--provider"),
                 suggestedDocumentationURLs: parseOptions(rest, name: "--documentation-url")
             )
+        case "_portal-commit":
+            result = try storeFromPortal(arguments: Array(args.dropFirst()))
         case "list":
             result = ["status": "ok", "entries": try KeychainStore.entries()]
         case "remove":
+            guard ProcessInfo.processInfo.environment["KEEPKEYS_SERIALIZED_MUTATION"] == "1"
+            else {
+                throw KeepKeysFailure(
+                    message: "KeepKeys store and remove actions must use the shared per-name coordinator."
+                )
+            }
+            unsetenv("KEEPKEYS_SERIALIZED_MUTATION")
             let rest = Array(args.dropFirst())
             guard let name = try parseOption(rest, name: "--name") else {
                 throw KeepKeysFailure(message: "Remove requires --name.")

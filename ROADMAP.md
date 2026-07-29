@@ -2,6 +2,16 @@
 
 KeepKeys develops by proof, not by feature count.
 
+## 0.5 — private phone intake
+
+- [x] one-use, ten-minute phone page through Tailscale Serve
+- [x] no Funnel, public listener, BarnLabs relay, or server-side storage
+- [x] Tailscale identity, browser-session, origin, type, and size checks
+- [x] direct standard-input handoff to the native vault helper
+- [x] fail-closed replacement-race check on macOS, Windows, and Linux
+- [x] deterministic portal tests and a generated-value tailnet smoke test
+- [x] ChatGPT Remote and same-tailnet setup guidance
+
 ## 0.4 — native desktop parity
 
 - [x] one dispatcher and tool contract across macOS, Windows, and Linux
@@ -45,10 +55,11 @@ in [CHECKLIST.md](CHECKLIST.md). Current budgeted proofs are:
 ## Deliberate non-goals
 
 - raw-secret retrieval, copy, reveal, or export;
-- cloud synchronization or team vaults;
+- cloud synchronization, peer-to-peer vault synchronization, or team vaults;
 - automatic rotation or credential creation;
 - silent background command use;
 - a cloud-backed KeepKeys account or remote management application;
+- public browser intake or Tailscale Funnel;
 - platform badges without real packaging and runtime proof.
 
 Roadmap items are intent, not commitments. Security fixes and client

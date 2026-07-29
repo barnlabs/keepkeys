@@ -100,9 +100,10 @@ export function helperArguments(toolName, rawArguments) {
   const args = assertObject(rawArguments);
   assertExactKeys(toolName, args);
   switch (toolName) {
-    case "keepkeys_store": {
+    case "keepkeys_store":
+    case "keepkeys_store_from_phone": {
       const command = [
-        "store",
+        toolName === "keepkeys_store" ? "store" : "portal-store",
         "--name",
         readRequiredString(args, "name", 128),
         "--variable",
@@ -259,9 +260,9 @@ export function createRequestHandler(helperRunner = runHelper) {
               ? params.protocolVersion
               : PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: "keepkeys", version: "0.4.2" },
+          serverInfo: { name: "keepkeys", version: "0.5.0" },
           instructions:
-            "KeepKeys stores values outside chat and never exposes plaintext secrets. Use keepkeys_run only for direct commands the user intends to approve.",
+            "KeepKeys stores values outside chat and never exposes plaintext secrets. Use keepkeys_store_from_phone only when the user asks for phone intake, and never open its one-time link. Use keepkeys_run only for direct commands the user intends to approve.",
         },
       };
     }

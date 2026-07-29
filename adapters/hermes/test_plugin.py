@@ -29,11 +29,37 @@ class HermesAdapterTests(unittest.TestCase):
             [tool["name"] for tool in ctx.tools],
             [
                 "keepkeys_store",
+                "keepkeys_store_from_phone",
                 "keepkeys_list",
                 "keepkeys_remove",
                 "keepkeys_run",
                 "keepkeys_status",
                 "keepkeys_doctor",
+            ],
+        )
+        self.assertEqual(
+            plugin._helper_arguments(
+                "keepkeys_store_from_phone",
+                {
+                    "name": "github-release",
+                    "variable": "GITHUB_TOKEN",
+                    "description": "Publishes approved BarnLabs releases",
+                    "provider": "GitHub",
+                    "documentation_urls": ["https://docs.github.com/en/rest"],
+                },
+            ),
+            [
+                "portal-store",
+                "--name",
+                "github-release",
+                "--variable",
+                "GITHUB_TOKEN",
+                "--description",
+                "Publishes approved BarnLabs releases",
+                "--provider",
+                "GitHub",
+                "--documentation-url",
+                "https://docs.github.com/en/rest",
             ],
         )
         self.assertEqual(ctx.skills[0][0], "keepkeys")
@@ -215,12 +241,12 @@ class HermesAdapterTests(unittest.TestCase):
         with patch.object(
             plugin,
             "_run_helper",
-            return_value={"status": "ok", "version": "0.4.2"},
+            return_value={"status": "ok", "version": "0.5.0"},
         ):
             result = plugin._handler_for("keepkeys_status")({})
         self.assertEqual(
             json.loads(result),
-            {"status": "ok", "version": "0.4.2"},
+            {"status": "ok", "version": "0.5.0"},
         )
 
 

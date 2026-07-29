@@ -1,8 +1,9 @@
 # Privacy and data handling
 
 KeepKeys has no account, cloud service, telemetry, analytics, advertising,
-tracking, or BarnLabs-operated credential store. All runtime work is local to
-the user's device.
+tracking, or BarnLabs-operated credential store. Native storage and command use
+stay on the host. Optional phone intake crosses the user's private Tailscale
+network directly to that host.
 
 ## Data inventory
 
@@ -14,6 +15,9 @@ the user's device.
 | Description | Native-vault metadata | Yes when stored, listed, or displayed for use | Until replacement/removal |
 | Provider and official documentation URLs | Native-vault metadata | Yes when stored, listed, or displayed | Until replacement/removal |
 | Clipboard value | Shared operating-system clipboard plus transient native-helper memory after explicit **Paste & Store** | Not through KeepKeys; same-user software may observe it | Helper clears the current clipboard immediately after capture; OS history or another process may retain a prior copy |
+| Phone-submitted value | Phone browser memory, phone clipboard, encrypted tailnet connection, transient localhost portal memory, redirected native-helper stdin, then the host vault | No | Portal buffers are cleared where supported after one authenticated submission attempt; the phone OS or browser may retain a copy |
+| One-time phone URL and expiry | Tool result, active conversation, and transient portal process | Yes | Link expires after ten minutes and stops working after the first authenticated submission attempt |
+| Tailscale user login for the active page | Transient portal memory from a Tailscale Serve identity header | No | Until success, failure, or ten-minute expiry |
 | Run purpose, path, arguments, cwd, hashes | Native approval window and transient helper memory | Yes; proposed by agent | Not persisted by KeepKeys |
 | Bounded redacted stdout/stderr | MCP or Hermes result | Yes | Controlled by the host client |
 | Compiled macOS helper cache | `~/Library/Caches/net.barnlabs.keepkeys` | Not credential data | Until cache removal |
@@ -36,6 +40,15 @@ clipboard-reading tool. A coding host with unrestricted same-user command
 execution can use operating-system clipboard APIs independently of KeepKeys, so
 users should copy only when the Store window is ready and click immediately.
 
+When the user asks to store from a phone, KeepKeys returns a one-time
+tailnet-only URL. The phone and host must already be signed into the same
+Tailscale network. The page receives the value only after the user presses
+**Paste & Store**, forwards it to the host's native vault through a private
+capability-framed pipe, and closes. The native helper accepts that pipe only
+from the exact bundled portal parent. KeepKeys cannot clear the phone clipboard
+or its history. It never enables Tailscale Funnel, opens the page to the public
+internet, or sends the value to BarnLabs.
+
 - macOS transfers the value between AppKit's pasteboard API,
   Security.framework, and the approved child environment.
 - Windows transfers it between WPF's clipboard API, the Credential Manager API,
@@ -54,6 +67,11 @@ The optional update checker makes one explicit HTTPS request for a public JSON
 manifest. It sends no credential names, values, vault metadata, command data,
 device identifier, or analytics, and it never runs automatically. GitHub and
 the user's network provider may observe the request under their own policies.
+
+Tailscale and the user's identity provider can observe ordinary connection,
+device, and identity metadata for phone intake under their own policies. The
+key travels through Tailscale's encrypted connection to the host and KeepKeys
+does not send it to the Tailscale control plane as application data.
 
 ## Logs and diagnostics
 

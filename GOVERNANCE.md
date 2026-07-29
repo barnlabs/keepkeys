@@ -22,8 +22,10 @@ trust require the release gates in [SECURITY.md](SECURITY.md).
 
 KeepKeys is not becoming a cloud vault, team secret manager, browser password
 manager, standalone desktop app, credential generator, rotation service, or
-plaintext export utility. A proposal outside that scope needs a concrete user
-problem and an explanation of why it belongs in this repository instead of an
+plaintext export utility. The optional phone page is a short-lived input route
+to the user's own computer, not a vault, synchronization service, or remote
+management product. A proposal outside that scope needs a concrete user problem
+and an explanation of why it belongs in this repository instead of an
 integration with an established product.
 
 ## Releases and ownership

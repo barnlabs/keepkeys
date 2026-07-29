@@ -4,8 +4,9 @@
 
 KeepKeys is for a person using a desktop coding agent who needs the agent to
 perform one credentialed command without giving the model a reusable plaintext
-credential. The product is the plugin and its native approval boundary—not a
-cloud vault, account system, daemon, or standalone password manager.
+credential. The product is the plugin, the operating-system vault, and its
+human approval surfaces. It is not a cloud vault, account system, permanent
+daemon, or standalone password manager.
 
 The core sentence is:
 
@@ -35,6 +36,28 @@ shared with same-user software and may have operating-system history, the
 interface tells the user to copy immediately before clicking and does not claim
 clipboard isolation.
 
+### Store from a phone
+
+When the user controls the host through ChatGPT Remote, the agent may request a
+one-time phone intake. KeepKeys starts an HTTP listener on `127.0.0.1`, exposes
+only that listener through Tailscale Serve, and returns a ten-minute
+`https://*.ts.net/keepkeys/store/...` link. It never enables Tailscale Funnel.
+
+The phone and host must already be signed into the same tailnet. The page
+requires Tailscale's authenticated user header, binds its browser session to
+the first identity and browser cookie that open it, checks the exact HTTPS
+origin, and accepts one authenticated submission attempt. It shows the
+agent-prepared metadata and a replacement warning before the user presses
+**Paste & Store**. The local session serializes same-name commits and passes
+the submitted bytes through a capability-framed redirected pipe to a native
+vault helper that verifies the exact bundled portal parent. The value does not
+enter tool input, tool output, argv, a file, or a BarnLabs service.
+
+The phone's clipboard remains outside KeepKeys' control. The page tells the
+user to copy only when it is ready and submit immediately. Submission,
+expiry, or termination stops the listener, aborts an in-flight helper, and
+removes the Tailscale Serve route.
+
 ### Use
 
 The approval window shows risk class, purpose, friendly name, variable,
@@ -52,7 +75,8 @@ native confirmation.
 
 Errors name the unavailable prerequisite or failed invariant without exposing
 credential values, parent environment, vault contents, or raw captured output.
-There is no fallback to a terminal password prompt or plaintext file.
+Phone-intake errors never fall back to Funnel or another public tunnel. No flow
+falls back to a terminal password prompt or plaintext file.
 
 ## Visual identity
 
@@ -85,6 +109,9 @@ mascot—remains dominant. Detailed asset rules live in
 
 - Use a native button as the only clipboard trigger; metadata is readable and
   selectable but never editable.
+- Keep the phone page usable at 375 CSS pixels, keyboard accessible, free of
+  third-party scripts, and explicit about Tailscale, expiry, replacement, and
+  phone clipboard limits.
 - Provide visible labels; placeholders never carry required meaning.
 - Preserve readable contrast with text on warm paper or night pine.
 - Keep destructive actions visually distinct and never preselected.

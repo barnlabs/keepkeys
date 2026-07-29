@@ -12,6 +12,8 @@ try {
     & node --check plugins/keepkeys/scripts/check-for-update.mjs
     & node --check plugins/keepkeys/scripts/check-for-update.test.mjs
     & node --check plugins/keepkeys/scripts/keepkeys-cli.mjs
+    & node --check plugins/keepkeys/scripts/keepkeys-portal.mjs
+    & node --check plugins/keepkeys/scripts/keepkeys-portal.test.mjs
     & node --check plugins/keepkeys/scripts/platform.mjs
     & node scripts/scan-secrets.mjs
     if ($LASTEXITCODE -ne 0) {

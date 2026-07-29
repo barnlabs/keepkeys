@@ -7,14 +7,14 @@
   "plugins": [
     {
       "name": "keepkeys",
-      "description": "KeepKeys stores local secrets in the native macOS, Windows, or Linux credential vault and uses them only for commands the user reviews and approves.",
+      "description": "KeepKeys stores secrets in the native macOS, Windows, or Linux credential vault, supports private Tailscale phone intake, and requires approval before command use.",
       "category": "security",
       "source": {
         "type": "local",
         "path": "./plugins/keepkeys"
       },
       "homepage": "https://github.com/barnlabs/keepkeys",
-      "version": "0.4.2",
+      "version": "0.5.0",
       "author": {
         "name": "BarnLabs"
       },
@@ -23,7 +23,9 @@
         "agent secrets",
         "native credential vault",
         "MCP",
-        "credential security"
+        "credential security",
+        "Tailscale",
+        "phone intake"
       ]
     }
   ]

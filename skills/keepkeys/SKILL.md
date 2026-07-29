@@ -5,7 +5,7 @@ license: Apache-2.0
 compatibility: macOS 13+, Windows 10/11, or desktop Linux; Node.js 18+ and the platform prerequisites documented in INSTALL.md.
 metadata:
   author: BarnLabs
-  version: "0.4.2"
+  version: "0.5.0"
 ---
 
 # KeepKeys
@@ -16,8 +16,10 @@ KeepKeys gives the agent **use** of a local secret, not its plaintext value.
 
 - Never ask the user to paste, type, dictate, attach, or expose a secret in chat.
 - Never request a plaintext secret from KeepKeys; no such tool exists.
-- Never read or inspect the clipboard. The native KeepKeys helper may read it only
-  after the user explicitly presses **Paste & Store**.
+- Never read or inspect a clipboard. The native helper may read the host
+  clipboard only after the user presses **Paste & Store**. The private phone
+  page may receive the value only after the user presses its **Paste & Store**
+  button.
 - Never fall back to an environment file, shell profile, command argument,
   plugin configuration, log, or transcript.
 - Treat friendly names and variable names as sensitive metadata. Mention only what the current task needs.
@@ -34,7 +36,8 @@ KeepKeys gives the agent **use** of a local secret, not its plaintext value.
 3. Choose the short friendly name, uppercase environment-variable name, useful
    one-line description, provider, and documentation links. These are
    agent-owned metadata; never ask the user to type or edit them.
-4. Call `keepkeys_store` with only those non-secret metadata fields.
+4. Call `keepkeys_store` with only those non-secret metadata fields when the
+   user is at the host computer.
 5. KeepKeys shows the metadata as read-only context. The user copies the
    credential elsewhere, then presses **Paste & Store**. The native helper reads
    the clipboard only on that click, clears the current clipboard immediately,
@@ -43,6 +46,32 @@ KeepKeys gives the agent **use** of a local secret, not its plaintext value.
    only when the native Store window is ready and click immediately.
 6. Report only the success or cancellation result. Never ask for the value
    before or after the tool call.
+
+## Store from a phone
+
+Use this path only when the user asks to add the key from a phone or says they
+are controlling the host through ChatGPT Remote.
+
+1. Complete the same provider research and metadata preparation as the native
+   Store flow.
+2. Confirm only that Tailscale is installed and signed in on the host and the
+   phone, with both devices in the same tailnet. Never ask for a Tailscale
+   credential or auth key.
+3. Call `keepkeys_store_from_phone` with the non-secret metadata. KeepKeys
+   starts a ten-minute Tailscale Serve page and never enables Tailscale Funnel.
+4. Give the returned one-time HTTPS link to the user. Never open, fetch,
+   preview, screenshot, or test the link. Opening it can bind the session to the
+   wrong Tailscale identity.
+5. The page shows the metadata and any replacement warning. The user pastes the
+   key and presses **Paste & Store**. The value goes to the host's native vault
+   without entering the tool call or conversation.
+6. Tell the user that KeepKeys cannot clear the phone's clipboard or clipboard
+   history. They should copy only when the page is ready, submit immediately,
+   and follow the page's success message.
+
+If Tailscale Serve is unavailable, offer the native Store flow at the host.
+Never use Funnel, another public tunnel, email, chat, or a form hosted by
+BarnLabs as a fallback.
 
 ## Use
 
@@ -77,6 +106,7 @@ A skills-only distribution may omit local MCP configuration. On macOS, Windows, 
    `keepkeys` executable.
 2. Execute `node ABSOLUTE_LAUNCHER` with an argument array:
    - store: `store --name NAME --variable VARIABLE --description DESCRIPTION --provider PROVIDER --documentation-url URL [--documentation-url URL ...]`
+   - store from phone: `portal-store --name NAME --variable VARIABLE --description DESCRIPTION --provider PROVIDER --documentation-url URL [--documentation-url URL ...]`
    - list: `list`
    - remove: `remove --name NAME`
    - status: `status`

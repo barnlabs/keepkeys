@@ -54,6 +54,37 @@ GNOME Keyring works directly. KDE needs a KWallet configuration that exposes
 the freedesktop Secret Service interface. KeepKeys fails closed when it cannot
 reach a secure vault or graphical prompt.
 
+### optional phone intake with Tailscale
+
+Phone intake works when ChatGPT mobile controls a connected Mac or Windows host
+through [ChatGPT Remote](https://learn.chatgpt.com/docs/remote-connections), or
+when another supported agent client runs on that host.
+
+Install [Tailscale](https://tailscale.com/download) on the host and phone, sign
+both into the same tailnet, and confirm the host has Tailscale 1.52 or newer:
+
+```sh
+tailscale version
+tailscale status
+```
+
+Tailscale Serve needs MagicDNS and HTTPS enabled for the tailnet. Follow
+[Tailscale's Serve setup](https://tailscale.com/docs/features/tailscale-serve)
+if the first phone-intake request reports that either is missing. KeepKeys does
+not install Tailscale, sign devices in, edit tailnet policy, or enable Funnel.
+
+Keep port 443 free of another foreground Tailscale Serve listener while the
+one-time page is active. KeepKeys refuses a listener conflict and does not
+reset or replace another Serve configuration.
+
+After installation, the phone flow is one request:
+
+> Store this key from my phone with KeepKeys.
+
+The agent asks only for missing non-secret metadata, then returns the private
+link without opening it. Open the link on the phone, paste the key, and press
+**Paste & Store**. No BarnLabs account or relay setup is required.
+
 ## Reviewed source pins
 
 KeepKeys is security-sensitive, so the commands below avoid a mutable `main`
@@ -61,10 +92,10 @@ checkout:
 
 ```text
 functional plugin commit
-e5276925d390704fccdf4aaeba47280464762a1c
+3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d
 
 Claude/OMP catalog commit
-c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd
+33afe85cf245c0b8003c0d1638c90c56defeb128
 ```
 
 The catalog commit pins its plugin source to the functional commit. Review both
@@ -74,7 +105,7 @@ before installation.
 
 ```sh
 codex plugin marketplace add barnlabs/keepkeys \
-  --ref e5276925d390704fccdf4aaeba47280464762a1c
+  --ref 3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d
 codex plugin add keepkeys@barnlabs
 ```
 
@@ -89,7 +120,7 @@ plugin hosts.
 
 ```sh
 grok plugin install \
-  'barnlabs/keepkeys@e5276925d390704fccdf4aaeba47280464762a1c#plugins/keepkeys' \
+  'barnlabs/keepkeys@3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d#plugins/keepkeys' \
   --trust
 grok plugin list
 grok plugin details keepkeys
@@ -102,20 +133,20 @@ The exact-SHA subdirectory install is the credential-sensitive route.
 
 ```sh
 claude plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keepkeys/c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd/.claude-plugin/marketplace.json
+  https://raw.githubusercontent.com/barnlabs/keepkeys/33afe85cf245c0b8003c0d1638c90c56defeb128/.claude-plugin/marketplace.json
 claude plugin install keepkeys@barnlabs
 claude plugin list
 ```
 
 Claude Code does not expose a raw commit option for a Git marketplace checkout.
 The immutable raw catalog above pins `plugins/keepkeys` to functional commit
-`e5276925d390704fccdf4aaeba47280464762a1c`. Start a new Claude Code session.
+`3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d`. Start a new Claude Code session.
 
 ## Oh My Pi
 
 ```sh
 omp plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keepkeys/c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd/.omp-plugin/marketplace.json
+  https://raw.githubusercontent.com/barnlabs/keepkeys/33afe85cf245c0b8003c0d1638c90c56defeb128/.omp-plugin/marketplace.json
 omp plugin install keepkeys@barnlabs
 omp plugin list
 ```
@@ -128,19 +159,19 @@ bundled MCP server. Start a new OMP session.
 Hermes installs the repository root. Use a detached reviewed checkout:
 
 ```sh
-git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.4.2
-git -C keepkeys-0.4.2 checkout --detach \
-  e5276925d390704fccdf4aaeba47280464762a1c
-hermes plugins install "file://$(cd keepkeys-0.4.2 && pwd)" --enable
+git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.5.0
+git -C keepkeys-0.5.0 checkout --detach \
+  3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d
+hermes plugins install "file://$(cd keepkeys-0.5.0 && pwd)" --enable
 hermes plugins list
 ```
 
 On Windows PowerShell:
 
 ```powershell
-git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.4.2
-git -C keepkeys-0.4.2 checkout --detach e5276925d390704fccdf4aaeba47280464762a1c
-$path = (Resolve-Path .\keepkeys-0.4.2).Path
+git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.5.0
+git -C keepkeys-0.5.0 checkout --detach 3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d
+$path = (Resolve-Path .\keepkeys-0.5.0).Path
 hermes plugins install "file://$path" --enable
 hermes plugins list
 ```
@@ -152,7 +183,7 @@ Hermes plugins are opt-in. If installed without `--enable`, run
 
 ```sh
 gemini extensions install https://github.com/barnlabs/keepkeys \
-  --ref e5276925d390704fccdf4aaeba47280464762a1c
+  --ref 3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d
 gemini extensions list
 ```
 
@@ -165,7 +196,7 @@ Compatible clients can load `skills/keepkeys/SKILL.md` from the reviewed
 checkout. The skills-only distribution includes a cross-platform Node launcher
 and all three native backends but intentionally omits MCP configuration.
 
-When the six `keepkeys_*` tools are available, use them. The fallback launcher
+When the seven `keepkeys_*` tools are available, use them. The fallback launcher
 is:
 
 ```sh
@@ -197,6 +228,31 @@ stores the value directly in the OS vault. Same-user software or clipboard
 history may still observe a shared clipboard value, so copy only when the
 window is ready and click immediately. Never paste it into the conversation.
 
+From a phone, ask:
+
+> Store a new secret from my phone with KeepKeys.
+
+The agent prepares the same metadata and calls
+`keepkeys_store_from_phone`. KeepKeys returns a one-time Tailscale HTTPS link
+that expires after ten minutes. Open it on a phone in the same tailnet, review
+the metadata and any replacement warning, paste the key, and press
+**Paste & Store**. The page sends the value to the host's native vault and
+closes its local listener. KeepKeys never uses Tailscale Funnel or a BarnLabs
+server. The detached portal stays coupled to its launcher until the launcher
+acknowledges the ready link and the portal confirms it processed that
+acknowledgment after rechecking Serve. Native paste-and-store, phone intake,
+and removal use the same per-name coordinator, so removal cannot interleave
+with a write and a concurrent store cannot silently bypass a replacement
+warning. If ChatGPT Remote cancels during startup or foreground Serve exits
+during either side of the handshake, KeepKeys closes the portal and the user
+starts a new phone intake. If a native helper ends without a complete,
+recognized commit receipt, KeepKeys reports the vault state as uncertain and
+asks the user to inspect the named record before retrying.
+
+KeepKeys cannot clear the phone's clipboard or clipboard history. Copy the key
+only after the page is ready, submit it immediately, and close the page after
+it reports success.
+
 For use, ask for a concrete direct command. The native approval surface shows:
 
 - risk class;
@@ -217,7 +273,7 @@ macOS or Linux:
 ```sh
 git clone https://github.com/barnlabs/keepkeys.git
 cd keepkeys
-git checkout --detach e5276925d390704fccdf4aaeba47280464762a1c
+git checkout --detach 3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d
 ./scripts/bootstrap
 ./scripts/check
 ./scripts/test
@@ -229,7 +285,7 @@ Windows:
 ```powershell
 git clone https://github.com/barnlabs/keepkeys.git
 Set-Location keepkeys
-git checkout --detach e5276925d390704fccdf4aaeba47280464762a1c
+git checkout --detach 3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d
 .\scripts\bootstrap.ps1
 .\scripts\check.ps1
 .\scripts\test.ps1

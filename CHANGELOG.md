@@ -1,5 +1,97 @@
 # Changelog
 
+## 0.5.0 — 2026-07-28
+
+- Added `keepkeys_store_from_phone`, which returns a ten-minute, one-use
+  Tailscale Serve link for storing a key from a phone in the same tailnet.
+- Kept phone intake off the public internet: the route uses Tailscale Serve,
+  never Funnel, and forwards only to a temporary localhost listener.
+- Bound each phone page to one authenticated Tailscale identity, one secure
+  browser cookie, an exact origin, and one submission.
+- Added browser content limits, a strict Content Security Policy, no external
+  page resources, and fail-closed replacement-race checks in every native
+  backend.
+- Made both successful and failed native-vault submissions terminal so the
+  session-owned listener and Serve route cannot be reused after one attempt.
+- Bound the first page open to its original browser cookie, claimed the first
+  authenticated POST before reading its body, and made malformed authenticated
+  submissions terminal.
+- Serialized same-name desktop Store, phone Store, and Remove through one
+  per-name coordinator. Removal cannot interleave with a write, and a
+  concurrent native store cannot bypass the replacement state shown on the
+  phone.
+- Reject native desktop store or removal dispatch that bypasses that
+  coordinator, and abort the in-flight native helper when the session expires
+  or terminates.
+- Scheduled teardown from the advertised expiry and require confirmed native
+  helper and Tailscale Serve process exit plus exact owned-route absence before
+  cleanup can report success.
+- Cancel and await both metadata and Tailscale startup operations after either
+  fails, await Serve termination even when route verification fails, and stop
+  retaining Serve output after its readiness message.
+- Keep the detached portal tied to its launcher through a two-way handshake:
+  the launcher acknowledges the ready link, then waits for the portal to
+  process that acknowledgment and recheck Serve. A cancelled or terminated
+  launcher aborts startup, stops the owned Serve process, and verifies exact
+  route removal.
+- Continue watching the foreground Serve process after readiness. If it exits
+  before link delivery, during launcher acknowledgment, or later in the
+  session, KeepKeys closes the portal instead of advertising a dead route
+  until expiry.
+- Hold the phone success response until the owned Serve process and exact route
+  are gone. If storage succeeds but that cleanup fails, the page says the key
+  was stored and reports the cleanup failure instead of showing a false
+  success.
+- Preserve unconfirmed native-helper termination as a teardown failure after
+  the helper promise settles, and roll back Linux value writes when the
+  following metadata subprocess times out or otherwise fails.
+- Report Linux rollback deletion failures instead of treating a failed delete
+  as successful, while still attempting both value and metadata cleanup.
+- Propagate Linux Secret Service search and existing-value lookup errors
+  instead of treating an unavailable vault as a confirmed missing record.
+- Return a structured uncertain state to the phone when Linux storage and
+  rollback both fail, so the page never claims a possibly retained value was
+  discarded.
+- Return the same structured uncertain state when Windows Credential Manager
+  storage and rollback both fail, while attempting both halves of the paired
+  record rollback.
+- Require both generated Linux portal items to be deleted before native CI can
+  report cleanup success.
+- Preserve a successful native-vault write when closing or removing the portal
+  commit lock fails: the phone receives `stored: true` with the cleanup error,
+  and the session cannot report a false storage failure.
+- Preserve native-vault uncertainty when rollback and commit-lock cleanup both
+  fail, reporting both cleanup problems without claiming the value was stored
+  or discarded.
+- Treat helper termination, malformed JSON, or an incomplete or inconsistent
+  error or success receipt as uncertain instead of claiming the value was
+  discarded.
+- Give concurrent startup helpers independent process groups so sibling
+  cancellation terminates and awaits their descendants even if a group leader
+  has already exited. Windows records owned PID ancestry and process creation
+  identity before signaling, follows surviving descendants after leader exit,
+  refuses to signal a reused PID, and reports a cleanup failure unless every
+  tracked process is gone.
+- Enforce the 8-byte minimum with UTF-8 byte counting in JavaScript and on the
+  server instead of an HTML character-count minimum.
+- Made the no-script form fail closed: controls remain disabled and the
+  password field has no serializable HTML name until the safe JavaScript POST
+  path is active.
+- Sent the submitted value through redirected standard input to a private
+  native helper action that requires a capability frame and the exact bundled
+  portal parent, without placing the value in model context, tool payloads,
+  command arguments, files, logs, or persistent environment variables.
+- Added deterministic portal tests, a capability-framed generated UTF-8
+  portal-to-vault round trip plus create-to-replace and replace-to-create race
+  rejection on macOS, Windows, and Linux CI, and a real tailnet-to-macOS
+  Keychain smoke with verified route, process, record, and temporary-file
+  cleanup.
+- Made the skills-only and source archives byte-for-byte reproducible, with a
+  CI rebuild check that rejects changing SHA-256 digests.
+- Updated the Agent Skill, MCP and Hermes adapters, installation guidance,
+  threat model, privacy notice, compatibility matrix, and public submission
+  materials for the seven-tool contract.
+
 ## 0.4.2 — 2026-07-25
 
 - Replaced editable store metadata and password typing with one explicit

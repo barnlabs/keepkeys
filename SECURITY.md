@@ -4,7 +4,8 @@
 
 | Version | Status |
 | --- | --- |
-| `0.4.2` | Current stable source release; macOS, Windows, and desktop Linux |
+| `0.5.0` | Current stable source release; macOS, Windows, desktop Linux, and optional private phone intake |
+| `0.4.2` | Supported for critical security fixes |
 | `0.4.1` | Supported for critical security fixes |
 | `0.3.x` | Supported for critical security fixes |
 | `0.2.x` | Supported for critical security fixes |
@@ -25,7 +26,8 @@ Please include:
 - operating system, desktop/vault provider where applicable, and agent-client versions;
 - preconditions and realistic impact;
 - minimal reproduction using synthetic data;
-- evidence of whether the value reached chat, tool input/output, logs, files, another process, or the network;
+- evidence of whether the value reached chat, tool input/output, logs, files,
+  another process, the public internet, or an unintended tailnet device;
 - a suggested fix if you have one.
 
 BarnLabs aims to acknowledge a well-formed report within seven calendar days. Disclosure timing is coordinated after a fix and verification are available.
@@ -36,7 +38,10 @@ Good-faith, non-destructive research against your own local clone and synthetic 
 
 ## Release gates
 
-Changes to native-vault queries, native dialogs, shared tool schemas, client adapters, command construction, environment handling, output capture/redaction, cache compilation, marketplace wiring, or permissions require:
+Changes to native-vault queries, native dialogs, phone-intake routing, shared
+tool schemas, client adapters, command construction, environment handling,
+output capture/redaction, cache compilation, marketplace wiring, or
+permissions require:
 
 1. a threat-model update;
 2. deterministic regression coverage;
@@ -44,3 +49,7 @@ Changes to native-vault queries, native dialogs, shared tool schemas, client ada
 4. platform-native doctor round trips for macOS Keychain, Windows Credential Manager, and Linux Secret Service;
 5. macOS, Windows, and Linux CI;
 6. independent security review of the final diff.
+
+Phone-intake changes also require deterministic identity, browser-session,
+origin, one-use, expiry, content-size, listener-cleanup, and no-Funnel tests.
+Use a generated value and a tailnet owned by the researcher.

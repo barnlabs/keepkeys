@@ -1,9 +1,10 @@
 name: keepkeys
-version: "0.4.2"
-description: Explicit paste-to-vault secrets for approval-gated agent commands on macOS, Windows, and Linux, without plaintext retrieval.
+version: "0.5.0"
+description: Native-vault secrets from the host or a private Tailscale phone page, with approval-gated agent use and no plaintext retrieval.
 author: BarnLabs
 provides_tools:
   - keepkeys_store
+  - keepkeys_store_from_phone
   - keepkeys_list
   - keepkeys_remove
   - keepkeys_run

@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "barnlabs",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Open-source agent tools from BarnLabs.",
   "owner": {
     "name": "BarnLabs",
@@ -11,7 +11,7 @@
     {
       "name": "keepkeys",
       "displayName": "KeepKeys",
-      "description": "Local native-vault secrets for approval-gated agent commands on macOS, Windows, and Linux, without plaintext retrieval.",
+      "description": "Local native-vault secrets for approved agent commands, with optional private Tailscale phone intake and no plaintext retrieval.",
       "author": {
         "name": "BarnLabs",
         "url": "https://github.com/barnlabs"
@@ -21,7 +21,7 @@
         "url": "https://github.com/barnlabs/keepkeys.git",
         "path": "plugins/keepkeys",
         "ref": "main",
-        "sha": "e5276925d390704fccdf4aaeba47280464762a1c"
+        "sha": "3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d"
       },
       "category": "security",
       "homepage": "https://github.com/barnlabs/keepkeys",
@@ -33,7 +33,9 @@
         "mcp",
         "macos",
         "windows",
-        "linux"
+        "linux",
+        "tailscale",
+        "phone"
       ]
     }
   ]

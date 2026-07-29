@@ -44,6 +44,8 @@ for (const relative of [
   "scripts/keepkeys",
   "scripts/keepkeys.swift",
   "scripts/keepkeys-cli.mjs",
+  "scripts/keepkeys-portal.mjs",
+  "scripts/keepkeys-store.mjs",
   "scripts/keepkeys.linux.py",
   "scripts/keepkeys.windows.ps1",
   "scripts/check-for-update.mjs",
@@ -68,8 +70,13 @@ archive="$dist/keepkeys-skills-$version.zip"
 checksum="$archive.sha256"
 rm -f "$archive" "$checksum"
 (
+  export LC_ALL=C
+  export TZ=UTC
+  /usr/bin/find "$build_root/keepkeys" -exec /usr/bin/touch -t 198001010000 {} +
   cd "$build_root"
-  /usr/bin/zip -X -q -r "$archive" keepkeys
+  /usr/bin/find keepkeys -print |
+    /usr/bin/sort |
+    /usr/bin/zip -X -q "$archive" -@
 )
 
 for member in \
@@ -78,6 +85,8 @@ for member in \
   "keepkeys/scripts/keepkeys" \
   "keepkeys/scripts/keepkeys.swift" \
   "keepkeys/scripts/keepkeys-cli.mjs" \
+  "keepkeys/scripts/keepkeys-portal.mjs" \
+  "keepkeys/scripts/keepkeys-store.mjs" \
   "keepkeys/scripts/keepkeys.linux.py" \
   "keepkeys/scripts/keepkeys.windows.ps1" \
   "keepkeys/scripts/check-for-update.mjs" \

@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -14,7 +15,14 @@ import {
 import {
   canonicalTextSha256,
   helperInvocation,
+  nativeMutationInvocation,
+  nativeStoreInvocation,
+  portalCommitInvocation,
 } from "../scripts/platform.mjs";
+import {
+  runSerializedMutation,
+  runSerializedStore,
+} from "../scripts/keepkeys-store.mjs";
 
 test("tool schemas never accept a plaintext secret", () => {
   for (const tool of TOOLS) {
@@ -78,6 +86,28 @@ test("store carries metadata but never a secret value", () => {
       "https://docs.github.com/en/rest",
       "--documentation-url",
       "https://github.com/github/rest-api-description",
+    ],
+  );
+  assert.deepEqual(
+    helperArguments("keepkeys_store_from_phone", {
+      name: "github-release",
+      variable: "GITHUB_TOKEN",
+      description: "Publishes approved BarnLabs releases",
+      provider: "GitHub",
+      documentation_urls: ["https://docs.github.com/en/rest"],
+    }),
+    [
+      "portal-store",
+      "--name",
+      "github-release",
+      "--variable",
+      "GITHUB_TOKEN",
+      "--description",
+      "Publishes approved BarnLabs releases",
+      "--provider",
+      "GitHub",
+      "--documentation-url",
+      "https://docs.github.com/en/rest",
     ],
   );
 });
@@ -161,6 +191,14 @@ test("runtime validation rejects every undeclared field before helper dispatch",
       documentation_urls: ["https://docs.example.com"],
       value: "synthetic-only-not-a-credential",
     }],
+    ["keepkeys_store_from_phone", {
+      name: "demo",
+      variable: "DEMO_TOKEN",
+      description: "Synthetic test metadata",
+      provider: "Example",
+      documentation_urls: ["https://docs.example.com"],
+      secret: "synthetic-only-not-a-credential",
+    }],
     ["keepkeys_run", {
       name: "demo",
       purpose: "Synthetic test",
@@ -198,7 +236,7 @@ test("MCP handler returns structured helper output", async () => {
   const calls = [];
   const handler = createRequestHandler(async (name, args) => {
     calls.push({ name, args });
-    return { status: "ok", platform: "macOS", version: "0.4.2" };
+    return { status: "ok", platform: "macOS", version: "0.5.0" };
   });
   const response = await handler({
     jsonrpc: "2.0",
@@ -210,7 +248,7 @@ test("MCP handler returns structured helper output", async () => {
   assert.deepEqual(response.result.structuredContent, {
     status: "ok",
     platform: "macOS",
-    version: "0.4.2",
+    version: "0.5.0",
   });
 });
 
@@ -258,6 +296,193 @@ test("platform dispatch keeps one argv contract across macOS, Windows, and Linux
     "unix:path=/run/user/1000/bus",
   );
   assert.equal(linux.env.DISPLAY, ":0");
+
+  for (const platform of ["darwin", "win32", "linux"]) {
+    const store = helperInvocation(["store", "--name", "demo"], {
+      platform,
+      environment:
+        platform === "win32"
+          ? { SystemRoot: "C:\\Windows", USERPROFILE: "C:\\Users\\example" }
+          : {},
+      home: platform === "win32" ? "C:\\Users\\example" : "/home/example",
+    });
+    assert.equal(store.command, process.execPath);
+    assert.match(store.args[0], /keepkeys-store\.mjs$/u);
+    assert.deepEqual(store.args.slice(1), ["store", "--name", "demo"]);
+
+    const nativeStore = nativeStoreInvocation(
+      ["store", "--name", "demo"],
+      {
+        platform,
+        environment:
+          platform === "win32"
+            ? { SystemRoot: "C:\\Windows", USERPROFILE: "C:\\Users\\example" }
+            : {},
+        home: platform === "win32" ? "C:\\Users\\example" : "/home/example",
+      },
+    );
+    assert.notEqual(nativeStore.command, process.execPath);
+    assert.equal(nativeStore.args.includes("store"), true);
+    assert.equal(nativeStore.env.KEEPKEYS_SERIALIZED_MUTATION, "1");
+
+    const remove = helperInvocation(["remove", "--name", "demo"], {
+      platform,
+      environment:
+        platform === "win32"
+          ? { SystemRoot: "C:\\Windows", USERPROFILE: "C:\\Users\\example" }
+          : {},
+      home: platform === "win32" ? "C:\\Users\\example" : "/home/example",
+    });
+    assert.equal(remove.command, process.execPath);
+    assert.match(remove.args[0], /keepkeys-store\.mjs$/u);
+    assert.deepEqual(remove.args.slice(1), ["remove", "--name", "demo"]);
+
+    const nativeRemove = nativeMutationInvocation(
+      ["remove", "--name", "demo"],
+      {
+        platform,
+        environment:
+          platform === "win32"
+            ? { SystemRoot: "C:\\Windows", USERPROFILE: "C:\\Users\\example" }
+            : {},
+        home: platform === "win32" ? "C:\\Users\\example" : "/home/example",
+      },
+    );
+    assert.notEqual(nativeRemove.command, process.execPath);
+    assert.equal(nativeRemove.args.includes("remove"), true);
+    assert.equal(nativeRemove.env.KEEPKEYS_SERIALIZED_MUTATION, "1");
+
+    const portal = helperInvocation(["portal-store", "--name", "demo"], {
+      platform,
+      environment:
+        platform === "win32"
+          ? { SystemRoot: "C:\\Windows", USERPROFILE: "C:\\Users\\example" }
+          : {},
+      home: platform === "win32" ? "C:\\Users\\example" : "/home/example",
+    });
+    assert.equal(portal.command, process.execPath);
+    assert.match(portal.args[0], /keepkeys-portal\.mjs$/u);
+    assert.deepEqual(portal.args.slice(1), ["--name", "demo"]);
+  }
+});
+
+test("desktop stores, phone stores, and removals share the same per-name lock", async (context) => {
+  const lockRoot = mkdtempSync(join(tmpdir(), "keepkeys-shared-store-lock-"));
+  context.after(() => rmSync(lockRoot, { recursive: true, force: true }));
+  let firstEnteredResolve;
+  const firstEntered = new Promise((resolvePromise) => {
+    firstEnteredResolve = resolvePromise;
+  });
+  let releaseFirst;
+  const firstGate = new Promise((resolvePromise) => {
+    releaseFirst = resolvePromise;
+  });
+  let secondEntered = false;
+  const argumentsValue = ["store", "--name", "demo-service"];
+  const first = runSerializedStore(argumentsValue, {
+    lockOptions: { lockRoot, retryMs: 10 },
+    storeRunner: async () => {
+      firstEnteredResolve();
+      await firstGate;
+      return {
+        code: 0,
+        signal: null,
+        stdout: Buffer.from('{"status":"ok","message":"Stored."}\n'),
+        stderr: Buffer.alloc(0),
+      };
+    },
+  });
+  await firstEntered;
+  const second = runSerializedMutation(
+    ["remove", "--name", "demo-service"],
+    {
+      lockOptions: { lockRoot, retryMs: 10 },
+      storeRunner: async () => {
+        secondEntered = true;
+        return {
+          code: 0,
+          signal: null,
+          stdout: Buffer.from(
+            '{"status":"ok","message":"Removed.","removed":true}\n',
+          ),
+          stderr: Buffer.alloc(0),
+        };
+      },
+    },
+  );
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+  assert.equal(secondEntered, false);
+  releaseFirst();
+  await first;
+  await second;
+  assert.equal(secondEntered, true);
+});
+
+test("desktop stores require a valid native commit receipt", async (context) => {
+  const lockRoot = mkdtempSync(join(tmpdir(), "keepkeys-store-receipt-"));
+  context.after(() => rmSync(lockRoot, { recursive: true, force: true }));
+  const argumentsValue = ["store", "--name", "demo-service"];
+  await assert.rejects(
+    runSerializedStore(argumentsValue, {
+      lockOptions: { lockRoot },
+      storeRunner: async () => ({
+        code: 0,
+        signal: null,
+        stdout: Buffer.from("not-json"),
+        stderr: Buffer.alloc(0),
+      }),
+    }),
+    {
+      name: "CleanupError",
+      cleanupKind: "native-receipt",
+      storageState: "uncertain",
+      stored: null,
+    },
+  );
+  const cancelled = await runSerializedStore(argumentsValue, {
+    lockOptions: { lockRoot },
+    storeRunner: async () => ({
+      code: 0,
+      signal: null,
+      stdout: Buffer.from('{"status":"cancelled","message":"Cancelled."}\n'),
+      stderr: Buffer.alloc(0),
+    }),
+  });
+  assert.equal(JSON.parse(cancelled.stdout.toString()).status, "cancelled");
+  const nativeFailure = await runSerializedStore(argumentsValue, {
+    lockOptions: { lockRoot },
+    storeRunner: async () => ({
+      code: 1,
+      signal: null,
+      stdout: Buffer.from('{"status":"error","message":"Rejected."}\n'),
+      stderr: Buffer.alloc(0),
+    }),
+  });
+  assert.equal(JSON.parse(nativeFailure.stdout.toString()).status, "error");
+});
+
+test("desktop removals require a complete native receipt", async (context) => {
+  const lockRoot = mkdtempSync(join(tmpdir(), "keepkeys-remove-receipt-"));
+  context.after(() => rmSync(lockRoot, { recursive: true, force: true }));
+  await assert.rejects(
+    runSerializedMutation(["remove", "--name", "demo-service"], {
+      lockOptions: { lockRoot },
+      storeRunner: async () => ({
+        code: 0,
+        signal: null,
+        stdout: Buffer.from(
+          '{"status":"ok","message":"Removal completed."}\n',
+        ),
+        stderr: Buffer.alloc(0),
+      }),
+    }),
+    {
+      name: "NativeMutationReceiptError",
+      cleanupKind: "native-receipt",
+      mutationKind: "remove",
+      removed: null,
+    },
+  );
 });
 
 test("native helper fingerprints are stable across LF and CRLF checkouts", () => {
@@ -265,6 +490,81 @@ test("native helper fingerprints are stable across LF and CRLF checkouts", () =>
     canonicalTextSha256("line one\nline two\n"),
     canonicalTextSha256("line one\r\nline two\r\n"),
   );
+});
+
+test("the native portal commit is unavailable through public dispatch", () => {
+  for (const action of ["portal-commit", "_portal-commit"]) {
+    assert.throws(
+      () => helperInvocation([action]),
+      /not a public KeepKeys action/u,
+    );
+  }
+  const capabilitySha256 = "a".repeat(64);
+  for (const platform of ["darwin", "win32", "linux"]) {
+    const environment =
+      platform === "win32"
+        ? { SystemRoot: "C:\\Windows", USERPROFILE: "C:\\Users\\example" }
+        : {};
+    const invocation = portalCommitInvocation(
+      ["_portal-commit", "--name", "demo"],
+      { capabilitySha256, parentPid: 1234 },
+      {
+        platform,
+        environment,
+        home: platform === "win32" ? "C:\\Users\\example" : "/home/example",
+      },
+    );
+    assert.equal(
+      invocation.env.KEEPKEYS_PORTAL_CAPABILITY_SHA256,
+      capabilitySha256,
+    );
+    assert.equal(invocation.env.KEEPKEYS_PORTAL_PARENT_PID, "1234");
+    assert.equal(invocation.args.at(-2), "--name");
+    assert.equal(invocation.args.at(-1), "demo");
+  }
+});
+
+test("a non-portal Node parent cannot forge the native commit channel", () => {
+  const capability = randomBytes(32);
+  const capabilitySha256 = createHash("sha256")
+    .update(capability)
+    .digest("hex");
+  const secret = randomBytes(24).toString("base64url");
+  const input = Buffer.concat([capability, Buffer.from(secret, "utf8")]);
+  capability.fill(0);
+  try {
+    const invocation = portalCommitInvocation(
+      [
+        "_portal-commit",
+        "--name",
+        `forged-parent-${process.pid}-${Date.now()}`,
+        "--variable",
+        "FORGED_PARENT_TOKEN",
+        "--description",
+        "Generated negative portal-channel test",
+        "--provider",
+        "KeepKeys test",
+        "--documentation-url",
+        "https://github.com/barnlabs/keepkeys",
+        "--expect-existing",
+        "yes",
+      ],
+      { capabilitySha256, parentPid: process.pid },
+    );
+    const result = spawnSync(invocation.command, invocation.args, {
+      cwd: invocation.env.KEEPKEYS_PLUGIN_ROOT,
+      env: invocation.env,
+      input,
+      encoding: "utf8",
+      timeout: 90_000,
+    });
+    assert.notEqual(result.status, 0);
+    const response = JSON.parse(result.stdout.trim());
+    assert.equal(response.status, "error");
+    assert.match(response.message, /live KeepKeys portal channel/u);
+  } finally {
+    input.fill(0);
+  }
 });
 
 function expectWindowsScript(value) {
@@ -317,7 +617,7 @@ test("stdio server handles a complete protocol transcript through a symlinked pl
     const responses = result.stdout.trim().split("\n").map(JSON.parse);
     assert.equal(responses.length, 4, "notifications must not produce responses");
     assert.equal(responses[0].result.serverInfo.name, "keepkeys");
-    assert.equal(responses[0].result.serverInfo.version, "0.4.2");
+    assert.equal(responses[0].result.serverInfo.version, "0.5.0");
     assert.deepEqual(responses[1].result.tools, TOOLS);
     assert.deepEqual(responses[2], {
       jsonrpc: "2.0",

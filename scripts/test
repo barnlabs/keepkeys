@@ -6,6 +6,7 @@ cd "$root"
 
 node --test \
   plugins/keepkeys/mcp/server.test.mjs \
+  plugins/keepkeys/scripts/keepkeys-portal.test.mjs \
   plugins/keepkeys/scripts/check-for-update.test.mjs
 python3 -m unittest adapters.hermes.test_plugin
 python3 -m unittest plugins.keepkeys.scripts.test_keepkeys_linux
@@ -18,9 +19,33 @@ case "$(uname -s)" in
       plugins/keepkeys/scripts/keepkeys --self-test
     KEEPKEYS_CACHE_DIR="$test_root/cache" \
       plugins/keepkeys/scripts/keepkeys status
+    if printf '%s' 'synthetic_secret' |
+      KEEPKEYS_PORTAL_COMMIT=1 KEEPKEYS_CACHE_DIR="$test_root/cache" \
+      plugins/keepkeys/scripts/keepkeys _portal-commit \
+        --name demo \
+        --variable DEMO_TOKEN \
+        --description 'Synthetic test credential' \
+        --provider Example \
+        --documentation-url https://docs.example.com/api \
+        --expect-existing no >/dev/null 2>&1; then
+      printf '%s\n' "The macOS helper accepted a forged portal commit." >&2
+      exit 1
+    fi
     ;;
   Linux)
     python3 plugins/keepkeys/scripts/keepkeys.linux.py --self-test
+    if printf '%s' 'synthetic_secret' |
+      KEEPKEYS_PORTAL_COMMIT=1 \
+      python3 plugins/keepkeys/scripts/keepkeys.linux.py _portal-commit \
+        --name demo \
+        --variable DEMO_TOKEN \
+        --description 'Synthetic test credential' \
+        --provider Example \
+        --documentation-url https://docs.example.com/api \
+        --expect-existing no >/dev/null 2>&1; then
+      printf '%s\n' "The Linux helper accepted a forged portal commit." >&2
+      exit 1
+    fi
     ;;
   *)
     printf '%s\n' "Use scripts/test.ps1 on Windows." >&2
