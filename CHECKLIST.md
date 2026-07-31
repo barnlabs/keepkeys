@@ -57,7 +57,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     and revoke argument mapping, and deterministic CLI run-lock ordering.
   - Acceptance: no supported host can launch a same-name approved command
     outside the lock used by store, rotation, revoke, removal, and phone intake.
-- [ ] **Independent 0.6.0 review and public matrix pass.**
+- [x] **Independent 0.6.0 review and public matrix pass.**
   - Implementer context: exact `F -> C -> docs` chain, generated archives,
     local proof, public CI, and rollback procedure.
   - Required tests: separate read-only adversarial review, complete local
@@ -81,8 +81,14 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   at `D`, passed all 11 jobs and the release gate. Exact archive hashes,
   member counts, forbidden-member checks, known limitations, rollback, and
   critic dispositions are recorded in the evidence packet.
-- The remaining checkbox is closed only after a fresh critic returns `APPROVE`
-  on the corrected evidence ledger and the root records that verdict.
+- Proof-closure ledger commit:
+  `723f2930c02f35810ea7840a0aaec2c818d18b5b`.
+- Proof-closure public CI:
+  [30600275437](https://github.com/barnlabs/keepkeys/actions/runs/30600275437)
+  passed all 11 jobs and the release gate.
+- Final independent read-only critic returned `APPROVE` on the exact proof
+  closure head with no P0, P1, or P2 findings; the disposition is recorded in
+  [docs/release-evidence-0.6.0.md](docs/release-evidence-0.6.0.md).
 
 ## Release candidate — 0.5.0
 

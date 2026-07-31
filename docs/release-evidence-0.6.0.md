@@ -152,7 +152,7 @@ errors; the implementation and its exact `D` public proof are unchanged.
 - KeepKeys has no background vault synchronization, hosted relay, account, or
   cloud copy. Cross-device support is a deliberate one-use, ten-minute,
   tailnet-only Tailscale Serve transfer into the connected host's native vault;
-  it is not record synchronization.
+it is not record synchronization.
 - Official provider documentation research depends on an available search or
   web-search tool. If no authoritative provider documentation can be found,
   setup stops and asks for nonsecret context rather than inventing a link.
@@ -172,3 +172,9 @@ errors; the implementation and its exact `D` public proof are unchanged.
   do not repeat the submission blindly. Follow the visible uncertainty state,
   inspect only metadata/status, and use the documented recovery path in
   [docs/releasing.md](releasing.md).
+
+The final independent read-only critic returned `APPROVE` on proof-closure
+commit `723f2930c02f35810ea7840a0aaec2c818d18b5b` with no P0, P1, or P2
+findings. Proof-closure CI
+[30600275437](https://github.com/barnlabs/keepkeys/actions/runs/30600275437)
+then completed successfully across all 11 jobs and the release gate.
