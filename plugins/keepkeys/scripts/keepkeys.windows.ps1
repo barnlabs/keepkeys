@@ -1088,21 +1088,27 @@ function Assert-KeepKeysAllowRule {
 function Test-KeepKeysAllowRuleMatch {
     param($Rule, $Request)
     try { Assert-KeepKeysAllowRule $Rule } catch { return $false }
+    $workingDirectoryMatches = $null -eq $Rule.workingDirectory -and
+        $null -eq $Request.WorkingDirectory
+    if ($null -ne $Rule.workingDirectory -and
+        $null -ne $Request.WorkingDirectory) {
+        $workingDirectoryMatches = $Rule.workingDirectory -ceq $Request.WorkingDirectory
+    }
+    $entrypointMatches = $null -eq $Rule.entrypoint -and
+        $null -eq $Request.Entrypoint -and
+        $null -eq $Rule.entrypointFingerprint -and
+        $null -eq $Request.EntrypointFingerprint
+    if ($null -ne $Rule.entrypoint -and $null -ne $Request.Entrypoint) {
+        $entrypointMatches = $Rule.entrypoint -ceq $Request.Entrypoint -and
+            $Rule.entrypointFingerprint -ceq $Request.EntrypointFingerprint
+    }
     return (
         $Rule.purpose -ceq $Request.Purpose -and
         $Rule.program -ceq $Request.Program -and
         $Rule.fingerprint -ceq $Request.Fingerprint -and
         (Test-KeepKeysStringArrayEqual ([string[]]$Rule.arguments) ([string[]]$Request.Arguments)) -and
-        $(if ($null -eq $Rule.workingDirectory -or $null -eq $Request.WorkingDirectory) {
-            $null -eq $Rule.workingDirectory -and $null -eq $Request.WorkingDirectory
-        } else { $Rule.workingDirectory -ceq $Request.WorkingDirectory }) -and
-        $(if ($null -eq $Rule.entrypoint -or $null -eq $Request.Entrypoint) {
-            $null -eq $Rule.entrypoint -and $null -eq $Request.Entrypoint -and
-            $null -eq $Rule.entrypointFingerprint -and $null -eq $Request.EntrypointFingerprint
-        } else {
-            $Rule.entrypoint -ceq $Request.Entrypoint -and
-            $Rule.entrypointFingerprint -ceq $Request.EntrypointFingerprint
-        })
+        $workingDirectoryMatches -and
+        $entrypointMatches
     )
 }
 
@@ -1302,11 +1308,15 @@ function Save-KeepKeysAllowRule {
     }
     $rules = [Collections.Generic.List[object]]::new()
     foreach ($existing in @($current.AllowRules)) { $rules.Add($existing) }
-    if (-not (@($rules | Where-Object { Test-KeepKeysAllowRuleMatch $_ ([pscustomobject]@{
+    $requestForRule = [pscustomobject]@{
         Purpose = $Rule.purpose; Program = $Rule.program; Fingerprint = $Rule.fingerprint;
         Arguments = [string[]]$Rule.arguments; WorkingDirectory = $Rule.workingDirectory;
         Entrypoint = $Rule.entrypoint; EntrypointFingerprint = $Rule.entrypointFingerprint
-    }) }).Count -gt 0)) {
+    }
+    $duplicateRules = @($rules | Where-Object {
+        Test-KeepKeysAllowRuleMatch $_ $requestForRule
+    })
+    if ($duplicateRules.Count -eq 0) {
         if ($rules.Count -ge $Script:MaximumAllowRules) {
             throw "KeepKeys has reached the maximum number of always-allow rules for this secret."
         }

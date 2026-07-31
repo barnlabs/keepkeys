@@ -33,7 +33,13 @@ test("the local CLI serializes approved run actions with same-name mutations", a
   assert.equal(result.status, 0);
   assert.deepEqual(events[0], ["lock", "demo-service", "run"]);
   assert.equal(events[1][0], "spawn");
-  assert.match(events[1][1], /plugins[\\/]keepkeys[\\/]scripts[\\/]keepkeys$/u);
+  if (process.platform === "linux") {
+    assert.equal(events[1][1], "/usr/bin/python3");
+  } else if (process.platform === "win32") {
+    assert.match(events[1][1], /WindowsPowerShell[\\/]v1\.0[\\/]powershell\.exe$/u);
+  } else {
+    assert.match(events[1][1], /plugins[\\/]keepkeys[\\/]scripts[\\/]keepkeys$/u);
+  }
   assert.deepEqual(events[1][2], [
     "run",
     "--name",
