@@ -49,6 +49,14 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     package inventory, five positive and three negative submission cases.
   - Acceptance: tool inputs and outputs remain metadata/status-only and the
     phone path is documented as a one-use tailnet transfer, not synchronization.
+- [x] **Every adapter uses the shared mutation/run coordination path.**
+  - Implementer context: MCP and Hermes dispatcher mappings, local CLI run
+    locking, serialized store/rotate/revoke/remove actions, and identical
+    metadata-only schemas.
+  - Required tests: every Hermes dispatcher invokes its shared runner, rotate
+    and revoke argument mapping, and deterministic CLI run-lock ordering.
+  - Acceptance: no supported host can launch a same-name approved command
+    outside the lock used by store, rotation, revoke, removal, and phone intake.
 - [ ] **Independent 0.6.0 review and public matrix pass.**
   - Implementer context: exact `F -> C -> docs` chain, generated archives,
     local proof, public CI, and rollback procedure.
@@ -59,9 +67,9 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.6.0 release evidence
 
 - Functional source commit (`F`):
-  `b1168fc2d2801440dd823a80da257e0a6cee7d74`.
+  `48c3957d5c77e0e6f7024af7bdbb759d18562ce3`.
 - Catalog commit (`C`):
-  `e747155c4ed232b1960d5e318e87522578103c2b`.
+  `4af7f893a99030ec87bd4c375e7b8196c965b1dc`.
 - Documentation is maintained after `F` and `C`; final commit and public CI
   evidence are recorded only after the independent review and push.
 - Local proof required before delivery: `./scripts/check`, `./scripts/test`,
