@@ -1355,6 +1355,9 @@ def portal_parent_is_bundled_portal(parent_pid: int) -> bool:
 
 
 def action_store(arguments: list[str]) -> dict[str, Any]:
+    expected_value = option(arguments, "--expect-existing")
+    if expected_value not in {None, "yes", "no"}:
+        raise KeepKeysError("The rotation existence check is invalid.")
     metadata = Metadata(
         name=require_option(arguments, "--name"),
         variable=require_option(arguments, "--variable").upper(),
@@ -1367,7 +1370,11 @@ def action_store(arguments: list[str]) -> dict[str, Any]:
     if entered is None:
         return {"status": "cancelled", "message": "Secret storage was cancelled."}
     final_metadata, secret = entered
-    return store_record(final_metadata, secret)
+    return store_record(
+        final_metadata,
+        secret,
+        expected_existing=(expected_value == "yes") if expected_value else None,
+    )
 
 
 def action_rotate(arguments: list[str]) -> dict[str, Any]:

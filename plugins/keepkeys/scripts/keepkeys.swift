@@ -697,7 +697,8 @@ private func storeInteractively(
     suggestedVariable: String?,
     suggestedDescription: String?,
     suggestedProvider: String?,
-    suggestedDocumentationURLs: [String]
+    suggestedDocumentationURLs: [String],
+    expectedExisting: Bool? = nil
 ) throws
     -> [String: Any]
 {
@@ -816,7 +817,13 @@ private func storeInteractively(
                 currentClipboardVersion: { pasteboard.changeCount },
                 clearClipboard: { pasteboard.clearContents() },
                 storeSecret: { secret in
-                    if try KeychainStore.exists(name: name) {
+                    let exists = try KeychainStore.exists(name: name)
+                    if let expectedExisting, exists != expectedExisting {
+                        throw KeepKeysFailure(
+                            message: "The stored KeepKeys name changed before rotation. Start a new rotation and review the replacement warning."
+                        )
+                    }
+                    if exists {
                         let overwrite = NSAlert()
                         overwrite.alertStyle = .critical
                         overwrite.messageText = "Replace '\(name)'?"
@@ -1931,12 +1938,22 @@ private func main() {
             }
             unsetenv("KEEPKEYS_SERIALIZED_MUTATION")
             let rest = Array(args.dropFirst())
+            let expectedExisting: Bool?
+            if let expected = try parseOption(rest, name: "--expect-existing") {
+                guard expected == "yes" || expected == "no" else {
+                    throw KeepKeysFailure(message: "The rotation existence check is invalid.")
+                }
+                expectedExisting = expected == "yes"
+            } else {
+                expectedExisting = nil
+            }
             result = try storeInteractively(
                 suggestedName: parseOption(rest, name: "--name"),
                 suggestedVariable: parseOption(rest, name: "--variable"),
                 suggestedDescription: parseOption(rest, name: "--description"),
                 suggestedProvider: parseOption(rest, name: "--provider"),
-                suggestedDocumentationURLs: parseOptions(rest, name: "--documentation-url")
+                suggestedDocumentationURLs: parseOptions(rest, name: "--documentation-url"),
+                expectedExisting: expectedExisting
             )
         case "_portal-commit":
             result = try storeFromPortal(arguments: Array(args.dropFirst()))

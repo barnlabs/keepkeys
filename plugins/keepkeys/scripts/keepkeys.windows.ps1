@@ -2071,6 +2071,14 @@ try {
             $description = Get-KeepKeysOption $rest "--description" -Required
             $provider = Get-KeepKeysOption $rest "--provider" -Required
             $documentationUrls = Get-KeepKeysOptions $rest "--documentation-url"
+            $expectedExistingValue = Get-KeepKeysOption $rest "--expect-existing"
+            $expectedExisting = $null
+            if (-not [String]::IsNullOrEmpty($expectedExistingValue)) {
+                if ($expectedExistingValue -cne "yes" -and $expectedExistingValue -cne "no") {
+                    throw "The rotation existence check is invalid."
+                }
+                $expectedExisting = $expectedExistingValue -ceq "yes"
+            }
             Assert-KeepKeysMetadata $name $variable $description $provider $documentationUrls
             $entered = Show-KeepKeysStoreDialog $name $variable $description `
                 $provider $documentationUrls
@@ -2085,7 +2093,8 @@ try {
                     $entered.Description `
                     $entered.Provider `
                     $entered.DocumentationUrls `
-                    $entered.Secret
+                    $entered.Secret `
+                    $expectedExisting
             } finally {
                 $entered.Secret = ""
             }

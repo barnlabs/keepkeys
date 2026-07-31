@@ -21,8 +21,10 @@ import {
 } from "../scripts/platform.mjs";
 import {
   runSerializedMutation,
+  runSerializedRotate,
   runSerializedStore,
 } from "../scripts/keepkeys-store.mjs";
+import { withPortalCommitLock } from "../scripts/keepkeys-portal.mjs";
 
 test("tool schemas never accept a plaintext secret", () => {
   for (const tool of TOOLS) {
@@ -579,6 +581,67 @@ test("desktop stores, phone stores, and removals share the same per-name lock", 
   await first;
   await second;
   assert.equal(secondEntered, true);
+});
+
+test("rotation holds the name lock before metadata read and blocks command use", async (context) => {
+  const lockRoot = mkdtempSync(join(tmpdir(), "keepkeys-rotate-lock-"));
+  context.after(() => rmSync(lockRoot, { recursive: true, force: true }));
+  let rotationEnteredResolve;
+  const rotationEntered = new Promise((resolvePromise) => {
+    rotationEnteredResolve = resolvePromise;
+  });
+  let releaseRotation;
+  const rotationGate = new Promise((resolvePromise) => {
+    releaseRotation = resolvePromise;
+  });
+  let commandEntered = false;
+  let nativeStoreArgs;
+  const rotation = runSerializedRotate("demo-service", {
+    lockOptions: { lockRoot, retryMs: 10 },
+    listRunner: async () => ({
+      code: 0,
+      signal: null,
+      stdout: Buffer.from(
+        JSON.stringify({
+          status: "ok",
+          entries: [{
+            name: "demo-service",
+            variable: "DEMO_TOKEN",
+            description: "Synthetic rotation",
+            provider: "Example",
+            documentationUrls: ["https://docs.example.com/api"],
+          }],
+        }),
+      ),
+      stderr: Buffer.alloc(0),
+    }),
+    storeRunner: async (invocation) => {
+      nativeStoreArgs = invocation.args;
+      rotationEnteredResolve();
+      await rotationGate;
+      return {
+        code: 0,
+        signal: null,
+        stdout: Buffer.from('{"status":"ok","message":"Rotated."}\n'),
+        stderr: Buffer.alloc(0),
+      };
+    },
+  });
+  await rotationEntered;
+  const command = withPortalCommitLock(
+    "demo-service",
+    async () => {
+      commandEntered = true;
+    },
+    { lockRoot, retryMs: 10, operationKind: "run" },
+  );
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+  assert.equal(commandEntered, false);
+  assert.deepEqual(nativeStoreArgs.slice(-2), ["--expect-existing", "yes"]);
+  releaseRotation();
+  await rotation;
+  await command;
+  assert.equal(commandEntered, true);
 });
 
 test("desktop stores require a valid native commit receipt", async (context) => {

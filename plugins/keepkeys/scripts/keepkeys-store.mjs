@@ -8,7 +8,7 @@ import {
   missingNativeCommitReceiptError,
   withPortalCommitLock,
 } from "./keepkeys-portal.mjs";
-import { nativeMutationInvocation } from "./platform.mjs";
+import { helperInvocation, nativeMutationInvocation } from "./platform.mjs";
 
 const MAX_HELPER_OUTPUT = 2 * 1024 * 1024;
 
@@ -94,7 +94,7 @@ function missingNativeMutationReceiptError(action, cause) {
   return receiptError;
 }
 
-function validateNativeMutationReceipt(result, action) {
+export function validateNativeMutationReceipt(result, action) {
   let parsed;
   try {
     parsed = JSON.parse(result.stdout.toString("utf8").trim());
@@ -165,6 +165,47 @@ function validateNativeMutationReceipt(result, action) {
   );
 }
 
+async function metadataForRotation(name, listRunner) {
+  const result = await listRunner(helperInvocation(["list"]));
+  if (result.code !== 0 || result.signal !== null) {
+    throw new Error("KeepKeys could not read local credential metadata.");
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(result.stdout.toString("utf8").trim());
+  } catch {
+    throw new Error("KeepKeys received an invalid local metadata response.");
+  }
+  const entry = parsed?.entries?.find((candidate) => candidate?.name === name);
+  if (!entry) {
+    throw new Error(`No KeepKeys secret is stored as '${name}'.`);
+  }
+  if (
+    typeof entry.variable !== "string" ||
+    typeof entry.description !== "string" ||
+    typeof entry.provider !== "string" ||
+    !Array.isArray(entry.documentationUrls) ||
+    entry.documentationUrls.length < 1
+  ) {
+    throw new Error("KeepKeys returned incomplete metadata for this name.");
+  }
+  return entry;
+}
+
+async function validatedNativeMutation(argumentsValue, action, storeRunner) {
+  try {
+    return await validateNativeMutationReceipt(
+      await storeRunner(nativeMutationInvocation(argumentsValue)),
+      action,
+    );
+  } catch (error) {
+    if (error?.name === "NativeStoreReceipt" && error.nativeResult) {
+      return error.nativeResult;
+    }
+    throw error;
+  }
+}
+
 export async function runSerializedMutation(
   argumentsValue,
   { lockOptions, storeRunner = runNativeStore } = {},
@@ -178,11 +219,46 @@ export async function runSerializedMutation(
     return await withPortalCommitLock(
       name,
       async () =>
-        validateNativeMutationReceipt(
-          await storeRunner(nativeMutationInvocation(argumentsValue)),
-          action,
-        ),
+        validatedNativeMutation(argumentsValue, action, storeRunner),
       { ...lockOptions, operationKind: action },
+    );
+  } catch (error) {
+    if (error?.name === "NativeStoreReceipt" && error.nativeResult) {
+      return error.nativeResult;
+    }
+    throw error;
+  }
+}
+
+export async function runSerializedRotate(
+  name,
+  { lockOptions, listRunner = runNativeStore, storeRunner = runNativeStore } = {},
+) {
+  try {
+    return await withPortalCommitLock(
+      name,
+      async () => {
+        const entry = await metadataForRotation(name, listRunner);
+        const argumentsValue = [
+          "store",
+          "--name",
+          entry.name,
+          "--variable",
+          entry.variable,
+          "--description",
+          entry.description,
+          "--provider",
+          entry.provider,
+          ...entry.documentationUrls.flatMap((url) => [
+            "--documentation-url",
+            url,
+          ]),
+          "--expect-existing",
+          "yes",
+        ];
+        return validatedNativeMutation(argumentsValue, "store", storeRunner);
+      },
+      { ...lockOptions, operationKind: "store" },
     );
   } catch (error) {
     if (error?.name === "NativeStoreReceipt" && error.nativeResult) {
