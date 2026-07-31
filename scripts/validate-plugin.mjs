@@ -429,8 +429,13 @@ assert.match(
 );
 assert.match(
   serializedStore,
-  /withPortalCommitLock\([\s\S]*?storeRunner\(nativeMutationInvocation\(argumentsValue\)\)/,
+  /withPortalCommitLock\([\s\S]*?validatedNativeMutation\(argumentsValue, action, storeRunner\)/,
   "the desktop mutation coordinator must use the phone portal's exact per-name lock",
+);
+assert.match(
+  serializedStore,
+  /storeRunner\(nativeMutationInvocation\(argumentsValue\)\)/,
+  "the serialized mutation coordinator must invoke the selected native helper",
 );
 for (const helper of [sourceText, windowsHelper, linuxHelper]) {
   assert.match(

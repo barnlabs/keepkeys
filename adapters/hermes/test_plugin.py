@@ -31,6 +31,8 @@ class HermesAdapterTests(unittest.TestCase):
                 "keepkeys_store",
                 "keepkeys_store_from_phone",
                 "keepkeys_list",
+                "keepkeys_rotate",
+                "keepkeys_revoke",
                 "keepkeys_remove",
                 "keepkeys_run",
                 "keepkeys_status",
