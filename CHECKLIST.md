@@ -70,12 +70,15 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `28f3e8426eb24c867f566064760edd6612062c85`.
 - Catalog commit (`C`):
   `e1d4470f32cf236024107230f5dbb0aa420f0137`.
-- Documentation is maintained after `F` and `C`; final commit and public CI
-  evidence are recorded only after the independent review and push.
-- Local proof required before delivery: `./scripts/check`, `./scripts/test`,
-  `./scripts/doctor`, both package builders, secret scan, and an independent
-  read-only review. Windows PowerShell execution is unavailable on this host;
-  the Windows native matrix remains a public CI proof obligation.
+- Documentation and proof packet: [docs/release-evidence-0.6.0.md](docs/release-evidence-0.6.0.md).
+  It records the exact changed-file surface, the `F -> C -> docs` pin chain,
+  reproducible commands and outputs, archive verification, known limitations,
+  and rollback procedure.
+- The candidate is pushed at `32ae19073b8ac02b1f086c80f9c092dcd1abac41` with
+  public proof run [30599715673](https://github.com/barnlabs/keepkeys/actions/runs/30599715673).
+  That run passed all 11 jobs and the release gate. A fresh exact-head review
+  and the final evidence-commit CI run remain required before the checkbox is
+  marked complete.
 
 ## Release candidate — 0.5.0
 
