@@ -67,9 +67,9 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 ### 0.6.0 release evidence
 
 - Functional source commit (`F`):
-  `78bff0bdecc1358e557b2bd841962489016fd02a`.
+  `28f3e8426eb24c867f566064760edd6612062c85`.
 - Catalog commit (`C`):
-  `7461e3454841e8dbcf62837e9366b46c7b0286cc`.
+  `e1d4470f32cf236024107230f5dbb0aa420f0137`.
 - Documentation is maintained after `F` and `C`; final commit and public CI
   evidence are recorded only after the independent review and push.
 - Local proof required before delivery: `./scripts/check`, `./scripts/test`,
