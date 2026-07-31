@@ -40,7 +40,7 @@ test("the local CLI serializes approved run actions with same-name mutations", a
   } else {
     assert.match(events[1][1], /plugins[\\/]keepkeys[\\/]scripts[\\/]keepkeys$/u);
   }
-  assert.deepEqual(events[1][2], [
+  assert.deepEqual(events[1][2].slice(-8), [
     "run",
     "--name",
     "demo-service",

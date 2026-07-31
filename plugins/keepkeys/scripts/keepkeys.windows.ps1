@@ -2543,11 +2543,16 @@ try {
                 [string[]]@()
             }
             if ($command.Count -eq 0) { throw "Run requests require an executable." }
+            $commandArguments = if ($command.Count -gt 1) {
+                [string[]]$command[1..($command.Count - 1)]
+            } else {
+                [string[]]@()
+            }
             $request = New-KeepKeysRunRequest `
                 (Get-KeepKeysOption $options "--name" -Required) `
                 (Get-KeepKeysOption $options "--purpose" -Required) `
                 $command[0] `
-                $(if ($command.Count -gt 1) { [string[]]$command[1..($command.Count - 1)] } else { [string[]]@() }) `
+                $commandArguments `
                 (Get-KeepKeysOption $options "--cwd")
             $metadataTarget = $Script:MetadataPrefix + $request.Name
             $secretTarget = $Script:SecretPrefix + $request.Name
