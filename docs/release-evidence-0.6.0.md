@@ -12,9 +12,9 @@ The candidate is not a tag or GitHub Release; those remain maintainer-owned.
   the final cross-platform POSIX-path fixture repair required by Windows CI.
 - Catalogs (`C`): `e1d4470f32cf236024107230f5dbb0aa420f0137`. The Claude and OMP
   marketplace entries in this commit pin their source to `F`.
-- Documentation and update candidate (`D`): this evidence packet is committed
-  after `F` and `C`; the exact documentation SHA and its public CI run are
-  recorded in `CHECKLIST.md` after the candidate is pushed.
+- Documentation and update candidate (`D`):
+  `2958441afca00f4f6eb30b979e5550b8e6abb98e`. This packet is committed after
+  `F` and `C`; its exact-head public proof is run `30600005949` below.
 - `update.json` carries `version: 0.6.0`, `sourceCommit: F`, and
   `catalogCommit: C`; the checker is review-only and never installs or
   synchronizes vault values.
@@ -40,6 +40,7 @@ M adapters/hermes/test_plugin.py
 A chatgpt-app-submission.json
 M docs/compatibility.md
 M docs/privacy-and-data-handling.md
+A docs/release-evidence-0.6.0.md
 M docs/releasing.md
 M docs/threat-model.md
 M docs/updating.md
@@ -109,9 +110,9 @@ Windows PowerShell is not installed on the maintainer host, so Windows parser,
 Node, native-vault, and package proof is supplied by public CI rather than
 claimed as a local run.
 
-The public proof is GitHub Actions run
-[30599715673](https://github.com/barnlabs/keepkeys/actions/runs/30599715673) at
-`32ae19073b8ac02b1f086c80f9c092dcd1abac41`. Its 11 successful jobs are:
+The exact-head public proof is GitHub Actions run
+[30600005949](https://github.com/barnlabs/keepkeys/actions/runs/30600005949) at
+`2958441afca00f4f6eb30b979e5550b8e6abb98e`. Its 11 successful jobs are:
 
 - reproducible packages
 - native vault on macOS, Ubuntu, and Windows
@@ -122,17 +123,17 @@ The release gate requires every verify, native-vault, and package job to report
 success; the recorded run returned `status=completed`, `conclusion=success`,
 and an empty failed-job list.
 
-The generated archive SHA-256 values from the current checkout before this
-evidence commit are:
+The generated archive SHA-256 values from the exact `D` checkout are:
 
 ```text
 722e49191f1c0033404023632c42923af76db030d736727f1993e036d95f9425  dist/keepkeys-skills-0.6.0.zip
-2851e43d017c1a9e3b4874aadb8639ac86e4e1aee60f2970035250b3feb77a11  dist/keepkeys-0.6.0-source.zip
+a7f335f5519d3eb12d4d933f90cfecd5706d9a2c9f3651d0a0cc120182a79498  dist/keepkeys-0.6.0-source.zip
 ```
 
-The archives are rebuilt after this documentation packet is committed; the
-final archive hashes and exact-head public CI run are recorded in the checklist
-before the independent review is closed.
+The submission archive contains 31 members and the source archive contains 129
+members. The required skills-only members are present, and both archives have
+no forbidden MCP files, Python bytecode, build caches, or local dependency
+directories. The package job also performs a byte-for-byte rebuild comparison.
 
 ## Independent review disposition
 
@@ -140,9 +141,11 @@ The first final read-only critic reviewed the implementation and returned
 `REWORK` only for three proof-packet gaps: changed-file and pin mapping,
 reproducible command/artifact evidence, and known-limitations/rollback
 evidence. It reported no implementation, plaintext-boundary, approval, update,
-rotation, or cross-platform security finding. This packet addresses those
-three evidence gaps; a fresh critic must review the pushed exact head before
-the checklist item is marked complete.
+rotation, or cross-platform security finding. A fresh critic then reviewed the
+exact `D` head after its public CI completed and found only two stale evidence
+references: the packet still cited the pre-packet run and omitted the packet
+itself from the changed-file list. This closure update fixes those two ledger
+errors; the implementation and its exact `D` public proof are unchanged.
 
 ## Known limitations and rollback
 

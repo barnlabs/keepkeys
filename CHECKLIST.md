@@ -74,11 +74,15 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   It records the exact changed-file surface, the `F -> C -> docs` pin chain,
   reproducible commands and outputs, archive verification, known limitations,
   and rollback procedure.
-- The candidate is pushed at `32ae19073b8ac02b1f086c80f9c092dcd1abac41` with
-  public proof run [30599715673](https://github.com/barnlabs/keepkeys/actions/runs/30599715673).
-  That run passed all 11 jobs and the release gate. A fresh exact-head review
-  and the final evidence-commit CI run remain required before the checkbox is
-  marked complete.
+- Documentation candidate (`D`):
+  `2958441afca00f4f6eb30b979e5550b8e6abb98e`.
+- Exact-head public proof:
+  [30600005949](https://github.com/barnlabs/keepkeys/actions/runs/30600005949)
+  at `D`, passed all 11 jobs and the release gate. Exact archive hashes,
+  member counts, forbidden-member checks, known limitations, rollback, and
+  critic dispositions are recorded in the evidence packet.
+- The remaining checkbox is closed only after a fresh critic returns `APPROVE`
+  on the corrected evidence ledger and the root records that verdict.
 
 ## Release candidate — 0.5.0
 
