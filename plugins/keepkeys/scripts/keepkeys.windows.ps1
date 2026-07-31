@@ -1949,10 +1949,13 @@ function Invoke-KeepKeysSelfTest {
         $decodedMetadata.DocumentationUrls[0] -cne "https://docs.example.com/api") {
         throw "Metadata parsing self-test failed."
     }
-    $legacyBytes = [Text.Encoding]::UTF8.GetBytes(@{
+    $legacyPayload = @{
         version = 2; provider = "Example";
         documentationUrls = [string[]]@("https://docs.example.com/api")
-    } | ConvertTo-Json -Compress)
+    }
+    $legacyBytes = [Text.Encoding]::UTF8.GetBytes(
+        ($legacyPayload | ConvertTo-Json -Compress)
+    )
     $legacyMetadata = ConvertFrom-KeepKeysMetadataCredential "new-key" `
         ([pscustomobject]@{
             TargetName = $Script:MetadataPrefix + "new-key"; UserName = "SECRET_KEY";
@@ -1961,10 +1964,13 @@ function Invoke-KeepKeysSelfTest {
     if ($legacyMetadata.AllowRules.Count -ne 0) {
         throw "Legacy metadata compatibility self-test failed."
     }
-    $legacyV1Bytes = [Text.Encoding]::UTF8.GetBytes(@{
+    $legacyV1Payload = @{
         version = 1; provider = "Example";
         documentationUrls = [string[]]@("https://docs.example.com/api")
-    } | ConvertTo-Json -Compress)
+    }
+    $legacyV1Bytes = [Text.Encoding]::UTF8.GetBytes(
+        ($legacyV1Payload | ConvertTo-Json -Compress)
+    )
     $legacyV1Metadata = ConvertFrom-KeepKeysMetadataCredential "new-key" `
         ([pscustomobject]@{
             TargetName = $Script:MetadataPrefix + "new-key"; UserName = "SECRET_KEY";
