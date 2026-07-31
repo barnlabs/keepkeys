@@ -7,7 +7,7 @@ from io import BytesIO, StringIO
 import importlib.util
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import subprocess
 import sys
 import unittest
@@ -45,9 +45,9 @@ class LinuxBackendTests(unittest.TestCase):
         request = keepkeys_linux.RunRequest(
             name="github-release",
             purpose="Publish the approved release",
-            program=Path("/usr/bin/gh"),
+            program=PurePosixPath("/usr/bin/gh"),
             arguments=["release", "create", "v1"],
-            cwd=Path("/tmp/project"),
+            cwd=PurePosixPath("/tmp/project"),
             fingerprint="a" * 64,
             risk="NETWORK-CAPABLE EXECUTABLE",
             entrypoint=None,
@@ -73,9 +73,9 @@ class LinuxBackendTests(unittest.TestCase):
         request = keepkeys_linux.RunRequest(
             name="demo",
             purpose="Deploy synthetic example",
-            program=Path("/usr/bin/example"),
+            program=PurePosixPath("/usr/bin/example"),
             arguments=["deploy", "--safe"],
-            cwd=Path("/tmp/example"),
+            cwd=PurePosixPath("/tmp/example"),
             fingerprint="b" * 64,
             risk="DIRECT EXECUTABLE",
             entrypoint=None,
@@ -105,7 +105,7 @@ class LinuxBackendTests(unittest.TestCase):
         self.assertFalse(
             keepkeys_linux.matching_allow_rule(
                 keepkeys_linux.RunRequest(
-                    **{**request.__dict__, "cwd": Path("/tmp/other")}
+                    **{**request.__dict__, "cwd": PurePosixPath("/tmp/other")}
                 ),
                 stored,
             )
@@ -126,7 +126,7 @@ class LinuxBackendTests(unittest.TestCase):
         approved = keepkeys_linux.RunRequest(
             name="demo",
             purpose="Run synthetic task",
-            program=Path("/usr/bin/example"),
+            program=PurePosixPath("/usr/bin/example"),
             arguments=[],
             cwd=None,
             fingerprint="c" * 64,
@@ -154,7 +154,7 @@ class LinuxBackendTests(unittest.TestCase):
         request = keepkeys_linux.RunRequest(
             name="demo",
             purpose="Run synthetic task",
-            program=Path("/usr/bin/example"),
+            program=PurePosixPath("/usr/bin/example"),
             arguments=[],
             cwd=None,
             fingerprint="f" * 64,
@@ -192,7 +192,7 @@ class LinuxBackendTests(unittest.TestCase):
         request = keepkeys_linux.RunRequest(
             name="demo",
             purpose="Run synthetic task",
-            program=Path("/usr/bin/example"),
+            program=PurePosixPath("/usr/bin/example"),
             arguments=[],
             cwd=None,
             fingerprint="9" * 64,
@@ -237,7 +237,7 @@ class LinuxBackendTests(unittest.TestCase):
         request = keepkeys_linux.RunRequest(
             name="demo",
             purpose="Run synthetic task",
-            program=Path("/usr/bin/example"),
+            program=PurePosixPath("/usr/bin/example"),
             arguments=[],
             cwd=None,
             fingerprint="e" * 64,
@@ -284,7 +284,7 @@ class LinuxBackendTests(unittest.TestCase):
         request = keepkeys_linux.RunRequest(
             name="demo",
             purpose="Run synthetic task",
-            program=Path("/usr/bin/example"),
+            program=PurePosixPath("/usr/bin/example"),
             arguments=[],
             cwd=None,
             fingerprint="1" * 64,
@@ -564,7 +564,7 @@ class LinuxBackendTests(unittest.TestCase):
         request = keepkeys_linux.RunRequest(
             name="demo",
             purpose="Run synthetic task",
-            program=Path("/usr/bin/example"),
+            program=PurePosixPath("/usr/bin/example"),
             arguments=[],
             cwd=None,
             fingerprint="e" * 64,
