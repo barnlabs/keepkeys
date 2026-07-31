@@ -105,6 +105,8 @@ macOS records are non-synchronizing and device-only. Windows records use
 and synchronization behavior is determined by the selected Secret Service
 provider; KeepKeys itself adds no sync.
 
-KeepKeys provides no independent backup, recovery, escrow, sharing, rotation, or
-account reset. Users remain responsible for the underlying service's credential
-recovery and revocation process.
+KeepKeys provides no independent backup, recovery, escrow, sharing, or account
+reset. Rotation is a local replacement operation, not provider-side revocation:
+users remain responsible for revoking the old credential and for the
+underlying service's recovery process. KeepKeys does not synchronize vault
+values or automatic-approval rules between devices.

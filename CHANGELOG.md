@@ -1,6 +1,27 @@
 # Changelog
 
-## 0.5.0 — 2026-07-28
+## 0.6.0 - 2026-07-30
+
+- Added exact-command **Always allow** decisions on macOS, Windows, and Linux.
+  Persistent rules bind the purpose, canonical executable, executable
+  fingerprint, arguments, working directory, and interpreter entrypoint
+  fingerprint when present; they never contain a protected value.
+- Added `keepkeys_rotate` for metadata-preserving replacement and
+  `keepkeys_revoke` for native-confirmed removal of automatic-approval rules.
+  Rotation now acquires the per-name lock before metadata inspection, requires
+  the record to still exist at commit time, and clears old rules before the
+  replacement can be used.
+- Serialized approved command use with Store, phone intake, rotation, revoke,
+  and Remove so an old automatic approval cannot race a key replacement.
+- Added official-documentation search guidance to the skill and required every
+  submission workflow to link one to three verified provider documentation URLs.
+- Hardened the deliberate update checker with strict canonical URL checks,
+  bounded timeouts, no-cache requests, and explicit review metadata. Updates
+  remain user-run and never install in the background.
+- Added current MCP output schemas, receipt-variant tests, and an exact
+  ChatGPT Apps submission artifact covering all nine tools and eight cases.
+
+## 0.5.0 - 2026-07-28
 
 - Added `keepkeys_store_from_phone`, which returns a ten-minute, one-use
   Tailscale Serve link for storing a key from a phone in the same tailnet.

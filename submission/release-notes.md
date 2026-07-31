@@ -1,6 +1,23 @@
 # Submission release notes
 
-KeepKeys 0.5.0 is the current BarnLabs submission.
+KeepKeys 0.6.0 is the current BarnLabs submission.
+
+Version 0.6.0 adds native exact-command automatic approval on macOS, Windows,
+and Linux. The user can choose **Always allow this exact command** after
+reviewing the purpose, canonical executable, SHA-256, arguments, working
+directory, and optional interpreter entrypoint fingerprint. The rule contains
+metadata only, and `keepkeys_revoke` removes it after native confirmation.
+
+`keepkeys_rotate` reuses the existing metadata, requires the named record to
+still exist under the shared per-name lock, opens the native Paste & Store flow,
+and clears old automatic approvals before the replacement can be used. Approved
+command execution uses the same lock, preventing an old rule from racing a
+replacement write.
+
+The skill now requires search-tool research of official provider documentation
+before metadata is prepared. The update checker remains explicit and local: it
+reports reviewed immutable source/catalog pins, never installs in the
+background, and never synchronizes vault values between devices.
 
 It gives Codex use of named local secrets without returning plaintext to the
 model. Codex researches official credential documentation and supplies the

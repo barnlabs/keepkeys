@@ -253,6 +253,20 @@ tells the user to copy only when it is ready and submit immediately. Tailscale
 and the user's identity provider can observe normal connection and identity
 metadata; the key stays inside the encrypted connection to the host.
 
+### Persistent approval rules and rotation
+
+An Always allow rule is never a blanket grant. It records only the named
+credential and the exact approved request fields: executable identity and
+SHA-256, arguments, working directory, environment scope, and any interpreter
+entrypoint fingerprint. The native helper compares those fields before every
+automatic approval and fails closed on a mismatch, missing rule, or revoked
+rule. Rules are local metadata, are listed without reading secret values, and
+are not synchronized to another device. Revoke removes rules only; it does not
+read or delete the vault value. Rotation holds the same per-name lock across
+the existing-record check and replacement commit, requires an existing-value
+assertion in every native backend, and clears that name's rules after a
+successful replacement so a new value cannot inherit stale authorization.
+
 Submission, expiry, startup failure, or termination closes the listener, aborts
 and kills an in-flight native helper process group, gracefully signals the
 portal process group, waits for the owned Serve child, and queries Tailscale
@@ -324,7 +338,7 @@ signed update metadata.
   execution while a credential is present on the shared system clipboard;
 - confinement after delivery to an approved executable;
 - general output DLP or network egress control;
-- team sharing, cloud synchronization, backup, recovery, or rotation;
+- team sharing, cloud synchronization, backup, or recovery;
 - public browser intake, Tailscale Funnel, server-side secret storage, or
   headless secret entry;
 - absolute, “unbreakable,” or formal-verification claims.
@@ -338,7 +352,9 @@ signed update metadata.
    after capture.
 4. Listing and pre-approval flow use metadata without loading the protected
    value.
-5. Run requires one-time native approval for an exact request.
+5. Run requires native approval for an exact request. Persistent automatic
+   approval is allowed only after an explicit user choice and an exact local
+   rule match.
 6. The helper invokes a direct absolute executable without a shell.
 7. The child environment contains only the approved secret variable.
 8. Executable and detected entrypoint hashes are rechecked after approval.
@@ -360,3 +376,9 @@ signed update metadata.
 18. Portal submission, expiry, startup failure, and termination remove the
     localhost listener, in-flight native helper, and foreground Serve route
     without resetting unrelated Tailscale configuration.
+19. Rotation and removal serialize with desktop store, phone store, and run
+    for the same name; rotation requires an existing-value assertion and
+    clears that name's automatic-approval rules after success.
+20. Phone intake is a deliberate one-use transfer into the connected host's
+    vault; KeepKeys never performs background vault synchronization or uploads
+    protected values to a service.

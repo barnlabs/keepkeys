@@ -92,10 +92,10 @@ checkout:
 
 ```text
 functional plugin commit
-3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d
+b1168fc2d2801440dd823a80da257e0a6cee7d74
 
 Claude/OMP catalog commit
-33afe85cf245c0b8003c0d1638c90c56defeb128
+e747155c4ed232b1960d5e318e87522578103c2b
 ```
 
 The catalog commit pins its plugin source to the functional commit. Review both
@@ -105,7 +105,7 @@ before installation.
 
 ```sh
 codex plugin marketplace add barnlabs/keepkeys \
-  --ref 3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d
+  --ref b1168fc2d2801440dd823a80da257e0a6cee7d74
 codex plugin add keepkeys@barnlabs
 ```
 
@@ -120,7 +120,7 @@ plugin hosts.
 
 ```sh
 grok plugin install \
-  'barnlabs/keepkeys@3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d#plugins/keepkeys' \
+  'barnlabs/keepkeys@b1168fc2d2801440dd823a80da257e0a6cee7d74#plugins/keepkeys' \
   --trust
 grok plugin list
 grok plugin details keepkeys
@@ -133,20 +133,20 @@ The exact-SHA subdirectory install is the credential-sensitive route.
 
 ```sh
 claude plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keepkeys/33afe85cf245c0b8003c0d1638c90c56defeb128/.claude-plugin/marketplace.json
+  https://raw.githubusercontent.com/barnlabs/keepkeys/e747155c4ed232b1960d5e318e87522578103c2b/.claude-plugin/marketplace.json
 claude plugin install keepkeys@barnlabs
 claude plugin list
 ```
 
 Claude Code does not expose a raw commit option for a Git marketplace checkout.
 The immutable raw catalog above pins `plugins/keepkeys` to functional commit
-`3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d`. Start a new Claude Code session.
+`b1168fc2d2801440dd823a80da257e0a6cee7d74`. Start a new Claude Code session.
 
 ## Oh My Pi
 
 ```sh
 omp plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keepkeys/33afe85cf245c0b8003c0d1638c90c56defeb128/.omp-plugin/marketplace.json
+  https://raw.githubusercontent.com/barnlabs/keepkeys/e747155c4ed232b1960d5e318e87522578103c2b/.omp-plugin/marketplace.json
 omp plugin install keepkeys@barnlabs
 omp plugin list
 ```
@@ -159,19 +159,19 @@ bundled MCP server. Start a new OMP session.
 Hermes installs the repository root. Use a detached reviewed checkout:
 
 ```sh
-git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.5.0
-git -C keepkeys-0.5.0 checkout --detach \
-  3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d
-hermes plugins install "file://$(cd keepkeys-0.5.0 && pwd)" --enable
+git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.6.0
+git -C keepkeys-0.6.0 checkout --detach \
+  b1168fc2d2801440dd823a80da257e0a6cee7d74
+hermes plugins install "file://$(cd keepkeys-0.6.0 && pwd)" --enable
 hermes plugins list
 ```
 
 On Windows PowerShell:
 
 ```powershell
-git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.5.0
-git -C keepkeys-0.5.0 checkout --detach 3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d
-$path = (Resolve-Path .\keepkeys-0.5.0).Path
+git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.6.0
+git -C keepkeys-0.6.0 checkout --detach b1168fc2d2801440dd823a80da257e0a6cee7d74
+$path = (Resolve-Path .\keepkeys-0.6.0).Path
 hermes plugins install "file://$path" --enable
 hermes plugins list
 ```
@@ -183,7 +183,7 @@ Hermes plugins are opt-in. If installed without `--enable`, run
 
 ```sh
 gemini extensions install https://github.com/barnlabs/keepkeys \
-  --ref 3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d
+  --ref b1168fc2d2801440dd823a80da257e0a6cee7d74
 gemini extensions list
 ```
 
@@ -196,7 +196,7 @@ Compatible clients can load `skills/keepkeys/SKILL.md` from the reviewed
 checkout. The skills-only distribution includes a cross-platform Node launcher
 and all three native backends but intentionally omits MCP configuration.
 
-When the seven `keepkeys_*` tools are available, use them. The fallback launcher
+When the nine `keepkeys_*` tools are available, use them. The fallback launcher
 is:
 
 ```sh
@@ -264,7 +264,11 @@ For use, ask for a concrete direct command. The native approval surface shows:
 - working directory;
 - exact child-environment scope.
 
-Choose **Allow once** only when the displayed program and action are intended.
+Choose **Allow once** for a single use, or choose **Always allow this exact
+command** only when every displayed identity and scope field is intended. The
+automatic rule is local metadata, not a name-only grant, and can be removed
+with `keepkeys_revoke`. A successful `keepkeys_rotate` clears that name's old
+automatic-approval rules before the replacement is used.
 
 ## Verify a checkout
 
@@ -273,7 +277,7 @@ macOS or Linux:
 ```sh
 git clone https://github.com/barnlabs/keepkeys.git
 cd keepkeys
-git checkout --detach 3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d
+git checkout --detach b1168fc2d2801440dd823a80da257e0a6cee7d74
 ./scripts/bootstrap
 ./scripts/check
 ./scripts/test
@@ -285,7 +289,7 @@ Windows:
 ```powershell
 git clone https://github.com/barnlabs/keepkeys.git
 Set-Location keepkeys
-git checkout --detach 3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d
+git checkout --detach b1168fc2d2801440dd823a80da257e0a6cee7d74
 .\scripts\bootstrap.ps1
 .\scripts\check.ps1
 .\scripts\test.ps1

@@ -48,10 +48,12 @@ exact KeepKeys cache directory first if a rebuild itself is under test. Windows
 and Linux execute the selected reviewed source directly.
 
 Do not downgrade a native-vault record format without a tested migration.
-Version 0.5.0 reads macOS metadata versions `1` and `2`, writes version `2`, and
-uses paired metadata/value records on Windows and Linux. Linux reads version-1
-metadata labels and writes version-2 labels; Windows stores version-2
-provider/documentation JSON in the non-secret metadata record.
+Version 0.6.0 reads macOS metadata versions `1`, `2`, and `3`, writes version
+`3`, and uses paired metadata/value records on Windows and Linux. Linux reads
+version-1 and version-2 metadata labels and writes version-3 labels; Windows
+stores version-3 provider/documentation JSON plus bounded exact-command rules in
+the non-secret metadata record. A successful rotation clears those rules before
+the replacement can be used.
 
 The phone portal does not change the record format. It calls a private native
 commit action over capability-framed redirected standard input after the user

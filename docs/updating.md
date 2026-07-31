@@ -26,8 +26,10 @@ node plugins/keepkeys/scripts/check-for-update.mjs
 The checker makes one explicit HTTPS request to
 `raw.githubusercontent.com/barnlabs/keepkeys/main/update.json`, caps the response
 at 16 KiB, accepts a strict schema, and prints the stable version plus the full
-functional and catalog commit SHAs. It does not modify the checkout, install a
-plugin, read the native vault, or send telemetry.
+functional and catalog commit SHAs, whether explicit installation is required,
+and the source/catalog review requirement. It does not modify the checkout,
+install a plugin, read the native vault, or send telemetry. It never runs in the
+background and does not silently migrate or synchronize vault records.
 
 ## Review before updating
 
@@ -38,6 +40,8 @@ plugin, read the native vault, or send telemetry.
 5. Use the host-specific immutable command in [INSTALL.md](../INSTALL.md).
 6. Start a new host session and run `keepkeys_status`.
 7. Use `keepkeys_doctor` with generated temporary data.
+8. After a replacement, review the new exact-command approval request; a
+   successful rotation clears the old name's automatic-approval rules.
 
 Do not update from an unreviewed mutable branch, use a host-wide “update all”
 command for a credential-sensitive release, or replace a working install when

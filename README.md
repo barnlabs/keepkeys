@@ -13,7 +13,7 @@
   <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-1F2D27.svg" />
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-1F2D27.svg" />
   <img alt="desktop Linux" src="https://img.shields.io/badge/Linux-desktop-1F2D27.svg" />
-  <img alt="KeepKeys 0.5.0" src="https://img.shields.io/badge/version-0.5.0-D96C4D.svg" />
+  <img alt="KeepKeys 0.6.0" src="https://img.shields.io/badge/version-0.6.0-D96C4D.svg" />
 </p>
 
 KeepKeys is the open-source, local secret-use broker for coding agents. It
@@ -45,7 +45,7 @@ KeepKeys is deliberately narrower:
 | Secret entry | Explicit native **Paste & Store**, or a one-time tailnet-only phone page |
 | Agent API | Research and store metadata, list metadata, remove, and approval-gated Run |
 | Plaintext retrieval | No tool or helper action |
-| Authorization | One native **Allow once** decision per command |
+| Authorization | Native **Allow once** or exact-command automatic approval, with revocation |
 | Process scope | Empty child environment plus one approved variable |
 | Executable identity | Canonical path and SHA-256, rechecked after approval |
 | Interpreter identity | Detected script entrypoint gets a second SHA-256 |
@@ -74,36 +74,38 @@ It never falls back to a plaintext keyring, terminal password prompt, or file.
 
 | Client | Package surface | Immutable install |
 | --- | --- | --- |
-| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref 3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d`<br>`codex plugin add keepkeys@barnlabs` |
-| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'barnlabs/keepkeys@3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d#plugins/keepkeys' --trust` |
+| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref b1168fc2d2801440dd823a80da257e0a6cee7d74`<br>`codex plugin add keepkeys@barnlabs` |
+| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'barnlabs/keepkeys@b1168fc2d2801440dd823a80da257e0a6cee7d74#plugins/keepkeys' --trust` |
 | **Claude Code** | Claude plugin + pinned catalog | see [Install](INSTALL.md#claude-code) |
 | **Oh My Pi** | OMP/Claude-compatible pinned catalog | see [Install](INSTALL.md#oh-my-pi) |
 | **Hermes** | repository-root Hermes plugin | see [Install](INSTALL.md#hermes) |
-| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref 3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d` |
+| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref b1168fc2d2801440dd823a80da257e0a6cee7d74` |
 | **Agent Skills clients** | standard `skills/keepkeys/SKILL.md` | reviewed checkout or skills-only archive |
 
-All integrations expose the same seven tools and dispatch to the same
+All integrations expose the same nine tools and dispatch to the same
 platform-native boundary:
 
 - `keepkeys_store`
 - `keepkeys_store_from_phone`
 - `keepkeys_list`
+- `keepkeys_rotate`
+- `keepkeys_revoke`
 - `keepkeys_remove`
 - `keepkeys_run`
 - `keepkeys_status`
 - `keepkeys_doctor`
 
 Claude Code and Oh My Pi use the immutable catalog at commit
-`33afe85cf245c0b8003c0d1638c90c56defeb128`; that catalog pins the functional
-plugin source at `3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d`. See
+`e747155c4ed232b1960d5e318e87522578103c2b`; that catalog pins the functional
+plugin source at `b1168fc2d2801440dd823a80da257e0a6cee7d74`. See
 [INSTALL.md](INSTALL.md) for copy-paste commands and platform prerequisites.
 
 ## What the user experiences
 
 Store:
 
-1. The agent gathers any missing non-secret context, researches official
-   credential documentation, and chooses the name, environment variable,
+1. The agent gathers any missing non-secret context, uses search tools to find
+   and verify official credential documentation, and chooses the name, environment variable,
    description, provider, and one to three official HTTPS documentation links.
 2. KeepKeys validates that metadata before opening and displays it read-only.
 3. The user copies the key from the provider and presses **Paste & Store**.
@@ -151,12 +153,17 @@ Run:
    optional working directory.
 2. KeepKeys displays the risk class, stored metadata, executable path, SHA-256,
    arguments, directory, environment scope, and detected script fingerprint.
-3. The user chooses **Allow once** or **Cancel**.
+3. The user chooses **Allow once**, **Always allow this exact command**, or
+   **Cancel**. Automatic approval binds the purpose, canonical executable,
+   executable fingerprint, arguments, working directory, and script entrypoint
+   fingerprint when present.
 4. Only after approval does KeepKeys load the value and run the direct child.
 
-Remove always opens a native destructive-action confirmation and deletes the
-complete named record. Uninstalling a client does not silently delete
-credentials.
+Rotate reuses the reviewed metadata, opens the same native Paste & Store flow,
+and clears old exact-command rules after the replacement succeeds. Revoke opens
+a native confirmation and removes only automatic-approval rules. Remove always
+opens a native destructive-action confirmation and deletes the complete named
+record. Uninstalling a client does not silently delete credentials.
 
 ## The security promise—and its edge
 
@@ -188,6 +195,8 @@ KeepKeys does not:
   while it is on the shared clipboard;
 - clear a phone's clipboard or clipboard history after phone intake;
 - make a Tailscale account, device, ACL, or signed-in host trustworthy;
+- silently synchronize vault values across devices; phone intake is a deliberate
+  one-use transfer and never background replication;
 - protect against malware, a compromised signed-in account, administrator/root,
   debuggers, keyloggers, or modified local plugin code;
 - promise forensic erasure inside operating-system-managed storage;

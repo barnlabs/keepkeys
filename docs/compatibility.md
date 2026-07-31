@@ -1,6 +1,6 @@
 # Compatibility
 
-KeepKeys 0.5.0 uses the same tool contract on macOS, Windows, and desktop Linux.
+KeepKeys 0.6.0 uses the same nine-tool contract on macOS, Windows, and desktop Linux.
 Node.js 18 or newer is required by the MCP server and cross-platform launcher.
 
 | Platform | Supported baseline | Native requirements | CI proof |
@@ -9,7 +9,7 @@ Node.js 18 or newer is required by the MCP server and cross-platform launcher.
 | Windows | Windows 10 or 11, x64 | Windows PowerShell 5.1 and .NET Framework 4.8 (included with supported Windows) | Windows Server 2025, Node 18/22, C# helper self-test, Credential Manager doctor |
 | Linux | modern x86-64 or arm64 desktop | Python 3, Tk, `secret-tool`, D-Bus user session, compatible Secret Service | Ubuntu 24.04, Node 18/22, helper self-test, disposable GNOME Keyring doctor |
 
-The Linux implementation is desktop software. Store, remove, and Run require a
+The Linux implementation is desktop software. Store, rotate, revoke, remove, and Run require a
 graphical user session because KeepKeys never falls back to terminal password
 entry or silent approval. `status`, `list`, and `doctor` can run without a
 display when a usable D-Bus Secret Service session exists.
@@ -73,3 +73,8 @@ KeepKeys reports a setup error and performs no credential mutation when:
 
 No unsupported configuration falls back to plaintext files, plugin settings,
 terminal input, cloud storage, or a process-wide persistent environment.
+
+The device boundary is deliberate: phone intake is a one-use tailnet transfer
+into the connected host's vault, not background vault synchronization across
+devices. Automatic approvals are local metadata rules and are cleared by a
+successful rotation or explicit revoke.

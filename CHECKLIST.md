@@ -23,6 +23,52 @@ findings to the same implementer, repair only those failures, rerun regression
 checks, and send the new diff to the same reviewer. Default to two repair
 cycles. Check the box only after reviewer `PASS` and root integration proof.
 
+## Release candidate - 0.6.0
+
+- [x] **Exact-command Always allow rules are bounded and revocable.**
+  - Implementer context: native macOS, Windows, and Linux approval state;
+    exact executable, arguments, working directory, environment, and
+    interpreter identity; no plaintext rule fields; explicit revoke.
+  - Required tests: positive exact-match reuse, negative mismatch rejection,
+    revoke regression, metadata-only listing, and cross-adapter schema checks.
+  - Acceptance: no rule bypasses native identity checks or grants a blanket
+    name-only approval.
+- [x] **Rotation is serialized and clears stale authorization.**
+  - Implementer context: shared per-name lock across store, phone store,
+    rotation, removal, and run; existing-value assertion in every native
+    helper; new value replaces the old value only after native confirmation.
+  - Required tests: positive replacement, absent-name rejection, concurrent
+    rotation/run regression, native expected-existing checks, and rule cleanup.
+  - Acceptance: a replacement cannot race a command or inherit the old
+    automatic-approval rule.
+- [x] **The nine-tool package and setup guidance are aligned.**
+  - Implementer context: MCP schemas, annotations, all host catalogs, skill
+    copies, official documentation search guidance, update checker, and
+    ChatGPT submission artifact.
+  - Required tests: structural validators, documentation links, secret scan,
+    package inventory, five positive and three negative submission cases.
+  - Acceptance: tool inputs and outputs remain metadata/status-only and the
+    phone path is documented as a one-use tailnet transfer, not synchronization.
+- [ ] **Independent 0.6.0 review and public matrix pass.**
+  - Implementer context: exact `F -> C -> docs` chain, generated archives,
+    local proof, public CI, and rollback procedure.
+  - Required tests: separate read-only adversarial review, complete local
+    regression suite, all-platform public CI, and disposition of every finding.
+  - Acceptance: reviewer returns `PASS`; root records the exact evidence below.
+
+### 0.6.0 release evidence
+
+- Functional source commit (`F`):
+  `b1168fc2d2801440dd823a80da257e0a6cee7d74`.
+- Catalog commit (`C`):
+  `e747155c4ed232b1960d5e318e87522578103c2b`.
+- Documentation is maintained after `F` and `C`; final commit and public CI
+  evidence are recorded only after the independent review and push.
+- Local proof required before delivery: `./scripts/check`, `./scripts/test`,
+  `./scripts/doctor`, both package builders, secret scan, and an independent
+  read-only review. Windows PowerShell execution is unavailable on this host;
+  the Windows native matrix remains a public CI proof obligation.
+
 ## Release candidate — 0.5.0
 
 - [x] **Private phone intake keeps plaintext outside the agent protocol.**

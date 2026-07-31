@@ -4,7 +4,8 @@
 
 | Version | Status |
 | --- | --- |
-| `0.5.0` | Current stable source release; macOS, Windows, desktop Linux, and optional private phone intake |
+| `0.6.0` | Current stable source release; macOS, Windows, desktop Linux, exact-command approvals, rotation, and optional private phone intake |
+| `0.5.0` | Supported for critical security fixes |
 | `0.4.2` | Supported for critical security fixes |
 | `0.4.1` | Supported for critical security fixes |
 | `0.3.x` | Supported for critical security fixes |

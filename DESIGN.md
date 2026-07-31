@@ -63,7 +63,23 @@ removes the Tailscale Serve route.
 The approval window shows risk class, purpose, friendly name, variable,
 description, canonical executable, SHA-256, arguments, working directory,
 environment scope, and interpreter entrypoint fingerprint when applicable.
-**Allow once** is primary; **Cancel** is always available and safe.
+**Allow once** is primary. The user may instead choose **Always allow this
+exact command** for the displayed executable, arguments, working directory,
+environment scope, and interpreter entrypoint fingerprint; the rule is local,
+reviewable metadata and can be revoked. **Cancel** is always available and
+safe.
+
+### Rotate and revoke
+
+Rotation is a deliberate replacement flow for an existing named record. The
+shared per-name coordinator holds its lock while it reads the existing
+metadata, rechecks that the native value is still present, shows the
+replacement warning, and commits the new value. Native helpers reject a
+replacement that does not carry the expected-existing assertion. A successful
+rotation clears any exact-command approval rules for that name; the user must
+approve a new command if the replacement should be used. **Revoke** removes
+those local automatic-approval rules without reading or deleting the vault
+value. Removing the record remains a separate native destructive action.
 
 ### Remove
 
