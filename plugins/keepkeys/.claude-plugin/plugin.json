@@ -1,8 +1,8 @@
 {
   "name": "keepkeys",
   "displayName": "KeepKeys",
-  "version": "0.5.0",
-  "description": "Store secrets in a native OS vault from the host or a private Tailscale phone page, then approve each agent command.",
+  "version": "0.6.0",
+  "description": "Store, rotate, and use native-vault secrets with exact-command approval and no plaintext retrieval.",
   "author": {
     "name": "BarnLabs",
     "url": "https://github.com/barnlabs"

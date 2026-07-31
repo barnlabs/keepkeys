@@ -1,11 +1,11 @@
 ---
 name: keepkeys
-description: Store named secrets outside the conversation and use them through KeepKeys without returning plaintext to the agent. Use when a user asks to add, list, remove, or use a secret with KeepKeys.
+description: Store named secrets outside the conversation and use them through KeepKeys without returning plaintext to the agent. Use when a user asks to add, list, rotate, revoke, remove, or use a secret with KeepKeys.
 license: Apache-2.0
 compatibility: macOS 13+, Windows 10/11, or desktop Linux; Node.js 18+ and the platform prerequisites documented in INSTALL.md.
 metadata:
   author: BarnLabs
-  version: "0.5.0"
+  version: "0.6.0"
 ---
 
 # KeepKeys
@@ -28,11 +28,15 @@ KeepKeys gives the agent **use** of a local secret, not its plaintext value.
 
 1. If the provider and intended use are unclear, ask only for that non-secret
    context. Never ask for the credential value.
-2. Research the credential before opening KeepKeys. Prefer AI-readable official
-   documentation such as `llms.txt`, OpenAPI specifications, plain-text API
-   references, or official SDK documentation. If none is available, use the
-   provider's official human-readable credential or API documentation. Use one
-   to three official HTTPS links and do not invent URLs.
+2. Research the credential before opening KeepKeys. Use the available search or
+   web-search tool to find the provider's official documentation, then inspect
+   the official result enough to confirm that it explains the credential's
+   purpose or use. Prefer AI-readable official documentation such as
+   `llms.txt`, OpenAPI specifications, plain-text API references, or official
+   SDK documentation. If none is available, use the provider's official
+   human-readable credential or API documentation. Use one to three official
+   HTTPS links, preserve the exact canonical URLs found by search, and never
+   invent or substitute a third-party guide.
 3. Choose the short friendly name, uppercase environment-variable name, useful
    one-line description, provider, and documentation links. These are
    agent-owned metadata; never ask the user to type or edit them.
@@ -46,6 +50,11 @@ KeepKeys gives the agent **use** of a local secret, not its plaintext value.
    only when the native Store window is ready and click immediately.
 6. Report only the success or cancellation result. Never ask for the value
    before or after the tool call.
+
+When a search tool cannot find an official source, stop before storing and ask
+only for the provider or intended non-secret use needed to search again. Do not
+guess a documentation URL. Documentation links are durable metadata shown to a
+future reviewer; they are not a place to put a credential, token, or auth code.
 
 ## Store from a phone
 
@@ -81,6 +90,22 @@ BarnLabs as a fallback.
 4. Treat output marked `[REDACTED BY KEEPKEYS]` as intentionally unavailable. Never try to reconstruct or encode the secret.
 5. A target program and its descendants receive the secret. Use only a target the user intends to trust for this task.
 
+### Always allow
+
+- The native approval window offers **Allow once** and **Always allow this exact command**.
+- Always-allow is never a broad name-based bypass. It matches the exact purpose,
+  canonical executable path, executable SHA-256 fingerprint, argument array,
+  working directory, and interpreter entrypoint fingerprint when present.
+- The rule stores metadata only in the operating-system vault. It never stores
+  or returns the protected value, and a mismatch or changed fingerprint shows
+  the approval window again.
+- Use `keepkeys_revoke` when the user wants automatic approvals disabled. It
+  requires native confirmation and reports only the number of rules removed.
+- `keepkeys_rotate` reuses the existing reviewed metadata, opens the native
+  Paste & Store flow for the replacement, and clears old exact-command rules
+  when the replacement succeeds. Rotation never accepts a value in the tool
+  call.
+
 ## List and remove
 
 - `keepkeys_list` returns friendly names, variable names, descriptions,
@@ -89,10 +114,24 @@ BarnLabs as a fallback.
   user asks to list KeepKeys metadata or that metadata is necessary to complete
   the user's current authorized task.
 - `keepkeys_remove` opens a native destructive-action confirmation. Use it only when the user asks to delete that named secret.
+- `keepkeys_rotate` opens the native replacement flow for one existing name and clears its old automatic approvals after a successful replacement.
+- `keepkeys_revoke` disables exact-command automatic approvals without deleting the credential.
 - `keepkeys_status` checks plugin/helper availability.
 - `keepkeys_doctor` performs a temporary native-vault round trip with a generated test value and removes it; it never uses a user secret.
 
 If KeepKeys is unavailable or unsupported, report the exact setup problem. Do not substitute a less safe storage path.
+
+## Cross-device use
+
+KeepKeys supports a deliberate phone-to-host transfer, not silent background
+vault replication. `keepkeys_store_from_phone` uses a one-use, ten-minute,
+tailnet-only Tailscale Serve page bound to the host's loopback service. It must
+use private Serve, never Funnel or a public relay. Give the returned link to the
+user without opening, fetching, previewing, or testing it; the user completes
+Paste & Store on the authenticated phone. The page is torn down after success,
+expiry, cancellation, or failure. This boundary prevents a credential value
+from being copied to every device or from becoming agent-readable just because
+devices share a tailnet.
 
 ## Skills-only distribution fallback
 
@@ -108,6 +147,8 @@ A skills-only distribution may omit local MCP configuration. On macOS, Windows, 
    - store: `store --name NAME --variable VARIABLE --description DESCRIPTION --provider PROVIDER --documentation-url URL [--documentation-url URL ...]`
    - store from phone: `portal-store --name NAME --variable VARIABLE --description DESCRIPTION --provider PROVIDER --documentation-url URL [--documentation-url URL ...]`
    - list: `list`
+   - rotate: `rotate --name NAME`
+   - revoke automatic approvals: `revoke --name NAME`
    - remove: `remove --name NAME`
    - status: `status`
    - doctor: `doctor`

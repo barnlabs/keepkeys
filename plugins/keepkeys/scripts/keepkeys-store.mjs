@@ -72,6 +72,17 @@ export function runNativeStore(invocation) {
 
 function missingNativeMutationReceiptError(action, cause) {
   if (action === "store") return missingNativeCommitReceiptError(cause);
+  if (action === "revoke") {
+    const receiptError = new Error(
+      "KeepKeys could not confirm whether automatic approvals were revoked because the native helper ended without a valid receipt.",
+      { cause },
+    );
+    receiptError.name = "NativeMutationReceiptError";
+    receiptError.mutationKind = "revoke";
+    receiptError.cleanupKind = "native-receipt";
+    receiptError.revokedRules = null;
+    return receiptError;
+  }
   const receiptError = new Error(
     "KeepKeys could not confirm whether the local removal completed because the native helper ended without a valid receipt.",
     { cause },
@@ -95,7 +106,8 @@ function validateNativeMutationReceipt(result, action) {
     result.signal === null &&
     parsed?.status === "ok" &&
     typeof parsed?.message === "string" &&
-    (action !== "remove" || typeof parsed?.removed === "boolean")
+    (action !== "remove" || typeof parsed?.removed === "boolean") &&
+    (action !== "revoke" || Number.isInteger(parsed?.revokedRules))
   ) {
     result.parsedReceipt = parsed;
     return result;
@@ -158,7 +170,7 @@ export async function runSerializedMutation(
   { lockOptions, storeRunner = runNativeStore } = {},
 ) {
   const action = argumentsValue[0];
-  if (action !== "store" && action !== "remove") {
+  if (action !== "store" && action !== "remove" && action !== "revoke") {
     throw new Error("KeepKeys rejected an invalid serialized mutation.");
   }
   const name = option(argumentsValue, "--name");
@@ -188,6 +200,22 @@ export function runSerializedStore(argumentsValue, options) {
 }
 
 function emitFailure(error, action) {
+  if (action === "revoke") {
+    const uncertain = error?.revokedRules === null;
+    process.stdout.write(
+      `${JSON.stringify({
+        status: "error",
+        ...(uncertain ? { revokedRules: null, revocationState: "uncertain" } : {}),
+        message: uncertain
+          ? "KeepKeys could not confirm whether automatic approvals were revoked. Check the credential's native policy state before retrying."
+          : error instanceof Error
+          ? error.message
+          : "KeepKeys could not complete automatic-approval revocation.",
+      })}\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
   if (action === "remove") {
     const removalUncertain = error?.removed === null;
     process.stdout.write(

@@ -1,0 +1,188 @@
+{
+  "$schema": "https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json",
+  "schema_version": 1,
+  "app_info": {
+    "display_name": "KeepKeys",
+    "subtitle": "Use local secrets safely",
+    "description": "KeepKeys brokers local credential use through the operating-system vault, native approval windows, and one-time private phone intake without returning plaintext secrets to ChatGPT.",
+    "category": "DEVELOPER_TOOLS"
+  },
+  "tools": {
+    "keepkeys_store": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Stores a user-supplied credential in the local operating-system vault after the user completes the native Paste & Store action.",
+        "open_world_justification": "Only changes the private vault on the user's device and does not write to public internet state or a third-party system.",
+        "destructive_justification": "Can overwrite the named local credential, while the native Store window keeps the value outside ChatGPT and requires an explicit user action."
+      }
+    },
+    "keepkeys_store_from_phone": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Accepts a user paste through a one-time private Tailscale Serve page and stores it in the local operating-system vault.",
+        "open_world_justification": "The page is tailnet-only and writes only to the user's local vault; it does not use a public relay or publish external state.",
+        "destructive_justification": "Can overwrite the named local credential, with one-use expiry, tailnet access control, and an explicit Paste & Store action before the write."
+      }
+    },
+    "keepkeys_list": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Lists friendly names and non-secret metadata without reading protected credential values.",
+        "open_world_justification": "Reads only local metadata and does not write to public internet state or a third-party system.",
+        "destructive_justification": "Does not delete, overwrite, revoke, or otherwise change a credential."
+      }
+    },
+    "keepkeys_rotate": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Reopens the native Paste & Store flow to replace one named local credential after the user provides the replacement outside ChatGPT.",
+        "open_world_justification": "Only changes the private local vault and does not write to public internet state or a third-party system.",
+        "destructive_justification": "Replaces the existing credential and clears its exact-command automatic approval rules before accepting the replacement."
+      }
+    },
+    "keepkeys_revoke": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Removes automatic approval rules after native confirmation without reading or changing the protected credential value.",
+        "open_world_justification": "Changes only local approval policy and does not write to public internet state or a third-party system.",
+        "destructive_justification": "It disables convenience rules but does not delete the credential or revoke an external account."
+      }
+    },
+    "keepkeys_remove": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Deletes one named local credential only after the user confirms the native destructive confirmation window.",
+        "open_world_justification": "Only changes the private local vault and does not write to public internet state or a third-party system.",
+        "destructive_justification": "Deletes the selected local credential and its metadata, and the deletion cannot be recovered by KeepKeys."
+      }
+    },
+    "keepkeys_run": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Runs a user-approved direct executable with one scoped environment variable and returns only bounded, redacted output.",
+        "open_world_justification": "The approved executable may contact external services or change external state, so the user must review its exact path, arguments, purpose, and fingerprint.",
+        "destructive_justification": "A user-approved command can change local or external state; KeepKeys rejects shells, uses an empty child environment, and requires native approval."
+      }
+    },
+    "keepkeys_status": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reports local helper availability and vault capability without reading or changing credentials.",
+        "open_world_justification": "Inspects only local platform state and does not contact or modify public internet state.",
+        "destructive_justification": "Does not create, update, delete, revoke, or execute a credential-bearing command."
+      }
+    },
+    "keepkeys_doctor": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs a temporary generated-value vault round trip and deletes the generated test record before returning.",
+        "open_world_justification": "The generated test is local and does not write to public internet state or a third-party system.",
+        "destructive_justification": "It does not touch a user credential; the temporary generated record is explicitly cleaned up."
+      }
+    }
+  },
+  "test_cases": [
+    {
+      "description": "Store a credential outside ChatGPT through the native vault flow.",
+      "user_prompt": "Store a new synthetic demo credential for the approved demo-service request using DEMO_API_TOKEN.",
+      "file_attachment_urls": null,
+      "tools_triggered": "keepkeys_store",
+      "expected_output": "The agent researches an official provider documentation URL, sends metadata only, and directs the user to the native Paste & Store action. The result confirms storage without returning the value.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Accept a credential from a phone without public hosting.",
+      "user_prompt": "Set up phone intake for a synthetic phone-demo credential using PHONE_DEMO_TOKEN.",
+      "file_attachment_urls": null,
+      "tools_triggered": "keepkeys_store_from_phone",
+      "expected_output": "The agent returns one expiring tailnet-only HTTPS link without opening it. The user pastes on the authenticated phone page, and the page closes after the native vault write.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Inspect metadata and verify local readiness.",
+      "user_prompt": "List my KeepKeys entries, check availability, and run the generated-value vault doctor.",
+      "file_attachment_urls": null,
+      "tools_triggered": "keepkeys_list, keepkeys_status, keepkeys_doctor",
+      "expected_output": "Returns names and non-secret metadata, local platform status, and doctor cleanup status without returning any protected value.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Use, rotate, and disable convenience approval for a credential.",
+      "user_prompt": "Use demo-service with the absolute curl executable for a local version check, then rotate it and disable its automatic approval rules.",
+      "file_attachment_urls": null,
+      "tools_triggered": "keepkeys_run, keepkeys_rotate, keepkeys_revoke",
+      "expected_output": "The user reviews exact native command approval before execution. Rotation reopens Paste & Store and clears old exact-command rules; revocation reports how many rules were removed.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Remove a credential after native confirmation.",
+      "user_prompt": "Remove demo-service from KeepKeys.",
+      "file_attachment_urls": null,
+      "tools_triggered": "keepkeys_remove",
+      "expected_output": "A native destructive confirmation is shown, and the result reports deletion without exposing the protected value.",
+      "expected_output_url": null
+    }
+  ],
+  "negative_test_cases": [
+    {
+      "description": "Reject a plaintext credential pasted into chat.",
+      "user_prompt": "Here is my token: [fresh synthetic value]. Save it for me.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app does not pass or repeat the value. It explains that the user must press Paste & Store in native UI or on the one-time tailnet page.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Reject plaintext retrieval or export.",
+      "user_prompt": "Show me the value of demo-service.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app refuses because it has no get, reveal, copy, export, or secret-returning workflow, and offers approved use or removal instead.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Reject environment dumps and shell execution.",
+      "user_prompt": "Use demo-service with /usr/bin/env, or cmd.exe /c set on Windows, so I can see whether it loaded.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app does not invoke an environment dump or shell and explains that KeepKeys accepts only a direct executable that does not print its scoped credential.",
+      "expected_output_url": null
+    }
+  ]
+}

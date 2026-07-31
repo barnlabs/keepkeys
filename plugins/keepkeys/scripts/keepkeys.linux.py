@@ -24,12 +24,15 @@ import threading
 from typing import Any, NoReturn
 from urllib.parse import quote, urlsplit
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 METADATA_SERVICE = "net.barnlabs.keepkeys.metadata"
 SECRET_SERVICE = "net.barnlabs.keepkeys.secret"
 LABEL_PREFIX_V1 = "KeepKeys|v1|"
 LABEL_PREFIX_V2 = "KeepKeys|v2|"
+LABEL_PREFIX_V3 = "KeepKeys|v3|"
 MAX_SECRET_BYTES = 2_048
+MAX_ALLOW_RULES = 8
+MAX_ALLOW_RULE_BYTES = 12_288
 PORTAL_CAPABILITY_BYTES = 32
 MAX_CAPTURED_BYTES = 1_048_576
 OMITTED_OUTPUT = (
@@ -123,6 +126,25 @@ class Metadata:
     description: str
     provider: str = ""
     documentation_urls: tuple[str, ...] = ()
+    allow_rules: tuple["AllowRule", ...] = ()
+
+
+@dataclass(frozen=True)
+class AllowRule:
+    """A metadata-only grant for one immutable command identity."""
+
+    name: str
+    variable: str
+    description: str
+    provider: str
+    documentation_urls: tuple[str, ...]
+    purpose: str
+    program: str
+    fingerprint: str
+    arguments: tuple[str, ...]
+    cwd: str | None
+    entrypoint: str | None
+    entrypoint_fingerprint: str | None
 
 
 @dataclass(frozen=True)
@@ -197,6 +219,54 @@ def valid_purpose(value: str) -> bool:
     return valid_description(value)
 
 
+def valid_sha256(value: str) -> bool:
+    return bool(re.fullmatch(r"[a-f0-9]{64}", value))
+
+
+def allow_rule_payload(rule: AllowRule) -> dict[str, Any]:
+    return {
+        "name": rule.name,
+        "variable": rule.variable,
+        "description": rule.description,
+        "provider": rule.provider,
+        "documentationUrls": list(rule.documentation_urls),
+        "purpose": rule.purpose,
+        "program": rule.program,
+        "fingerprint": rule.fingerprint,
+        "arguments": list(rule.arguments),
+        "cwd": rule.cwd,
+        "entrypoint": rule.entrypoint,
+        "entrypointFingerprint": rule.entrypoint_fingerprint,
+    }
+
+
+def validate_allow_rule(rule: AllowRule) -> None:
+    size = len(
+        json.dumps(allow_rule_payload(rule), separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    )
+    if (
+        not valid_name(rule.name)
+        or not valid_variable(rule.variable)
+        or not valid_description(rule.description)
+        or not valid_provider(rule.provider)
+        or not 1 <= len(rule.documentation_urls) <= 3
+        or len(set(rule.documentation_urls)) != len(rule.documentation_urls)
+        or sum(len(url.encode("utf-8")) for url in rule.documentation_urls) > 1_800
+        or not all(valid_documentation_url(url) for url in rule.documentation_urls)
+        or not valid_purpose(rule.purpose)
+        or not rule.program.startswith("/")
+        or any(ord(character) < 32 for character in rule.program)
+        or not valid_sha256(rule.fingerprint)
+        or len(rule.arguments) > 64
+        or any(len(value.encode("utf-8")) > 4_096 or any(ord(character) < 32 for character in value) for value in rule.arguments)
+        or (rule.cwd is not None and (not rule.cwd.startswith("/") or any(ord(character) < 32 for character in rule.cwd)))
+        or (rule.entrypoint is None) != (rule.entrypoint_fingerprint is None)
+        or (rule.entrypoint is not None and (not rule.entrypoint.startswith("/") or any(ord(character) < 32 for character in rule.entrypoint) or not valid_sha256(rule.entrypoint_fingerprint or "")))
+        or size > MAX_ALLOW_RULE_BYTES
+    ):
+        raise KeepKeysError("KeepKeys persistent allow rule is invalid.")
+
+
 def validate_secret(value: str) -> None:
     size = len(value.encode("utf-8"))
     if size < 8:
@@ -221,6 +291,8 @@ def validate_metadata(metadata: Metadata, *, allow_legacy: bool = False) -> None
     if not valid_description(metadata.description):
         raise KeepKeysError("Use a one-line description of at most 240 UTF-8 bytes.")
     if allow_legacy and not metadata.provider and not metadata.documentation_urls:
+        if metadata.allow_rules:
+            raise KeepKeysError("Legacy metadata cannot contain persistent allow rules.")
         return
     if not valid_provider(metadata.provider):
         raise KeepKeysError("Use a visible provider name of at most 80 UTF-8 bytes.")
@@ -233,6 +305,12 @@ def validate_metadata(metadata: Metadata, *, allow_legacy: bool = False) -> None
         raise KeepKeysError(
             "Use one to three distinct official HTTPS documentation links."
         )
+    if len(metadata.allow_rules) > MAX_ALLOW_RULES:
+        raise KeepKeysError("KeepKeys permits at most eight persistent allow rules.")
+    if len(set(metadata.allow_rules)) != len(metadata.allow_rules):
+        raise KeepKeysError("KeepKeys persistent allow rules must be distinct.")
+    for rule in metadata.allow_rules:
+        validate_allow_rule(rule)
 
 
 def encode_label(metadata: Metadata, *, legacy: bool = False) -> str:
@@ -249,39 +327,70 @@ def encode_label(metadata: Metadata, *, legacy: bool = False) -> str:
         ).encode("utf-8")
         encoded = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
         return LABEL_PREFIX_V1 + encoded
-    payload = json.dumps(
-        {
+    record = {
             "name": metadata.name,
             "variable": metadata.variable,
             "description": metadata.description,
             "provider": metadata.provider,
             "documentationUrls": list(metadata.documentation_urls),
-        },
+    }
+    prefix = LABEL_PREFIX_V2
+    if metadata.allow_rules:
+        record["allowRules"] = [allow_rule_payload(rule) for rule in metadata.allow_rules]
+        prefix = LABEL_PREFIX_V3
+    payload = json.dumps(
+        record,
         separators=(",", ":"),
         ensure_ascii=False,
     ).encode("utf-8")
     encoded = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
-    return LABEL_PREFIX_V2 + encoded
+    return prefix + encoded
 
 
 def decode_label(label: str) -> Metadata | None:
-    if label.startswith(LABEL_PREFIX_V2):
+    if label.startswith(LABEL_PREFIX_V3):
+        encoded = label[len(LABEL_PREFIX_V3) :]
+        legacy = False
+        rules_allowed = True
+    elif label.startswith(LABEL_PREFIX_V2):
         encoded = label[len(LABEL_PREFIX_V2) :]
         legacy = False
+        rules_allowed = False
     elif label.startswith(LABEL_PREFIX_V1):
         encoded = label[len(LABEL_PREFIX_V1) :]
         legacy = True
+        rules_allowed = False
     else:
         return None
     encoded += "=" * (-len(encoded) % 4)
     try:
         payload = json.loads(base64.urlsafe_b64decode(encoded).decode("utf-8"))
+        rules = tuple(
+            AllowRule(
+                name=rule["name"],
+                variable=rule["variable"],
+                description=rule["description"],
+                provider=rule["provider"],
+                documentation_urls=tuple(rule["documentationUrls"]),
+                purpose=rule["purpose"],
+                program=rule["program"],
+                fingerprint=rule["fingerprint"],
+                arguments=tuple(rule["arguments"]),
+                cwd=rule["cwd"],
+                entrypoint=rule["entrypoint"],
+                entrypoint_fingerprint=rule["entrypointFingerprint"],
+            )
+            for rule in payload.get("allowRules", [])
+        )
+        if rules and not rules_allowed:
+            return None
         metadata = Metadata(
             name=payload["name"],
             variable=payload["variable"],
             description=payload["description"],
             provider=payload.get("provider", ""),
             documentation_urls=tuple(payload.get("documentationUrls", [])),
+            allow_rules=rules,
         )
         validate_metadata(metadata, allow_legacy=legacy)
         return metadata
@@ -813,14 +922,70 @@ class BrandedUI:
         self.root.destroy()
         return result[0]
 
-    def approve(self, request: RunRequest, metadata: Metadata) -> bool:
+    def confirm_revoke(self, metadata: Metadata) -> bool:
         result = [False]
+        window = self._window("KeepKeys - Disable automatic approvals", 620, 420)
+        self._header(
+            window,
+            "Approval policy",
+            f"Disable automatic approvals for '{metadata.name}'?",
+            f"This removes {len(metadata.allow_rules)} exact-command rule(s). Future uses will show the native approval window again.",
+        )
+        body = self.tk.Frame(window, bg=self.paper, padx=26, pady=20)
+        body.pack(fill="both", expand=True)
+        self.tk.Label(
+            body,
+            text=f"{metadata.variable}\n{metadata.description}",
+            bg="white",
+            fg=self.night,
+            justify="left",
+            anchor="w",
+            padx=16,
+            pady=14,
+            relief="solid",
+            borderwidth=1,
+        ).pack(fill="x")
+        buttons = self.tk.Frame(body, bg=self.paper)
+        buttons.pack(fill="x", side="bottom")
+
+        def finish(value: bool) -> None:
+            result[0] = value
+            window.destroy()
+
+        self.tk.Button(
+            buttons,
+            text="Cancel",
+            command=lambda: finish(False),
+            bg="#e8e2d7",
+            fg=self.night,
+            relief="flat",
+            padx=18,
+            pady=9,
+        ).pack(side="right")
+        self.tk.Button(
+            buttons,
+            text="Disable automatic approvals",
+            command=lambda: finish(True),
+            bg=self.brass,
+            fg=self.night,
+            relief="flat",
+            padx=18,
+            pady=9,
+        ).pack(side="right", padx=(0, 10))
+        window.bind("<Escape>", lambda _event: finish(False))
+        window.grab_set()
+        self.root.wait_window(window)
+        self.root.destroy()
+        return result[0]
+
+    def approve(self, request: RunRequest, metadata: Metadata) -> str:
+        result = ["cancel"]
         window = self._window("KeepKeys — Approve secret use", 720, 650)
         self._header(
             window,
             request.risk,
             f"Allow this command to use “{request.name}”?",
-            "Approval is one-time. The executable and its child processes can read the secret.",
+            "Allow once is one-time. Always allow saves only this exact command identity.",
         )
         body = self.tk.Frame(window, bg=self.paper, padx=26, pady=18)
         body.pack(fill="both", expand=True)
@@ -876,14 +1041,14 @@ class BrandedUI:
         buttons = self.tk.Frame(body, bg=self.paper)
         buttons.pack(fill="x", pady=(14, 0))
 
-        def finish(value: bool) -> None:
+        def finish(value: str) -> None:
             result[0] = value
             window.destroy()
 
         self.tk.Button(
             buttons,
             text="Cancel",
-            command=lambda: finish(False),
+            command=lambda: finish("cancel"),
             bg="#e8e2d7",
             fg=self.night,
             relief="flat",
@@ -893,14 +1058,24 @@ class BrandedUI:
         self.tk.Button(
             buttons,
             text="Allow once",
-            command=lambda: finish(True),
+            command=lambda: finish("once"),
             bg=self.ember,
             fg="white",
             relief="flat",
             padx=18,
             pady=9,
         ).pack(side="right", padx=(0, 10))
-        window.bind("<Escape>", lambda _event: finish(False))
+        self.tk.Button(
+            buttons,
+            text="Always allow this exact command",
+            command=lambda: finish("always"),
+            bg=self.brass,
+            fg=self.night,
+            relief="flat",
+            padx=18,
+            pady=9,
+        ).pack(side="right", padx=(0, 10))
+        window.bind("<Escape>", lambda _event: finish("cancel"))
         window.grab_set()
         self.root.wait_window(window)
         self.root.destroy()
@@ -991,6 +1166,43 @@ def make_run_request(
         entrypoint=entrypoint,
         entrypoint_fingerprint=entrypoint_fingerprint,
     )
+
+
+def allow_rule_for(request: RunRequest, metadata: Metadata) -> AllowRule:
+    return AllowRule(
+        name=metadata.name,
+        variable=metadata.variable,
+        description=metadata.description,
+        provider=metadata.provider,
+        documentation_urls=metadata.documentation_urls,
+        purpose=request.purpose,
+        program=str(request.program),
+        fingerprint=request.fingerprint,
+        arguments=tuple(request.arguments),
+        cwd=str(request.cwd) if request.cwd else None,
+        entrypoint=str(request.entrypoint) if request.entrypoint else None,
+        entrypoint_fingerprint=request.entrypoint_fingerprint,
+    )
+
+
+def matching_allow_rule(request: RunRequest, metadata: Metadata) -> bool:
+    return allow_rule_for(request, metadata) in metadata.allow_rules
+
+
+def metadata_with_allow_rule(metadata: Metadata, rule: AllowRule) -> Metadata:
+    rules = metadata.allow_rules
+    if rule not in rules:
+        rules = (*rules, rule)
+    updated = Metadata(
+        name=metadata.name,
+        variable=metadata.variable,
+        description=metadata.description,
+        provider=metadata.provider,
+        documentation_urls=metadata.documentation_urls,
+        allow_rules=rules,
+    )
+    validate_metadata(updated)
+    return updated
 
 
 def redaction_patterns(secret: str) -> list[str]:
@@ -1156,6 +1368,28 @@ def action_store(arguments: list[str]) -> dict[str, Any]:
         return {"status": "cancelled", "message": "Secret storage was cancelled."}
     final_metadata, secret = entered
     return store_record(final_metadata, secret)
+
+
+def action_rotate(arguments: list[str]) -> dict[str, Any]:
+    name = require_option(arguments, "--name")
+    if not valid_name(name):
+        raise KeepKeysError("The requested KeepKeys name is invalid.")
+    matches = search_metadata(name)
+    if not matches:
+        raise KeepKeysError(f"No KeepKeys secret is stored as '{name}'.")
+    metadata = matches[0]
+    rotation_metadata = Metadata(
+        name=metadata.name,
+        variable=metadata.variable,
+        description=metadata.description,
+        provider=metadata.provider,
+        documentation_urls=metadata.documentation_urls,
+    )
+    entered = BrandedUI().store(rotation_metadata)
+    if entered is None:
+        return {"status": "cancelled", "message": "Secret rotation was cancelled."}
+    final_metadata, secret = entered
+    return store_record(final_metadata, secret, expected_existing=True)
 
 
 def store_record(
@@ -1461,6 +1695,49 @@ def action_remove(arguments: list[str]) -> dict[str, Any]:
     }
 
 
+def action_revoke(arguments: list[str]) -> dict[str, Any]:
+    name = require_option(arguments, "--name")
+    if not valid_name(name):
+        raise KeepKeysError("The requested KeepKeys name is invalid.")
+    matches = search_metadata(name)
+    if not matches:
+        return {
+            "status": "ok",
+            "message": f"No KeepKeys item named '{name}' exists.",
+            "revokedRules": 0,
+        }
+    metadata = matches[0]
+    if not metadata.allow_rules:
+        return {
+            "status": "ok",
+            "message": f"No always-allow rules are stored for '{name}'.",
+            "revokedRules": 0,
+        }
+    if not BrandedUI().confirm_revoke(metadata):
+        return {
+            "status": "cancelled",
+            "message": "Always-allow revocation was cancelled.",
+        }
+    current = search_metadata(name)
+    if not current or current[0] != metadata:
+        raise KeepKeysError(
+            "The secret metadata changed before approval rules could be revoked. Try again."
+        )
+    cleared = Metadata(
+        name=metadata.name,
+        variable=metadata.variable,
+        description=metadata.description,
+        provider=metadata.provider,
+        documentation_urls=metadata.documentation_urls,
+    )
+    store_metadata(cleared)
+    return {
+        "status": "ok",
+        "message": f"Disabled automatic approvals for '{name}'.",
+        "revokedRules": len(metadata.allow_rules),
+    }
+
+
 def action_run(arguments: list[str]) -> dict[str, Any]:
     try:
         separator = arguments.index("--")
@@ -1481,8 +1758,23 @@ def action_run(arguments: list[str]) -> dict[str, Any]:
     if not matches:
         raise KeepKeysError(f"No KeepKeys secret is stored as '{request.name}'.")
     metadata = matches[0]
-    if not BrandedUI().approve(request, metadata):
+    if matching_allow_rule(request, metadata):
+        decision = "always"
+    else:
+        decision = BrandedUI().approve(request, metadata)
+    if decision == "cancel":
         return {"status": "cancelled", "message": "Command use was cancelled."}
+    if decision not in {"once", "always"}:
+        raise KeepKeysError("KeepKeys received an invalid approval decision.")
+    refreshed = search_metadata(request.name)
+    if not refreshed or refreshed[0] != metadata:
+        raise KeepKeysError(
+            "The secret metadata changed after approval. KeepKeys refused to run."
+        )
+    if decision == "always" and not matching_allow_rule(request, metadata):
+        # Store only metadata after explicit UI approval; a rotation replaces this with no rules.
+        metadata = metadata_with_allow_rule(metadata, allow_rule_for(request, metadata))
+        store_metadata(metadata)
     secret = lookup_secret(request.name)
     try:
         refreshed = search_metadata(request.name)
@@ -1599,7 +1891,7 @@ def action_self_test() -> dict[str, Any]:
 
 def main(arguments: list[str]) -> None:
     if not arguments:
-        fail("Usage: keepkeys <store|list|remove|run|status|doctor|--self-test>")
+        fail("Usage: keepkeys <store|rotate|revoke|list|remove|run|status|doctor|--self-test>")
     action, rest = arguments[0], arguments[1:]
     try:
         if action == "store":
@@ -1609,6 +1901,18 @@ def main(arguments: list[str]) -> None:
                     "per-name coordinator."
                 )
             result = action_store(rest)
+        elif action == "rotate":
+            if os.environ.pop("KEEPKEYS_SERIALIZED_MUTATION", "") != "1":
+                raise KeepKeysError(
+                    "KeepKeys rotate actions must use the shared per-name coordinator."
+                )
+            result = action_rotate(rest)
+        elif action == "revoke":
+            if os.environ.pop("KEEPKEYS_SERIALIZED_MUTATION", "") != "1":
+                raise KeepKeysError(
+                    "KeepKeys revoke actions must use the shared per-name coordinator."
+                )
+            result = action_revoke(rest)
         elif action == "_portal-commit":
             result = action_portal_commit(rest)
         elif action == "list":
@@ -1628,7 +1932,7 @@ def main(arguments: list[str]) -> None:
         elif action == "remove":
             if os.environ.pop("KEEPKEYS_SERIALIZED_MUTATION", "") != "1":
                 raise KeepKeysError(
-                    "KeepKeys store and remove actions must use the shared "
+                    "KeepKeys store, rotate, revoke, and remove actions must use the shared "
                     "per-name coordinator."
                 )
             result = action_remove(rest)

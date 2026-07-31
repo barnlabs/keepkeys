@@ -4,7 +4,7 @@ import Darwin
 import Foundation
 import Security
 
-private let keepKeysVersion = "0.5.0"
+private let keepKeysVersion = "0.6.0"
 private let keychainService = "net.barnlabs.keepkeys"
 private let maximumSecretBytes = 2_048
 private let maximumCapturedBytes = 1_048_576
@@ -18,25 +18,39 @@ private struct KeepKeysFailure: LocalizedError {
     var errorDescription: String? { message }
 }
 
+private struct ApprovalRule: Codable, Equatable {
+    let version: Int
+    let purpose: String
+    let program: String
+    let fingerprint: String
+    let arguments: [String]
+    let workingDirectory: String?
+    let entrypoint: String?
+    let entrypointFingerprint: String?
+}
+
 private struct EntryMetadata: Codable, Equatable {
     let version: Int
     let variable: String
     let description: String
     let provider: String?
     let documentationURLs: [String]?
+    let allowRules: [ApprovalRule]
 
     init(
         version: Int,
         variable: String,
         description: String,
         provider: String? = nil,
-        documentationURLs: [String]? = nil
+        documentationURLs: [String]? = nil,
+        allowRules: [ApprovalRule] = []
     ) {
         self.version = version
         self.variable = variable
         self.description = description
         self.provider = provider
         self.documentationURLs = documentationURLs
+        self.allowRules = allowRules
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -45,6 +59,7 @@ private struct EntryMetadata: Codable, Equatable {
         case description
         case provider
         case documentationURLs
+        case allowRules
     }
 
     init(from decoder: Decoder) throws {
@@ -57,6 +72,10 @@ private struct EntryMetadata: Codable, Equatable {
             [String].self,
             forKey: .documentationURLs
         )
+        allowRules = try values.decodeIfPresent(
+            [ApprovalRule].self,
+            forKey: .allowRules
+        ) ?? []
     }
 }
 
@@ -110,6 +129,12 @@ private struct RunRequest {
     let entrypoint: URL?
     let entrypointFingerprint: String?
     let risk: ExecutionRisk
+}
+
+private enum ApprovalDecision: Equatable {
+    case once
+    case always
+    case cancel
 }
 
 private func emit(_ object: [String: Any]) {
@@ -251,12 +276,52 @@ private func validDocumentationURL(_ value: String) -> Bool {
     return true
 }
 
+private func validFingerprint(_ value: String) -> Bool {
+    value.utf8.count == 64 && value.utf8.allSatisfy { byte in
+        (byte >= 48 && byte <= 57) || (byte >= 97 && byte <= 102)
+    }
+}
+
+private func validApprovalRule(_ rule: ApprovalRule) -> Bool {
+    guard rule.version == 1,
+          validDescription(rule.purpose),
+          rule.program.hasPrefix("/"),
+          !hasControlCharacters(rule.program),
+          validFingerprint(rule.fingerprint),
+          rule.arguments.count <= 64,
+          rule.arguments.allSatisfy({ $0.utf8.count <= 4_096 && !hasControlCharacters($0) })
+    else {
+        return false
+    }
+    if let workingDirectory = rule.workingDirectory,
+       (!workingDirectory.hasPrefix("/") || hasControlCharacters(workingDirectory))
+    {
+        return false
+    }
+    if let entrypoint = rule.entrypoint,
+       (!entrypoint.hasPrefix("/") || hasControlCharacters(entrypoint))
+    {
+        return false
+    }
+    if let entrypointFingerprint = rule.entrypointFingerprint,
+       !validFingerprint(entrypointFingerprint)
+    {
+        return false
+    }
+    return (rule.entrypoint == nil) == (rule.entrypointFingerprint == nil)
+}
+
 private func validMetadata(_ metadata: EntryMetadata) -> Bool {
-    guard (metadata.version == 1 || metadata.version == 2),
+    guard (metadata.version == 1 || metadata.version == 2 || metadata.version == 3),
           validVariable(metadata.variable),
           validDescription(metadata.description)
     else {
         return false
+    }
+    if metadata.version == 1 || metadata.version == 2 {
+        guard metadata.allowRules.isEmpty else {
+            return false
+        }
     }
     if metadata.version == 1 {
         return true
@@ -271,7 +336,8 @@ private func validMetadata(_ metadata: EntryMetadata) -> Bool {
     else {
         return false
     }
-    return true
+    return metadata.version == 2 ||
+        (metadata.allowRules.count <= 8 && metadata.allowRules.allSatisfy(validApprovalRule))
 }
 
 private func keychainQuery(name: String) -> [String: Any] {
@@ -307,11 +373,12 @@ private enum KeychainStore {
     ) throws {
         try validateSecret(secret)
         let metadata = EntryMetadata(
-            version: 2,
+            version: 3,
             variable: variable,
             description: description,
             provider: provider,
-            documentationURLs: documentationURLs
+            documentationURLs: documentationURLs,
+            allowRules: []
         )
         guard validMetadata(metadata) else {
             throw KeepKeysFailure(message: "The agent supplied invalid KeepKeys metadata.")
@@ -468,6 +535,89 @@ private enum KeychainStore {
         }
         throw KeepKeysFailure(message: "Keychain deletion failed (OSStatus \(status)).")
     }
+
+    static func addAllowRule(
+        name: String,
+        expected: EntryMetadata,
+        rule: ApprovalRule
+    ) throws -> EntryMetadata {
+        guard expected.version != 1,
+              let provider = expected.provider,
+              let documentationURLs = expected.documentationURLs
+        else {
+            throw KeepKeysFailure(
+                message: "Always allow requires current provider documentation. Rotate this legacy key first."
+            )
+        }
+        guard validApprovalRule(rule) else {
+            throw KeepKeysFailure(message: "KeepKeys rejected an invalid exact-command allow rule.")
+        }
+        let current = try metadata(name: name)
+        guard current == expected else {
+            throw KeepKeysFailure(
+                message: "The secret metadata changed before the allow rule could be saved. Try again."
+            )
+        }
+        let existingRules = current.allowRules
+        let rules = existingRules.contains(rule) ? existingRules : existingRules + [rule]
+        guard rules.count <= 8 else {
+            throw KeepKeysFailure(
+                message: "KeepKeys already has eight exact-command allow rules for this name. Revoke unused rules first."
+            )
+        }
+        let updated = EntryMetadata(
+            version: 3,
+            variable: current.variable,
+            description: current.description,
+            provider: provider,
+            documentationURLs: documentationURLs,
+            allowRules: rules
+        )
+        guard validMetadata(updated) else {
+            throw KeepKeysFailure(message: "KeepKeys could not validate the saved allow rule.")
+        }
+        let encodedMetadata = try JSONEncoder().encode(updated)
+        let status = SecItemUpdate(
+            keychainQuery(name: name) as CFDictionary,
+            [kSecAttrGeneric as String: encodedMetadata] as CFDictionary
+        )
+        guard status == errSecSuccess else {
+            throw KeepKeysFailure(message: "Keychain policy update failed (OSStatus \(status)).")
+        }
+        return updated
+    }
+
+    static func clearAllowRules(name: String, expected: EntryMetadata) throws -> Int {
+        guard !expected.allowRules.isEmpty else { return 0 }
+        let current = try metadata(name: name)
+        guard current == expected else {
+            throw KeepKeysFailure(
+                message: "The secret metadata changed before its allow rules could be revoked. Try again."
+            )
+        }
+        guard let provider = current.provider,
+              let documentationURLs = current.documentationURLs
+        else {
+            throw KeepKeysFailure(message: "KeepKeys could not validate the current metadata.")
+        }
+        let updated = EntryMetadata(
+            version: 3,
+            variable: current.variable,
+            description: current.description,
+            provider: provider,
+            documentationURLs: documentationURLs,
+            allowRules: []
+        )
+        let encodedMetadata = try JSONEncoder().encode(updated)
+        let status = SecItemUpdate(
+            keychainQuery(name: name) as CFDictionary,
+            [kSecAttrGeneric as String: encodedMetadata] as CFDictionary
+        )
+        guard status == errSecSuccess else {
+            throw KeepKeysFailure(message: "Keychain policy update failed (OSStatus \(status)).")
+        }
+        return current.allowRules.count
+    }
 }
 
 private enum Brand {
@@ -568,11 +718,12 @@ private func storeInteractively(
         $0.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     let metadata = EntryMetadata(
-        version: 2,
+        version: 3,
         variable: variable,
         description: description,
         provider: provider,
-        documentationURLs: documentationURLs
+        documentationURLs: documentationURLs,
+        allowRules: []
     )
     guard validName(name), validMetadata(metadata) else {
         throw KeepKeysFailure(
@@ -898,11 +1049,12 @@ private func storeFromPortal(arguments: [String]) throws -> [String: Any] {
         $0.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     let metadata = EntryMetadata(
-        version: 2,
+        version: 3,
         variable: variable,
         description: description,
         provider: provider,
-        documentationURLs: documentationURLs
+        documentationURLs: documentationURLs,
+        allowRules: []
     )
     guard validName(name), validMetadata(metadata) else {
         throw KeepKeysFailure(message: "The agent supplied invalid KeepKeys metadata.")
@@ -1085,6 +1237,46 @@ private func removeInteractively(name: String) throws -> [String: Any] {
     return ["status": "ok", "message": "Removed '\(name)' from macOS Keychain.", "removed": true]
 }
 
+private func revokeAllowRulesInteractively(name: String) throws -> [String: Any] {
+    guard validName(name) else {
+        throw KeepKeysFailure(message: "The requested KeepKeys name is invalid.")
+    }
+    guard try KeychainStore.exists(name: name) else {
+        return [
+            "status": "ok",
+            "message": "No KeepKeys item named '\(name)' exists.",
+            "revokedRules": 0,
+        ]
+    }
+    let metadata = try KeychainStore.metadata(name: name)
+    guard !metadata.allowRules.isEmpty else {
+        return [
+            "status": "ok",
+            "message": "No always-allow rules are stored for '\(name)'.",
+            "revokedRules": 0,
+        ]
+    }
+
+    activateApplication()
+    let alert = NSAlert()
+    alert.alertStyle = .warning
+    alert.icon = loadBrandImage(named: "icon.png")
+    alert.messageText = "Disable automatic approvals for '\(name)'?"
+    alert.informativeText =
+        "This removes \(metadata.allowRules.count) exact-command rule(s). Future uses will show the native approval window again."
+    alert.addButton(withTitle: "Disable automatic approvals")
+    alert.addButton(withTitle: "Cancel")
+    guard alert.runModal() == .alertFirstButtonReturn else {
+        return ["status": "cancelled", "message": "Always-allow revocation was cancelled."]
+    }
+    let revokedRules = try KeychainStore.clearAllowRules(name: name, expected: metadata)
+    return [
+        "status": "ok",
+        "message": "Disabled automatic approvals for '\(name)'.",
+        "revokedRules": revokedRules,
+    ]
+}
+
 private func executableFingerprint(_ url: URL) throws -> String {
     let data: Data
     do {
@@ -1145,7 +1337,24 @@ private func displayArgument(_ value: String) -> String {
     return "\"\(value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\""
 }
 
-private func approveRun(_ request: RunRequest, metadata: EntryMetadata) -> Bool {
+private func approvalRule(for request: RunRequest) -> ApprovalRule {
+    ApprovalRule(
+        version: 1,
+        purpose: request.purpose,
+        program: request.program.path,
+        fingerprint: request.fingerprint,
+        arguments: request.arguments,
+        workingDirectory: request.workingDirectory?.path,
+        entrypoint: request.entrypoint?.path,
+        entrypointFingerprint: request.entrypointFingerprint
+    )
+}
+
+private func matches(_ rule: ApprovalRule, request: RunRequest) -> Bool {
+    rule == approvalRule(for: request)
+}
+
+private func approveRun(_ request: RunRequest, metadata: EntryMetadata) -> ApprovalDecision {
     activateApplication()
     let displayedArguments = request.arguments.map(displayArgument).joined(separator: " ")
     let entrypointDetails: String
@@ -1224,11 +1433,19 @@ private func approveRun(_ request: RunRequest, metadata: EntryMetadata) -> Bool 
     )
     alert.messageText = "Allow this command to use '\(request.name)'?"
     alert.informativeText =
-        "The program and any child processes can read the secret. Review every detail before allowing it."
+        "The program and any child processes can read the secret. Review every detail before allowing it. Always allow is limited to this exact fingerprinted request and is cleared by key rotation."
     alert.accessoryView = scrollView
     alert.addButton(withTitle: "Allow once")
+    alert.addButton(withTitle: "Always allow exact command")
     alert.addButton(withTitle: "Cancel")
-    return alert.runModal() == .alertFirstButtonReturn
+    switch alert.runModal() {
+    case .alertFirstButtonReturn:
+        return .once
+    case .alertSecondButtonReturn:
+        return .always
+    default:
+        return .cancel
+    }
 }
 
 private final class BoundedCapture: @unchecked Sendable {
@@ -1375,11 +1592,27 @@ private func executeProcess(_ request: RunRequest, record: inout SecretRecord) t
 }
 
 private func runApproved(_ request: RunRequest, metadata: EntryMetadata) throws -> [String: Any] {
-    guard approveRun(request, metadata: metadata) else {
+    let decision: ApprovalDecision
+    if metadata.allowRules.contains(where: { matches($0, request: request) }) {
+        decision = .once
+    } else {
+        decision = approveRun(request, metadata: metadata)
+    }
+    guard decision != .cancel else {
         return ["status": "cancelled", "message": "Command use was cancelled."]
     }
+    let approvedMetadata: EntryMetadata
+    if decision == .always {
+        approvedMetadata = try KeychainStore.addAllowRule(
+            name: request.name,
+            expected: metadata,
+            rule: approvalRule(for: request)
+        )
+    } else {
+        approvedMetadata = metadata
+    }
     var record = try KeychainStore.load(name: request.name)
-    guard record.metadata == metadata else {
+    guard record.metadata == approvedMetadata else {
         record.secret = ""
         throw KeepKeysFailure(
             message: "The secret metadata changed after approval. KeepKeys refused to run."
@@ -1615,11 +1848,12 @@ private func runSelfTests() throws -> [String: Any] {
     let environmentPrinter = URL(fileURLWithPath: "/usr/bin/env")
     var record = SecretRecord(
         metadata: EntryMetadata(
-            version: 2,
+            version: 3,
             variable: "KEEPKEYS_TEST",
             description: "Synthetic scoped-process self-test",
             provider: "BarnLabs",
-            documentationURLs: ["https://github.com/barnlabs/keepkeys"]
+            documentationURLs: ["https://github.com/barnlabs/keepkeys"],
+            allowRules: []
         ),
         secret: marker
     )
@@ -1634,6 +1868,35 @@ private func runSelfTests() throws -> [String: Any] {
         entrypointFingerprint: nil,
         risk: .routine
     )
+    let policy = approvalRule(for: request)
+    let changedRequest = RunRequest(
+        name: request.name,
+        purpose: request.purpose,
+        program: request.program,
+        arguments: ["--changed"],
+        workingDirectory: request.workingDirectory,
+        fingerprint: request.fingerprint,
+        entrypoint: request.entrypoint,
+        entrypointFingerprint: request.entrypointFingerprint,
+        risk: request.risk
+    )
+    let staleFingerprintRequest = RunRequest(
+        name: request.name,
+        purpose: request.purpose,
+        program: request.program,
+        arguments: request.arguments,
+        workingDirectory: request.workingDirectory,
+        fingerprint: String(repeating: "f", count: 64),
+        entrypoint: request.entrypoint,
+        entrypointFingerprint: request.entrypointFingerprint,
+        risk: request.risk
+    )
+    guard matches(policy, request: request),
+          !matches(policy, request: changedRequest),
+          !matches(policy, request: staleFingerprintRequest)
+    else {
+        throw KeepKeysFailure(message: "Exact-command allow policy self-test failed.")
+    }
     let processResult = try executeProcess(request, record: &record)
     guard processResult["exitCode"] as? Int == 0,
           let stdout = processResult["stdout"] as? String,
@@ -1663,7 +1926,7 @@ private func main() {
             guard ProcessInfo.processInfo.environment["KEEPKEYS_SERIALIZED_MUTATION"] == "1"
             else {
                 throw KeepKeysFailure(
-                    message: "KeepKeys store and remove actions must use the shared per-name coordinator."
+                    message: "KeepKeys store, remove, and policy actions must use the shared per-name coordinator."
                 )
             }
             unsetenv("KEEPKEYS_SERIALIZED_MUTATION")
@@ -1683,7 +1946,7 @@ private func main() {
             guard ProcessInfo.processInfo.environment["KEEPKEYS_SERIALIZED_MUTATION"] == "1"
             else {
                 throw KeepKeysFailure(
-                    message: "KeepKeys store and remove actions must use the shared per-name coordinator."
+                    message: "KeepKeys store, remove, and policy actions must use the shared per-name coordinator."
                 )
             }
             unsetenv("KEEPKEYS_SERIALIZED_MUTATION")
@@ -1692,6 +1955,19 @@ private func main() {
                 throw KeepKeysFailure(message: "Remove requires --name.")
             }
             result = try removeInteractively(name: name)
+        case "revoke":
+            guard ProcessInfo.processInfo.environment["KEEPKEYS_SERIALIZED_MUTATION"] == "1"
+            else {
+                throw KeepKeysFailure(
+                    message: "KeepKeys store, remove, and policy actions must use the shared per-name coordinator."
+                )
+            }
+            unsetenv("KEEPKEYS_SERIALIZED_MUTATION")
+            let rest = Array(args.dropFirst())
+            guard let name = try parseOption(rest, name: "--name") else {
+                throw KeepKeysFailure(message: "Revoke requires --name.")
+            }
+            result = try revokeAllowRulesInteractively(name: name)
         case "run":
             let request = try parseRun(Array(args.dropFirst()))
             let metadata = try KeychainStore.metadata(name: request.name)

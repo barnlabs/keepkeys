@@ -72,6 +72,12 @@ for (const tool of TOOLS) {
   const properties = Object.keys(tool.inputSchema.properties);
   assert.equal(properties.includes("secret"), false, `${tool.name} accepts a secret`);
   assert.equal(properties.includes("value"), false, `${tool.name} accepts a value`);
+  assert.equal(typeof tool.outputSchema, "object", `${tool.name} is missing an output schema`);
+  assert.equal(
+    /"(?:secret|value)"\s*:/.test(JSON.stringify(tool.outputSchema)),
+    false,
+    `${tool.name} output schema exposes a secret`,
+  );
 }
 
 const storeTool = TOOLS.find((tool) => tool.name === "keepkeys_store");
@@ -105,10 +111,16 @@ assert.match(skill, /^---\nname: keepkeys\n/m);
 assert.match(skill, /Never ask the user to paste, type, dictate, attach, or expose a secret in chat/);
 assert.match(skill, /Paste & Store/);
 assert.match(skill, /AI-readable official\s+documentation/);
+assert.match(skill, /search or\s+web-search tool/);
+assert.match(skill, /guess a documentation URL/);
 assert.match(
   skill,
   /Never open, fetch,\s+preview, screenshot, or test the link/,
 );
+assert.match(skill, /Always allow this exact command/);
+assert.match(skill, /keepkeys_rotate/);
+assert.match(skill, /keepkeys_revoke/);
+assert.match(skill, /not silent background\s+vault replication/);
 
 const launcher = readFileSync(resolve(pluginRoot, "scripts", "keepkeys"), "utf8");
 const source = readFileSync(resolve(pluginRoot, "scripts", "keepkeys.swift"));
@@ -449,5 +461,62 @@ for (const [constant, relative] of [
 const testCases = readFileSync(resolve(root, "submission", "test-cases.md"), "utf8");
 assert.equal((testCases.match(/^## Positive /gm) ?? []).length, 5);
 assert.equal((testCases.match(/^## Negative /gm) ?? []).length, 3);
+
+const submissionArtifact = parse(resolve(root, "chatgpt-app-submission.json"));
+assert.equal(
+  submissionArtifact.$schema,
+  "https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json",
+);
+assert.equal(submissionArtifact.schema_version, 1);
+assert.deepEqual(submissionArtifact.app_info, {
+  display_name: "KeepKeys",
+  subtitle: "Use local secrets safely",
+  description:
+    "KeepKeys brokers local credential use through the operating-system vault, native approval windows, and one-time private phone intake without returning plaintext secrets to ChatGPT.",
+  category: "DEVELOPER_TOOLS",
+});
+assert.deepEqual(
+  Object.keys(submissionArtifact.tools).sort(),
+  TOOLS.map((tool) => tool.name).sort(),
+  "submission artifact must cover every exposed tool exactly once",
+);
+for (const tool of TOOLS) {
+  const submissionTool = submissionArtifact.tools[tool.name];
+  assert.deepEqual(submissionTool.annotations, {
+    readOnlyHint: tool.annotations.readOnlyHint,
+    openWorldHint: tool.annotations.openWorldHint,
+    destructiveHint: tool.annotations.destructiveHint,
+  });
+  for (const key of [
+    "read_only_justification",
+    "open_world_justification",
+    "destructive_justification",
+  ]) {
+    assert.equal(typeof submissionTool.justifications[key], "string");
+    assert.ok(submissionTool.justifications[key].endsWith("."));
+  }
+}
+assert.equal(submissionArtifact.test_cases.length, 5);
+assert.equal(submissionArtifact.negative_test_cases.length, 3);
+for (const testCase of [
+  ...submissionArtifact.test_cases,
+  ...submissionArtifact.negative_test_cases,
+]) {
+  assert.equal(typeof testCase.description, "string");
+  assert.equal(typeof testCase.user_prompt, "string");
+  assert.equal(testCase.file_attachment_urls, null);
+  assert.equal(typeof testCase.expected_output, "string");
+  assert.equal(testCase.expected_output_url, null);
+}
+const submittedToolNames = submissionArtifact.test_cases
+  .flatMap((testCase) => testCase.tools_triggered.split(",").map((name) => name.trim()));
+assert.deepEqual(
+  [...new Set(submittedToolNames)].sort(),
+  TOOLS.map((tool) => tool.name).sort(),
+  "positive submission cases must exercise every exposed tool",
+);
+for (const testCase of submissionArtifact.negative_test_cases) {
+  assert.equal(testCase.tools_triggered, null);
+}
 
 process.stdout.write("KeepKeys plugin structure and security invariants are valid.\n");

@@ -7,9 +7,9 @@ import { fileURLToPath } from "node:url";
 
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const WINDOWS_HELPER_SHA256 =
-  "da18d09186a0868059e4cf545fae7dd239515899a86b3d66386be11f3b8c58cf";
+  "4106968a7dbc10bf88c2f4adc1aa278dd8ba19810e4067f6ad2d036cf3d5a7ad";
 const LINUX_HELPER_SHA256 =
-  "a0cfdf180c0ddf9ffe006036429d40b0425fd11cf425b14e80fa3ce181742872";
+  "2d8958bd7d9c052f7ef36ee1e3b9956a0d69da62eb15eafd863748a038253e72";
 
 function copyPresent(target, source, names) {
   for (const name of names) {
@@ -49,9 +49,20 @@ function routedInvocation(helperArguments, nativeInvocation) {
       env: nativeInvocation.env,
     };
   }
+  if (helperArguments[0] === "rotate") {
+    return {
+      command: process.execPath,
+      args: [
+        resolve(pluginRoot, "scripts", "keepkeys-rotate.mjs"),
+        ...helperArguments.slice(1),
+      ],
+      env: nativeInvocation.env,
+    };
+  }
   if (
     helperArguments[0] === "store" ||
-    helperArguments[0] === "remove"
+    helperArguments[0] === "remove" ||
+    helperArguments[0] === "revoke"
   ) {
     return {
       command: process.execPath,
@@ -224,7 +235,8 @@ export function portalCommitInvocation(
 export function nativeMutationInvocation(helperArguments, options = {}) {
   if (
     helperArguments[0] !== "store" &&
-    helperArguments[0] !== "remove"
+    helperArguments[0] !== "remove" &&
+    helperArguments[0] !== "revoke"
   ) {
     throw new Error("KeepKeys rejected an invalid serialized mutation.");
   }

@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const UPDATE_MANIFEST_URL =
   "https://raw.githubusercontent.com/barnlabs/keepkeys/main/update.json";
+export const UPDATE_MANIFEST_HOST = "raw.githubusercontent.com";
 
 const EXPECTED_KEYS = [
   "catalogCommit",
@@ -37,6 +38,11 @@ export function validateUpdateManifest(value) {
     const parsed = new URL(url);
     assert.equal(parsed.protocol, "https:");
     assert.equal(parsed.hostname, "github.com");
+    assert.equal(parsed.port, "");
+    assert.equal(parsed.username, "");
+    assert.equal(parsed.password, "");
+    assert.equal(parsed.search, "");
+    assert.equal(parsed.hash, "");
     assert.match(parsed.pathname, /^\/barnlabs\/keepkeys(?:\/|$)/);
   }
   return value;
@@ -70,6 +76,8 @@ export function updateStatus(localVersion, manifest) {
     catalogCommit: manifest.catalogCommit,
     installGuide: manifest.installGuide,
     releaseNotes: manifest.releaseNotes,
+    requiresExplicitInstall: true,
+    verification: "Review the pinned source and catalog commits before installing.",
     message:
       comparison < 0
         ? `KeepKeys ${manifest.version} is available. Review the immutable commits and install guide before updating.`
@@ -107,6 +115,11 @@ export async function fetchStableUpdate({
   timeoutMs = 10_000,
 } = {}) {
   assert.equal(typeof fetchImpl, "function", "Node.js 18 or newer is required.");
+  assert.equal(
+    Number.isInteger(timeoutMs) && timeoutMs > 0 && timeoutMs <= 60_000,
+    true,
+    "Update checks require a timeout from 1 to 60000 milliseconds.",
+  );
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -115,13 +128,19 @@ export async function fetchStableUpdate({
         Accept: "application/json",
         "User-Agent": "BarnLabs-KeepKeys-update-check",
       },
+      cache: "no-store",
       redirect: "error",
       signal: controller.signal,
     });
     assert.equal(response.ok, true, `Update server returned HTTP ${response.status}.`);
     const responseUrl = new URL(response.url || UPDATE_MANIFEST_URL);
     assert.equal(responseUrl.protocol, "https:");
-    assert.equal(responseUrl.hostname, "raw.githubusercontent.com");
+    assert.equal(responseUrl.hostname, UPDATE_MANIFEST_HOST);
+    assert.equal(responseUrl.port, "");
+    assert.equal(responseUrl.username, "");
+    assert.equal(responseUrl.password, "");
+    assert.equal(responseUrl.search, "");
+    assert.equal(responseUrl.hash, "");
     assert.equal(responseUrl.pathname, "/barnlabs/keepkeys/main/update.json");
     return validateUpdateManifest(JSON.parse(await readBoundedBody(response)));
   } finally {

@@ -34,6 +34,233 @@ class LinuxBackendTests(unittest.TestCase):
         self.assertEqual(keepkeys_linux.decode_label(label), metadata)
         self.assertNotIn("synthetic-secret-value", label)
 
+    def test_persistent_allow_rule_round_trip_contains_no_value(self) -> None:
+        metadata = keepkeys_linux.Metadata(
+            name="github-release",
+            variable="GITHUB_TOKEN",
+            description="Publishes an approved release",
+            provider="GitHub",
+            documentation_urls=("https://docs.github.com/en/rest",),
+        )
+        request = keepkeys_linux.RunRequest(
+            name="github-release",
+            purpose="Publish the approved release",
+            program=Path("/usr/bin/gh"),
+            arguments=["release", "create", "v1"],
+            cwd=Path("/tmp/project"),
+            fingerprint="a" * 64,
+            risk="NETWORK-CAPABLE EXECUTABLE",
+            entrypoint=None,
+            entrypoint_fingerprint=None,
+        )
+        stored = keepkeys_linux.metadata_with_allow_rule(
+            metadata,
+            keepkeys_linux.allow_rule_for(request, metadata),
+        )
+        label = keepkeys_linux.encode_label(stored)
+        self.assertTrue(label.startswith(keepkeys_linux.LABEL_PREFIX_V3))
+        self.assertEqual(keepkeys_linux.decode_label(label), stored)
+        self.assertNotIn("synthetic-secret-value", label)
+
+    def test_allow_rule_requires_exact_metadata_and_command_identity(self) -> None:
+        metadata = keepkeys_linux.Metadata(
+            name="demo",
+            variable="DEMO_TOKEN",
+            description="Synthetic test credential",
+            provider="Example",
+            documentation_urls=("https://docs.example.com/api",),
+        )
+        request = keepkeys_linux.RunRequest(
+            name="demo",
+            purpose="Deploy synthetic example",
+            program=Path("/usr/bin/example"),
+            arguments=["deploy", "--safe"],
+            cwd=Path("/tmp/example"),
+            fingerprint="b" * 64,
+            risk="DIRECT EXECUTABLE",
+            entrypoint=None,
+            entrypoint_fingerprint=None,
+        )
+        stored = keepkeys_linux.metadata_with_allow_rule(
+            metadata,
+            keepkeys_linux.allow_rule_for(request, metadata),
+        )
+        self.assertTrue(keepkeys_linux.matching_allow_rule(request, stored))
+        self.assertFalse(
+            keepkeys_linux.matching_allow_rule(
+                keepkeys_linux.RunRequest(
+                    **{**request.__dict__, "purpose": "Deploy a different target"}
+                ),
+                stored,
+            )
+        )
+        self.assertFalse(
+            keepkeys_linux.matching_allow_rule(
+                keepkeys_linux.RunRequest(
+                    **{**request.__dict__, "arguments": ["deploy", "--force"]}
+                ),
+                stored,
+            )
+        )
+        self.assertFalse(
+            keepkeys_linux.matching_allow_rule(
+                keepkeys_linux.RunRequest(
+                    **{**request.__dict__, "cwd": Path("/tmp/other")}
+                ),
+                stored,
+            )
+        )
+        changed_metadata = keepkeys_linux.Metadata(
+            **{**stored.__dict__, "description": "Changed credential metadata"}
+        )
+        self.assertFalse(keepkeys_linux.matching_allow_rule(request, changed_metadata))
+
+    def test_stale_fingerprint_never_matches_a_persistent_allow_rule(self) -> None:
+        metadata = keepkeys_linux.Metadata(
+            name="demo",
+            variable="DEMO_TOKEN",
+            description="Synthetic test credential",
+            provider="Example",
+            documentation_urls=("https://docs.example.com/api",),
+        )
+        approved = keepkeys_linux.RunRequest(
+            name="demo",
+            purpose="Run synthetic task",
+            program=Path("/usr/bin/example"),
+            arguments=[],
+            cwd=None,
+            fingerprint="c" * 64,
+            risk="DIRECT EXECUTABLE",
+            entrypoint=None,
+            entrypoint_fingerprint=None,
+        )
+        stored = keepkeys_linux.metadata_with_allow_rule(
+            metadata,
+            keepkeys_linux.allow_rule_for(approved, metadata),
+        )
+        stale = keepkeys_linux.RunRequest(
+            **{**approved.__dict__, "fingerprint": "d" * 64}
+        )
+        self.assertFalse(keepkeys_linux.matching_allow_rule(stale, stored))
+
+    def test_matching_allow_rule_skips_ui_but_rechecks_before_execution(self) -> None:
+        metadata = keepkeys_linux.Metadata(
+            name="demo",
+            variable="DEMO_TOKEN",
+            description="Synthetic test credential",
+            provider="Example",
+            documentation_urls=("https://docs.example.com/api",),
+        )
+        request = keepkeys_linux.RunRequest(
+            name="demo",
+            purpose="Run synthetic task",
+            program=Path("/usr/bin/example"),
+            arguments=[],
+            cwd=None,
+            fingerprint="f" * 64,
+            risk="DIRECT EXECUTABLE",
+            entrypoint=None,
+            entrypoint_fingerprint=None,
+        )
+        metadata = keepkeys_linux.metadata_with_allow_rule(
+            metadata,
+            keepkeys_linux.allow_rule_for(request, metadata),
+        )
+        with (
+            patch.object(keepkeys_linux, "make_run_request", return_value=request),
+            patch.object(keepkeys_linux, "search_metadata", return_value=[metadata]) as search_metadata,
+            patch.object(keepkeys_linux, "BrandedUI") as ui,
+            patch.object(keepkeys_linux, "lookup_secret", return_value="synthetic-secret"),
+            patch.object(keepkeys_linux, "execute", return_value={"status": "ok"}) as execute,
+        ):
+            result = keepkeys_linux.action_run(
+                ["--name", "demo", "--purpose", "Run synthetic task", "--", "/usr/bin/example"]
+            )
+        self.assertEqual(result, {"status": "ok"})
+        ui.assert_not_called()
+        self.assertEqual(search_metadata.call_count, 3)
+        execute.assert_called_once_with(request, metadata, "synthetic-secret")
+
+    def test_rotation_reuses_metadata_and_requires_existing_record(self) -> None:
+        metadata = keepkeys_linux.Metadata(
+            name="demo",
+            variable="DEMO_TOKEN",
+            description="Synthetic test credential",
+            provider="Example",
+            documentation_urls=("https://docs.example.com/api",),
+        )
+        request = keepkeys_linux.RunRequest(
+            name="demo",
+            purpose="Run synthetic task",
+            program=Path("/usr/bin/example"),
+            arguments=[],
+            cwd=None,
+            fingerprint="9" * 64,
+            risk="DIRECT EXECUTABLE",
+            entrypoint=None,
+            entrypoint_fingerprint=None,
+        )
+        stored = keepkeys_linux.metadata_with_allow_rule(
+            metadata,
+            keepkeys_linux.allow_rule_for(request, metadata),
+        )
+        with (
+            patch.object(keepkeys_linux, "search_metadata", return_value=[stored]),
+            patch.object(
+                keepkeys_linux,
+                "BrandedUI",
+            ) as ui,
+            patch.object(
+                keepkeys_linux,
+                "store_record",
+                return_value={"status": "ok", "name": "demo"},
+            ) as store_record,
+        ):
+            ui.return_value.store.return_value = (metadata, "synthetic-rotation")
+            result = keepkeys_linux.action_rotate(["--name", "demo"])
+        self.assertEqual(result, {"status": "ok", "name": "demo"})
+        store_record.assert_called_once_with(
+            metadata,
+            "synthetic-rotation",
+            expected_existing=True,
+        )
+        self.assertEqual(ui.return_value.store.call_args.args[0].allow_rules, ())
+
+    def test_revoke_clears_rules_only_after_confirmation_and_metadata_recheck(self) -> None:
+        metadata = keepkeys_linux.Metadata(
+            name="demo",
+            variable="DEMO_TOKEN",
+            description="Synthetic test credential",
+            provider="Example",
+            documentation_urls=("https://docs.example.com/api",),
+        )
+        request = keepkeys_linux.RunRequest(
+            name="demo",
+            purpose="Run synthetic task",
+            program=Path("/usr/bin/example"),
+            arguments=[],
+            cwd=None,
+            fingerprint="e" * 64,
+            risk="DIRECT EXECUTABLE",
+            entrypoint=None,
+            entrypoint_fingerprint=None,
+        )
+        stored = keepkeys_linux.metadata_with_allow_rule(
+            metadata,
+            keepkeys_linux.allow_rule_for(request, metadata),
+        )
+        with (
+            patch.object(keepkeys_linux, "search_metadata", side_effect=[[stored], [stored]]),
+            patch.object(keepkeys_linux, "BrandedUI") as ui,
+            patch.object(keepkeys_linux, "store_metadata") as store_metadata,
+        ):
+            ui.return_value.confirm_revoke.return_value = True
+            result = keepkeys_linux.action_revoke(["--name", "demo"])
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["revokedRules"], 1)
+        cleared = store_metadata.call_args.args[0]
+        self.assertEqual(cleared.allow_rules, ())
+
     def test_legacy_metadata_can_be_restored_without_upgrading_its_label(self) -> None:
         metadata = keepkeys_linux.Metadata(
             name="legacy-key",
@@ -45,6 +272,41 @@ class LinuxBackendTests(unittest.TestCase):
         stored_label = secret_tool.call_args.kwargs["secret_input"]
         self.assertTrue(stored_label.startswith(keepkeys_linux.LABEL_PREFIX_V1))
         self.assertEqual(keepkeys_linux.decode_label(stored_label), metadata)
+
+    def test_legacy_labels_reject_embedded_persistent_rules(self) -> None:
+        metadata = keepkeys_linux.Metadata(
+            name="demo",
+            variable="DEMO_TOKEN",
+            description="Synthetic test credential",
+            provider="Example",
+            documentation_urls=("https://docs.example.com/api",),
+        )
+        request = keepkeys_linux.RunRequest(
+            name="demo",
+            purpose="Run synthetic task",
+            program=Path("/usr/bin/example"),
+            arguments=[],
+            cwd=None,
+            fingerprint="1" * 64,
+            risk="DIRECT EXECUTABLE",
+            entrypoint=None,
+            entrypoint_fingerprint=None,
+        )
+        rule = keepkeys_linux.allow_rule_for(request, metadata)
+        payload = {
+            "name": metadata.name,
+            "variable": metadata.variable,
+            "description": metadata.description,
+            "provider": metadata.provider,
+            "documentationUrls": list(metadata.documentation_urls),
+            "allowRules": [keepkeys_linux.allow_rule_payload(rule)],
+        }
+        encoded = base64.urlsafe_b64encode(
+            json.dumps(payload, separators=(",", ":")).encode()
+        ).decode().rstrip("=")
+        self.assertIsNone(
+            keepkeys_linux.decode_label(keepkeys_linux.LABEL_PREFIX_V2 + encoded)
+        )
 
     def test_search_parses_only_valid_keepkeys_labels(self) -> None:
         valid = keepkeys_linux.Metadata(
@@ -291,6 +553,46 @@ class LinuxBackendTests(unittest.TestCase):
             ],
         )
 
+    def test_rotation_replaces_metadata_without_persistent_allow_rules(self) -> None:
+        previous = keepkeys_linux.Metadata(
+            name="demo",
+            variable="DEMO_TOKEN",
+            description="Synthetic test credential",
+            provider="Example",
+            documentation_urls=("https://docs.example.com/api",),
+        )
+        request = keepkeys_linux.RunRequest(
+            name="demo",
+            purpose="Run synthetic task",
+            program=Path("/usr/bin/example"),
+            arguments=[],
+            cwd=None,
+            fingerprint="e" * 64,
+            risk="DIRECT EXECUTABLE",
+            entrypoint=None,
+            entrypoint_fingerprint=None,
+        )
+        previous = keepkeys_linux.metadata_with_allow_rule(
+            previous,
+            keepkeys_linux.allow_rule_for(request, previous),
+        )
+        replacement = keepkeys_linux.Metadata(
+            name="demo",
+            variable="DEMO_TOKEN",
+            description="Rotated synthetic test credential",
+            provider="Example",
+            documentation_urls=("https://docs.example.com/api",),
+        )
+        with (
+            patch.object(keepkeys_linux, "search_metadata", return_value=[previous]),
+            patch.object(keepkeys_linux, "lookup_secret", return_value="synthetic-old-secret"),
+            patch.object(keepkeys_linux, "store_value"),
+            patch.object(keepkeys_linux, "store_metadata") as store_metadata,
+        ):
+            keepkeys_linux.store_record(replacement, "synthetic-new-secret")
+        self.assertEqual(store_metadata.call_args.args[0], replacement)
+        self.assertEqual(store_metadata.call_args.args[0].allow_rules, ())
+
     def test_failed_rollback_deletion_is_reported(self) -> None:
         metadata = keepkeys_linux.Metadata(
             name="demo",
@@ -489,6 +791,12 @@ class LinuxBackendTests(unittest.TestCase):
         validate = source.index("validate_secret(value)", clear)
         self.assertLess(capture, clear)
         self.assertLess(clear, validate)
+
+    def test_approval_ui_offers_exact_command_persistence(self) -> None:
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        self.assertIn('text="Allow once"', source)
+        self.assertIn('text="Always allow this exact command"', source)
+        self.assertIn('text="Cancel"', source)
 
     def test_truncated_stream_is_omitted_in_full(self) -> None:
         capture = keepkeys_linux.Capture()

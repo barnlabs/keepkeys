@@ -122,6 +122,10 @@ export function helperArguments(toolName, rawArguments) {
       return ["list"];
     case "keepkeys_remove":
       return ["remove", "--name", readRequiredString(args, "name", 128)];
+    case "keepkeys_rotate":
+      return ["rotate", "--name", readRequiredString(args, "name", 128)];
+    case "keepkeys_revoke":
+      return ["revoke", "--name", readRequiredString(args, "name", 128)];
     case "keepkeys_status":
       return ["status"];
     case "keepkeys_doctor":
@@ -260,7 +264,7 @@ export function createRequestHandler(helperRunner = runHelper) {
               ? params.protocolVersion
               : PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: "keepkeys", version: "0.5.0" },
+          serverInfo: { name: "keepkeys", version: "0.6.0" },
           instructions:
             "KeepKeys stores values outside chat and never exposes plaintext secrets. Use keepkeys_store_from_phone only when the user asks for phone intake, and never open its one-time link. Use keepkeys_run only for direct commands the user intends to approve.",
         },

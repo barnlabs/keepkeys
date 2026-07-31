@@ -1,7 +1,7 @@
 {
   "name": "keepkeys",
-  "version": "0.5.0",
-  "description": "Store secrets in a native OS vault from the host or a private Tailscale phone page, then approve each agent command.",
+  "version": "0.6.0",
+  "description": "Store secrets in a native OS vault, rotate them safely, and approve exact agent commands without returning plaintext.",
   "author": {
     "name": "BarnLabs",
     "url": "https://github.com/barnlabs"
@@ -35,7 +35,9 @@
       "Private phone intake with Tailscale Serve",
       "Agent-researched official documentation",
       "Native macOS, Windows, and Linux vaults",
-      "Approval-gated command use"
+      "Approval-gated command use",
+      "Exact-command always-allow and revocation",
+      "Metadata-preserving key rotation"
     ],
     "websiteURL": "https://github.com/barnlabs/keepkeys",
     "privacyPolicyURL": "https://github.com/barnlabs/keepkeys/blob/main/docs/privacy-and-data-handling.md",

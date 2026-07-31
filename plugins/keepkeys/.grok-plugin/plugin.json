@@ -1,6 +1,6 @@
 {
   "name": "keepkeys",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "KeepKeys stores secrets in a native OS vault from the host or a private Tailscale phone page, then lets Grok use them through approved commands.",
   "author": {
     "name": "BarnLabs",

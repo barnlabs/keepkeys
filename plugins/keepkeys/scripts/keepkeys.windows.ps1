@@ -4,11 +4,12 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$Script:Version = "0.5.0"
+$Script:Version = "0.6.0"
 $Script:MetadataPrefix = "net.barnlabs.keepkeys/meta/"
 $Script:SecretPrefix = "net.barnlabs.keepkeys/secret/"
 $Script:MaximumSecretBytes = 2048
 $Script:MaximumMetadataBytes = 2560
+$Script:MaximumAllowRules = 8
 $Script:MaximumCapturedBytes = 1048576
 $Script:OmittedOutput = "[OUTPUT OMITTED BY KEEPKEYS: stream exceeded the 1 MiB safety limit]"
 
@@ -895,6 +896,37 @@ function Show-KeepKeysRemoveDialog {
     return $window.ShowDialog() -eq $true
 }
 
+function Show-KeepKeysRevokeDialog {
+    param([string]$Name, [string]$Variable, [string]$Description, [int]$RuleCount)
+    $window = New-KeepKeysWindow "KeepKeys - Disable automatic approvals" 640 440
+    $root = [Windows.Controls.DockPanel]::new()
+    $window.Content = $root
+    Add-KeepKeysHeader $root "Approval policy" "Disable automatic approvals for '$Name'?" `
+        "This removes $RuleCount exact-command rule(s). Future uses will show the native approval window again."
+    $body = [Windows.Controls.StackPanel]::new()
+    $body.Margin = [Windows.Thickness]::new(28, 20, 28, 24)
+    [void]$root.Children.Add($body)
+    $card = [Windows.Controls.TextBlock]::new()
+    $card.Text = "$Variable`n$Description"
+    $card.Background = [Windows.Media.Brushes]::White
+    $card.Foreground = New-KeepKeysBrush $Script:Night
+    $card.Padding = [Windows.Thickness]::new(15)
+    $card.TextWrapping = [Windows.TextWrapping]::Wrap
+    [void]$body.Children.Add($card)
+    $buttons = [Windows.Controls.StackPanel]::new()
+    $buttons.Orientation = [Windows.Controls.Orientation]::Horizontal
+    $buttons.HorizontalAlignment = [Windows.HorizontalAlignment]::Right
+    $buttons.Margin = [Windows.Thickness]::new(0, 24, 0, 0)
+    [void]$body.Children.Add($buttons)
+    $disable = New-KeepKeysButton "Disable automatic approvals" $Script:Brass $false
+    $cancel = New-KeepKeysButton "Cancel" ([Windows.Media.ColorConverter]::ConvertFromString("#E8E2D7")) $false
+    [void]$buttons.Children.Add($disable)
+    [void]$buttons.Children.Add($cancel)
+    $disable.Add_Click({ $window.DialogResult = $true })
+    $cancel.Add_Click({ $window.DialogResult = $false })
+    return $window.ShowDialog() -eq $true
+}
+
 function Get-KeepKeysFingerprint {
     param([string]$Path)
     $stream = [IO.File]::OpenRead($Path)
@@ -1010,13 +1042,77 @@ function New-KeepKeysRunRequest {
     }
 }
 
+function Get-KeepKeysRuleFromRequest {
+    param($Request)
+    return [pscustomobject]@{
+        purpose = $Request.Purpose
+        program = $Request.Program
+        fingerprint = $Request.Fingerprint
+        arguments = [string[]]$Request.Arguments
+        workingDirectory = $Request.WorkingDirectory
+        entrypoint = $Request.Entrypoint
+        entrypointFingerprint = $Request.EntrypointFingerprint
+    }
+}
+
+function Assert-KeepKeysAllowRule {
+    param($Rule)
+    if ($null -eq $Rule -or
+        -not (Test-KeepKeysVisibleLine ([string]$Rule.purpose)) -or
+        -not [IO.Path]::IsPathRooted([string]$Rule.program) -or
+        ([string]$Rule.fingerprint) -cnotmatch "^[a-f0-9]{64}$" -or
+        $null -eq $Rule.arguments -or
+        @($Rule.arguments).Count -gt 64) {
+        throw "The stored KeepKeys allow rule is invalid."
+    }
+    foreach ($argument in @($Rule.arguments)) {
+        if ($null -eq $argument -or
+            [Text.Encoding]::UTF8.GetByteCount([string]$argument) -gt 4096 -or
+            ([string]$argument).IndexOfAny([char[]]@(0..31)) -ge 0) {
+            throw "The stored KeepKeys allow rule is invalid."
+        }
+    }
+    if ($null -ne $Rule.workingDirectory -and
+        -not [IO.Path]::IsPathRooted([string]$Rule.workingDirectory)) {
+        throw "The stored KeepKeys allow rule is invalid."
+    }
+    if (($null -eq $Rule.entrypoint) -ne ($null -eq $Rule.entrypointFingerprint) -or
+        ($null -ne $Rule.entrypoint -and (
+            -not [IO.Path]::IsPathRooted([string]$Rule.entrypoint) -or
+            ([string]$Rule.entrypointFingerprint) -cnotmatch "^[a-f0-9]{64}$"
+        ))) {
+        throw "The stored KeepKeys allow rule is invalid."
+    }
+}
+
+function Test-KeepKeysAllowRuleMatch {
+    param($Rule, $Request)
+    try { Assert-KeepKeysAllowRule $Rule } catch { return $false }
+    return (
+        $Rule.purpose -ceq $Request.Purpose -and
+        $Rule.program -ceq $Request.Program -and
+        $Rule.fingerprint -ceq $Request.Fingerprint -and
+        (Test-KeepKeysStringArrayEqual ([string[]]$Rule.arguments) ([string[]]$Request.Arguments)) -and
+        $(if ($null -eq $Rule.workingDirectory -or $null -eq $Request.WorkingDirectory) {
+            $null -eq $Rule.workingDirectory -and $null -eq $Request.WorkingDirectory
+        } else { $Rule.workingDirectory -ceq $Request.WorkingDirectory }) -and
+        $(if ($null -eq $Rule.entrypoint -or $null -eq $Request.Entrypoint) {
+            $null -eq $Rule.entrypoint -and $null -eq $Request.Entrypoint -and
+            $null -eq $Rule.entrypointFingerprint -and $null -eq $Request.EntrypointFingerprint
+        } else {
+            $Rule.entrypoint -ceq $Request.Entrypoint -and
+            $Rule.entrypointFingerprint -ceq $Request.EntrypointFingerprint
+        })
+    )
+}
+
 function Show-KeepKeysApprovalDialog {
     param($Request, $Credential)
     $window = New-KeepKeysWindow "KeepKeys - Approve secret use" 760 720
     $root = [Windows.Controls.DockPanel]::new()
     $window.Content = $root
     Add-KeepKeysHeader $root $Request.Risk "Allow this command to use '$($Request.Name)'?" `
-        "Approval is one-time. The executable and its child processes can read the secret."
+        "The executable and its child processes can read the secret. Always allow is limited to this exact command identity."
     $body = [Windows.Controls.DockPanel]::new()
     $body.Margin = [Windows.Thickness]::new(28, 18, 28, 24)
     [void]$root.Children.Add($body)
@@ -1027,8 +1123,10 @@ function Show-KeepKeysApprovalDialog {
     [Windows.Controls.DockPanel]::SetDock($buttons, [Windows.Controls.Dock]::Bottom)
     [void]$body.Children.Add($buttons)
     $allow = New-KeepKeysButton "Allow once" $Script:Ember $true
+    $always = New-KeepKeysButton "Always allow this exact command" $Script:Brass $false
     $cancel = New-KeepKeysButton "Cancel" ([Windows.Media.ColorConverter]::ConvertFromString("#E8E2D7")) $false
     [void]$buttons.Children.Add($allow)
+    [void]$buttons.Children.Add($always)
     [void]$buttons.Children.Add($cancel)
     $argumentText = if ($Request.Arguments.Count -eq 0) {
         "(none)"
@@ -1068,17 +1166,25 @@ function Show-KeepKeysApprovalDialog {
     $text.Background = [Windows.Media.Brushes]::White
     $text.Foreground = New-KeepKeysBrush $Script:Night
     [void]$body.Children.Add($text)
-    $allow.Add_Click({ $window.DialogResult = $true })
+    $decision = "cancel"
+    $allow.Add_Click({ $decision = "once"; $window.DialogResult = $true })
+    $always.Add_Click({ $decision = "always"; $window.DialogResult = $true })
     $cancel.Add_Click({ $window.DialogResult = $false })
-    return $window.ShowDialog() -eq $true
+    [void]$window.ShowDialog()
+    return $decision
 }
 
 function ConvertTo-KeepKeysMetadataBytes {
-    param([string]$Provider, [string[]]$DocumentationUrls)
+    param([string]$Provider, [string[]]$DocumentationUrls, [object[]]$AllowRules = @())
+    if ($AllowRules.Count -gt $Script:MaximumAllowRules) {
+        throw "KeepKeys metadata cannot contain more than $($Script:MaximumAllowRules) allow rules."
+    }
+    foreach ($rule in $AllowRules) { Assert-KeepKeysAllowRule $rule }
     $json = @{
-        version = 2
+        version = 3
         provider = $Provider
         documentationUrls = $DocumentationUrls
+        allowRules = $AllowRules
     } | ConvertTo-Json -Compress -Depth 4
     $bytes = [Text.Encoding]::UTF8.GetBytes($json)
     if ($bytes.Length -gt $Script:MaximumMetadataBytes) {
@@ -1098,17 +1204,25 @@ function ConvertFrom-KeepKeysMetadataCredential {
     }
     $provider = ""
     $documentationUrls = [string[]]@()
+    $allowRules = [object[]]@()
     try {
         if ($null -ne $Credential.Secret -and $Credential.Secret.Length -gt 0) {
             $metadataJson = [Text.Encoding]::UTF8.GetString($Credential.Secret)
             $metadata = $metadataJson | ConvertFrom-Json
-            if ($metadata.version -ne 2) {
+            if ($metadata.version -ne 1 -and $metadata.version -ne 2 -and $metadata.version -ne 3) {
                 throw "The stored KeepKeys metadata version is unsupported."
             }
             $provider = [string]$metadata.provider
             $documentationUrls = [string[]]$metadata.documentationUrls
             Assert-KeepKeysMetadata $Name $Credential.UserName `
                 $Credential.Comment $provider $documentationUrls
+            if ($metadata.version -eq 3) {
+                $allowRules = [object[]]@($metadata.allowRules)
+                if ($allowRules.Count -gt $Script:MaximumAllowRules) {
+                    throw "The stored KeepKeys allow rules exceed the supported limit."
+                }
+                foreach ($rule in $allowRules) { Assert-KeepKeysAllowRule $rule }
+            }
         }
     } finally {
         if ($null -ne $Credential.Secret) {
@@ -1121,6 +1235,7 @@ function ConvertFrom-KeepKeysMetadataCredential {
         Comment = $Credential.Comment
         Provider = $provider
         DocumentationUrls = $documentationUrls
+        AllowRules = $allowRules
     }
 }
 
@@ -1152,8 +1267,90 @@ function Test-KeepKeysMetadataEqual {
         $First.Provider -ceq $Second.Provider -and
         (Test-KeepKeysStringArrayEqual `
             ([string[]]$First.DocumentationUrls) `
-            ([string[]]$Second.DocumentationUrls))
+            ([string[]]$Second.DocumentationUrls)) -and
+        (ConvertTo-Json @($First.AllowRules) -Compress -Depth 6) -ceq
+            (ConvertTo-Json @($Second.AllowRules) -Compress -Depth 6)
     )
+}
+
+function New-KeepKeysNameMutex {
+    param([string]$Name)
+    $bytes = [Text.Encoding]::UTF8.GetBytes($Name)
+    try {
+        $sha = [Security.Cryptography.SHA256]::Create()
+        try {
+            $digest = ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace("-", "")
+        } finally { $sha.Dispose() }
+    } finally { [Array]::Clear($bytes, 0, $bytes.Length) }
+    $mutex = [Threading.Mutex]::new($false, "Local\BarnLabs.KeepKeys.$digest")
+    try {
+        [void]$mutex.WaitOne()
+    } catch [Threading.AbandonedMutexException] {
+        # The OS transfers an abandoned per-name lock to this caller.
+    }
+    return $mutex
+}
+
+function Save-KeepKeysAllowRule {
+    param([string]$Name, $ExpectedMetadata, $Rule)
+    $mutex = New-KeepKeysNameMutex $Name
+    try {
+    Assert-KeepKeysAllowRule $Rule
+    $current = Read-KeepKeysMetadata $Name
+    if (-not (Test-KeepKeysMetadataEqual $ExpectedMetadata $current)) {
+        throw "The secret metadata changed after approval. KeepKeys refused to save an allow rule."
+    }
+    $rules = [Collections.Generic.List[object]]::new()
+    foreach ($existing in @($current.AllowRules)) { $rules.Add($existing) }
+    if (-not (@($rules | Where-Object { Test-KeepKeysAllowRuleMatch $_ ([pscustomobject]@{
+        Purpose = $Rule.purpose; Program = $Rule.program; Fingerprint = $Rule.fingerprint;
+        Arguments = [string[]]$Rule.arguments; WorkingDirectory = $Rule.workingDirectory;
+        Entrypoint = $Rule.entrypoint; EntrypointFingerprint = $Rule.entrypointFingerprint
+    }) }).Count -gt 0)) {
+        if ($rules.Count -ge $Script:MaximumAllowRules) {
+            throw "KeepKeys has reached the maximum number of always-allow rules for this secret."
+        }
+        $rules.Add($Rule)
+    }
+    $bytes = ConvertTo-KeepKeysMetadataBytes $current.Provider `
+        ([string[]]$current.DocumentationUrls) ([object[]]$rules.ToArray())
+    try {
+        [BarnLabs.KeepKeys.CredentialVault]::Write(
+            $Script:MetadataPrefix + $Name, $current.UserName, $current.Comment, $bytes
+        )
+    } finally { [Array]::Clear($bytes, 0, $bytes.Length) }
+    return Read-KeepKeysMetadata $Name
+    } finally {
+        $mutex.ReleaseMutex()
+        $mutex.Dispose()
+    }
+}
+
+function Clear-KeepKeysAllowRules {
+    param([string]$Name, $ExpectedMetadata)
+    $mutex = New-KeepKeysNameMutex $Name
+    try {
+        $current = Read-KeepKeysMetadata $Name
+        if (-not (Test-KeepKeysMetadataEqual $ExpectedMetadata $current)) {
+            throw "The secret metadata changed before approval rules could be revoked. Try again."
+        }
+        $count = @($current.AllowRules).Count
+        if ($count -eq 0) { return 0 }
+        $bytes = ConvertTo-KeepKeysMetadataBytes $current.Provider `
+            ([string[]]$current.DocumentationUrls)
+        try {
+            [BarnLabs.KeepKeys.CredentialVault]::Write(
+                $Script:MetadataPrefix + $Name,
+                $current.UserName,
+                $current.Comment,
+                $bytes
+            )
+        } finally { [Array]::Clear($bytes, 0, $bytes.Length) }
+        return $count
+    } finally {
+        $mutex.ReleaseMutex()
+        $mutex.Dispose()
+    }
 }
 
 function Get-KeepKeysCredentials {
@@ -1189,6 +1386,8 @@ function Save-KeepKeysRecord {
         [string]$Secret,
         [Nullable[bool]]$ExpectedExisting = $null
     )
+    $mutex = New-KeepKeysNameMutex $Name
+    try {
     Assert-KeepKeysMetadata $Name $Variable $Description $Provider `
         $DocumentationUrls
     Assert-KeepKeysSecret $Secret
@@ -1307,6 +1506,10 @@ function Save-KeepKeysRecord {
         description = $Description
         provider = $Provider
         documentationUrls = $DocumentationUrls
+    }
+    } finally {
+        $mutex.ReleaseMutex()
+        $mutex.Dispose()
     }
 }
 
@@ -1713,7 +1916,8 @@ function Invoke-KeepKeysSelfTest {
         ([string[]]@("https://docs.example.com/api"))
     try {
         $metadata = ([Text.Encoding]::UTF8.GetString($metadataBytes) | ConvertFrom-Json)
-        if ($metadata.version -ne 2 -or $metadata.provider -cne "Example" -or
+        if ($metadata.version -ne 3 -or $metadata.provider -cne "Example" -or
+            $metadata.allowRules.Count -ne 0 -or
             $metadata.documentationUrls[0] -cne "https://docs.example.com/api") {
             throw "Metadata encoding self-test failed."
         }
@@ -1731,9 +1935,58 @@ function Invoke-KeepKeysSelfTest {
         })
     if ($decodedMetadata.Provider -cne "Example" -or
         $decodedMetadata.DocumentationUrls.Count -ne 1 -or
+        $decodedMetadata.AllowRules.Count -ne 0 -or
         $decodedMetadata.DocumentationUrls[0] -cne "https://docs.example.com/api") {
         throw "Metadata parsing self-test failed."
     }
+    $legacyBytes = [Text.Encoding]::UTF8.GetBytes(@{
+        version = 2; provider = "Example";
+        documentationUrls = [string[]]@("https://docs.example.com/api")
+    } | ConvertTo-Json -Compress)
+    $legacyMetadata = ConvertFrom-KeepKeysMetadataCredential "new-key" `
+        ([pscustomobject]@{
+            TargetName = $Script:MetadataPrefix + "new-key"; UserName = "SECRET_KEY";
+            Comment = "Credential for future approved agent commands"; Secret = $legacyBytes
+        })
+    if ($legacyMetadata.AllowRules.Count -ne 0) {
+        throw "Legacy metadata compatibility self-test failed."
+    }
+    $legacyV1Bytes = [Text.Encoding]::UTF8.GetBytes(@{
+        version = 1; provider = "Example";
+        documentationUrls = [string[]]@("https://docs.example.com/api")
+    } | ConvertTo-Json -Compress)
+    $legacyV1Metadata = ConvertFrom-KeepKeysMetadataCredential "new-key" `
+        ([pscustomobject]@{
+            TargetName = $Script:MetadataPrefix + "new-key"; UserName = "SECRET_KEY";
+            Comment = "Credential for future approved agent commands"; Secret = $legacyV1Bytes
+        })
+    if ($legacyV1Metadata.AllowRules.Count -ne 0) {
+        throw "Legacy v1 metadata compatibility self-test failed."
+    }
+    $syntheticRequest = [pscustomobject]@{
+        Purpose = "Publish synthetic release"; Program = "C:\\Tools\\publisher.exe";
+        Fingerprint = ("a" * 64); Arguments = [string[]]@("--channel", "synthetic");
+        WorkingDirectory = "C:\\Work"; Entrypoint = $null; EntrypointFingerprint = $null
+    }
+    $syntheticRule = Get-KeepKeysRuleFromRequest $syntheticRequest
+    $differentPurpose = Get-KeepKeysRuleFromRequest $syntheticRequest
+    $differentPurpose.purpose = "Publish a different release"
+    $staleFingerprint = Get-KeepKeysRuleFromRequest $syntheticRequest
+    $staleFingerprint.fingerprint = ("b" * 64)
+    if (-not (Test-KeepKeysAllowRuleMatch $syntheticRule $syntheticRequest) -or
+        (Test-KeepKeysAllowRuleMatch $differentPurpose $syntheticRequest) -or
+        (Test-KeepKeysAllowRuleMatch $staleFingerprint $syntheticRequest)) {
+        throw "Always-allow exact command self-test failed."
+    }
+    $ruleMetadataBytes = ConvertTo-KeepKeysMetadataBytes "Example" `
+        ([string[]]@("https://docs.example.com/api")) ([object[]]@($syntheticRule))
+    try {
+        $ruleMetadata = ([Text.Encoding]::UTF8.GetString($ruleMetadataBytes) | ConvertFrom-Json)
+        if ($ruleMetadata.version -ne 3 -or $ruleMetadata.allowRules.Count -ne 1 -or
+            -not (Test-KeepKeysAllowRuleMatch $ruleMetadata.allowRules[0] $syntheticRequest)) {
+            throw "Always-allow metadata self-test failed."
+        }
+    } finally { [Array]::Clear($ruleMetadataBytes, 0, $ruleMetadataBytes.Length) }
     $changedMetadata = [pscustomobject]@{
         UserName = $decodedMetadata.UserName
         Comment = $decodedMetadata.Comment
@@ -1799,7 +2052,7 @@ public static class KeepKeysScopeProbe
 
 try {
     if ($args.Count -eq 0) {
-        throw "Usage: keepkeys <store|list|remove|run|status|doctor|--self-test>"
+        throw "Usage: keepkeys <store|rotate|revoke|list|remove|run|status|doctor|--self-test>"
     }
     $action = $args[0]
     $rest = if ($args.Count -gt 1) { [string[]]$args[1..($args.Count - 1)] } else { [string[]]@() }
@@ -1836,6 +2089,64 @@ try {
             } finally {
                 $entered.Secret = ""
             }
+        }
+        "rotate" {
+            $serializedMutation = [string]$env:KEEPKEYS_SERIALIZED_MUTATION
+            $env:KEEPKEYS_SERIALIZED_MUTATION = $null
+            if ($serializedMutation -cne "1") {
+                throw "KeepKeys rotate actions must use the shared per-name coordinator."
+            }
+            $name = Get-KeepKeysOption $rest "--name" -Required
+            if (-not (Test-KeepKeysName $name)) {
+                throw "The requested KeepKeys name is invalid."
+            }
+            $metadata = Read-KeepKeysMetadata $name
+            if ($null -eq $metadata) {
+                throw "No KeepKeys secret is stored as '$name'."
+            }
+            $entered = Show-KeepKeysStoreDialog $name $metadata.UserName `
+                $metadata.Comment $metadata.Provider $metadata.DocumentationUrls
+            if ($null -eq $entered) {
+                $result = @{ status = "cancelled"; message = "Secret rotation was cancelled." }
+                break
+            }
+            try {
+                $result = Save-KeepKeysRecord `
+                    $entered.Name `
+                    $entered.Variable `
+                    $entered.Description `
+                    $entered.Provider `
+                    $entered.DocumentationUrls `
+                    $entered.Secret `
+                    $true
+            } finally { $entered.Secret = "" }
+        }
+        "revoke" {
+            $serializedMutation = [string]$env:KEEPKEYS_SERIALIZED_MUTATION
+            $env:KEEPKEYS_SERIALIZED_MUTATION = $null
+            if ($serializedMutation -cne "1") {
+                throw "KeepKeys revoke actions must use the shared per-name coordinator."
+            }
+            $name = Get-KeepKeysOption $rest "--name" -Required
+            if (-not (Test-KeepKeysName $name)) {
+                throw "The requested KeepKeys name is invalid."
+            }
+            $metadata = Read-KeepKeysMetadata $name
+            if ($null -eq $metadata) {
+                $result = @{ status = "ok"; message = "No KeepKeys item named '$name' exists."; revokedRules = 0 }
+                break
+            }
+            $ruleCount = @($metadata.AllowRules).Count
+            if ($ruleCount -eq 0) {
+                $result = @{ status = "ok"; message = "No always-allow rules are stored for '$name'."; revokedRules = 0 }
+                break
+            }
+            if (-not (Show-KeepKeysRevokeDialog $name $metadata.UserName $metadata.Comment $ruleCount)) {
+                $result = @{ status = "cancelled"; message = "Always-allow revocation was cancelled." }
+                break
+            }
+            $revoked = Clear-KeepKeysAllowRules $name $metadata
+            $result = @{ status = "ok"; message = "Disabled automatic approvals for '$name'."; revokedRules = $revoked }
         }
         "_portal-commit" {
             $name = Get-KeepKeysOption $rest "--name" -Required
@@ -2166,6 +2477,8 @@ try {
             }
             $metadataTarget = $Script:MetadataPrefix + $name
             $secretTarget = $Script:SecretPrefix + $name
+            $mutex = New-KeepKeysNameMutex $name
+            try {
             $credential = [BarnLabs.KeepKeys.CredentialVault]::Read(
                 $metadataTarget,
                 $false
@@ -2194,6 +2507,10 @@ try {
                 message = "Removed '$name' from Windows Credential Manager."
                 removed = $removed
             }
+            } finally {
+                $mutex.ReleaseMutex()
+                $mutex.Dispose()
+            }
         }
         "run" {
             $separator = [Array]::IndexOf($rest, "--")
@@ -2219,9 +2536,21 @@ try {
             if ($null -eq $metadata) {
                 throw "No KeepKeys secret is stored as '$($request.Name)'."
             }
-            if (-not (Show-KeepKeysApprovalDialog $request $metadata)) {
+            $matchingRule = @($metadata.AllowRules | Where-Object {
+                Test-KeepKeysAllowRuleMatch $_ $request
+            } | Select-Object -First 1)
+            $approval = if ($matchingRule.Count -eq 1) {
+                "always"
+            } else {
+                Show-KeepKeysApprovalDialog $request $metadata
+            }
+            if ($approval -ceq "cancel") {
                 $result = @{ status = "cancelled"; message = "Command use was cancelled." }
                 break
+            }
+            if ($approval -ceq "always" -and $matchingRule.Count -eq 0) {
+                $metadata = Save-KeepKeysAllowRule $request.Name $metadata `
+                    (Get-KeepKeysRuleFromRequest $request)
             }
             $record = [BarnLabs.KeepKeys.CredentialVault]::Read(
                 $secretTarget,
