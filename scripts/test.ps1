@@ -7,7 +7,8 @@ try {
     & node --test `
         plugins/keepkeys/mcp/server.test.mjs `
         plugins/keepkeys/scripts/keepkeys-portal.test.mjs `
-        plugins/keepkeys/scripts/check-for-update.test.mjs
+        plugins/keepkeys/scripts/check-for-update.test.mjs `
+        plugins/keepkeys/scripts/keepkeys-cli.test.mjs
     if ($LASTEXITCODE -ne 0) {
         throw "KeepKeys Node tests failed."
     }

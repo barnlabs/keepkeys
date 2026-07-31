@@ -422,6 +422,10 @@ const serializedStore = readFileSync(
   resolve(pluginRoot, "scripts", "keepkeys-store.mjs"),
   "utf8",
 );
+const localCli = readFileSync(
+  resolve(pluginRoot, "scripts", "keepkeys-cli.mjs"),
+  "utf8",
+);
 assert.match(
   platformDispatcher,
   /helperArguments\[0\] === "store"[\s\S]*?helperArguments\[0\] === "remove"[\s\S]*?keepkeys-store\.mjs[\s\S]*?nativeMutationInvocation[\s\S]*?KEEPKEYS_SERIALIZED_MUTATION = "1"/,
@@ -436,6 +440,11 @@ assert.match(
   serializedStore,
   /storeRunner\(nativeMutationInvocation\(argumentsValue\)\)/,
   "the serialized mutation coordinator must invoke the selected native helper",
+);
+assert.match(
+  localCli,
+  /argumentsValue\[0\] === "run"[\s\S]*?requiredOption\(argumentsValue, "--name"\)[\s\S]*?operationKind: "run"/,
+  "the local CLI must serialize approved run actions with same-name mutations",
 );
 for (const helper of [sourceText, windowsHelper, linuxHelper]) {
   assert.match(

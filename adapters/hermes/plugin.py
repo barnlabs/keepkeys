@@ -108,6 +108,10 @@ def _helper_arguments(tool_name: str, raw_args: Any) -> list[str]:
         return command
     if tool_name == "keepkeys_list":
         return ["list"]
+    if tool_name == "keepkeys_rotate":
+        return ["rotate", "--name", _required_string(args, "name", 128)]
+    if tool_name == "keepkeys_revoke":
+        return ["revoke", "--name", _required_string(args, "name", 128)]
     if tool_name == "keepkeys_remove":
         return ["remove", "--name", _required_string(args, "name", 128)]
     if tool_name == "keepkeys_status":

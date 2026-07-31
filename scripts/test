@@ -7,7 +7,8 @@ cd "$root"
 node --test \
   plugins/keepkeys/mcp/server.test.mjs \
   plugins/keepkeys/scripts/keepkeys-portal.test.mjs \
-  plugins/keepkeys/scripts/check-for-update.test.mjs
+  plugins/keepkeys/scripts/check-for-update.test.mjs \
+  plugins/keepkeys/scripts/keepkeys-cli.test.mjs
 python3 -m unittest adapters.hermes.test_plugin
 python3 -m unittest plugins.keepkeys.scripts.test_keepkeys_linux
 
