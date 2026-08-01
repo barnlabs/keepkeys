@@ -263,6 +263,7 @@ does not install code, touch the native vault, or run in the background. See
 - [Contributing](CONTRIBUTING.md)
 - [Governance](GOVERNANCE.md)
 - [Brand guidelines](plugins/keepkeys/assets/brand-guidelines.md)
+- [Favicon and small-mark assets](.github/assets/keepkeys/README.md)
 
 ## BarnLabs open source
 
