@@ -227,4 +227,16 @@ assert.deepEqual(
   "favicon.ico must contain the 16px, 32px, and 48px entries",
 );
 
+const t3Project = JSON.parse(readFileSync(resolve(root, "t3.json"), "utf8"));
+assert.equal(t3Project.$schema, "https://t3.codes/schema/t3.json");
+assert.equal(
+  t3Project.iconPath,
+  ".github/assets/keepkeys/icon-192.png",
+  "T3 Code must use the approved KeepKeys project icon",
+);
+assert.ok(
+  existsSync(resolve(root, t3Project.iconPath)),
+  `T3 Code project icon is missing: ${t3Project.iconPath}`,
+);
+
 process.stdout.write("KeepKeys documentation links and brand assets are valid.\n");

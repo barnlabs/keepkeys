@@ -6,6 +6,9 @@ support custom icons. GitHub renders them in Markdown and file views, but it
 controls its own browser-tab favicon and does not offer a per-repository favicon
 setting. See [GitHub's README documentation](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes).
 
+T3 Code reads the repository-root `t3.json` and uses `icon-192.png` for the
+KeepKeys project card instead of the generic folder icon.
+
 | 16px | 32px | 48px | 192px |
 | --- | --- | --- | --- |
 | <img src="favicon-16.png" width="16" height="16" alt="KeepKeys favicon at 16 pixels" /> | <img src="favicon-32.png" width="32" height="32" alt="KeepKeys favicon at 32 pixels" /> | <img src="favicon-48.png" width="48" height="48" alt="KeepKeys favicon at 48 pixels" /> | <img src="icon-192.png" width="96" height="96" alt="KeepKeys key-ring mark" /> |
