@@ -143,12 +143,12 @@ test("every public tool receipt variant is covered by its output schema", () => 
         status: "ok",
         message: "Ready.",
         platform: "macOS",
-        version: "0.6.0",
+        version: "0.7.0",
         vault: "Keychain",
         plaintextRetrieval: false,
       },
     ],
-    ["keepkeys_doctor", { status: "ok", message: "Doctor passed.", platform: "macOS", version: "0.6.0" }],
+    ["keepkeys_doctor", { status: "ok", message: "Doctor passed.", platform: "macOS", version: "0.7.0" }],
   ];
   for (const [toolName, receipt] of receipts) {
     assertReceiptMatchesSchema(toolName, receipt);
@@ -196,7 +196,7 @@ test("store carries metadata but never a secret value", () => {
     helperArguments("keepkeys_store", {
       name: "github-release",
       variable: "GITHUB_TOKEN",
-      description: "Publishes approved BarnLabs releases",
+      description: "Publishes approved Neorome releases",
       provider: "GitHub",
       documentation_urls: [
         "https://docs.github.com/en/rest",
@@ -210,7 +210,7 @@ test("store carries metadata but never a secret value", () => {
       "--variable",
       "GITHUB_TOKEN",
       "--description",
-      "Publishes approved BarnLabs releases",
+      "Publishes approved Neorome releases",
       "--provider",
       "GitHub",
       "--documentation-url",
@@ -223,7 +223,7 @@ test("store carries metadata but never a secret value", () => {
     helperArguments("keepkeys_store_from_phone", {
       name: "github-release",
       variable: "GITHUB_TOKEN",
-      description: "Publishes approved BarnLabs releases",
+      description: "Publishes approved Neorome releases",
       provider: "GitHub",
       documentation_urls: ["https://docs.github.com/en/rest"],
     }),
@@ -234,7 +234,7 @@ test("store carries metadata but never a secret value", () => {
       "--variable",
       "GITHUB_TOKEN",
       "--description",
-      "Publishes approved BarnLabs releases",
+      "Publishes approved Neorome releases",
       "--provider",
       "GitHub",
       "--documentation-url",
@@ -247,7 +247,7 @@ test("store rejects missing, insecure, or excessive documentation links", () => 
   const base = {
     name: "github-release",
     variable: "GITHUB_TOKEN",
-    description: "Publishes approved BarnLabs releases",
+    description: "Publishes approved Neorome releases",
     provider: "GitHub",
   };
   for (const documentation_urls of [
@@ -371,7 +371,7 @@ test("MCP handler returns structured helper output", async () => {
       status: "ok",
       message: "Ready.",
       platform: "macOS",
-      version: "0.6.0",
+      version: "0.7.0",
       vault: "Keychain",
       plaintextRetrieval: false,
     };
@@ -387,7 +387,7 @@ test("MCP handler returns structured helper output", async () => {
     status: "ok",
     message: "Ready.",
     platform: "macOS",
-    version: "0.6.0",
+    version: "0.7.0",
     vault: "Keychain",
     plaintextRetrieval: false,
   });
@@ -798,7 +798,7 @@ test("a non-portal Node parent cannot forge the native commit channel", () => {
         "--provider",
         "KeepKeys test",
         "--documentation-url",
-        "https://github.com/barnlabs/keepkeys",
+        "https://github.com/neorome/keepkeys",
         "--expect-existing",
         "yes",
       ],
@@ -870,7 +870,7 @@ test("stdio server handles a complete protocol transcript through a symlinked pl
     const responses = result.stdout.trim().split("\n").map(JSON.parse);
     assert.equal(responses.length, 4, "notifications must not produce responses");
     assert.equal(responses[0].result.serverInfo.name, "keepkeys");
-    assert.equal(responses[0].result.serverInfo.version, "0.6.0");
+    assert.equal(responses[0].result.serverInfo.version, "0.7.0");
     assert.deepEqual(responses[1].result.tools, TOOLS);
     assert.deepEqual(responses[2], {
       jsonrpc: "2.0",

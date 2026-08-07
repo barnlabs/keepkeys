@@ -24,9 +24,9 @@ import threading
 from typing import Any, NoReturn
 from urllib.parse import quote, urlsplit
 
-VERSION = "0.6.0"
-METADATA_SERVICE = "net.barnlabs.keepkeys.metadata"
-SECRET_SERVICE = "net.barnlabs.keepkeys.secret"
+VERSION = "0.7.0"
+METADATA_SERVICE = "net.neorome.keepkeys.metadata"
+SECRET_SERVICE = "net.neorome.keepkeys.secret"
 LABEL_PREFIX_V1 = "KeepKeys|v1|"
 LABEL_PREFIX_V2 = "KeepKeys|v2|"
 LABEL_PREFIX_V3 = "KeepKeys|v3|"
@@ -1803,16 +1803,16 @@ def action_doctor() -> dict[str, Any]:
         name=name,
         variable="KEEPKEYS_DOCTOR",
         description="Temporary KeepKeys Secret Service verification",
-        provider="BarnLabs",
-        documentation_urls=("https://github.com/barnlabs/keepkeys",),
+        provider="Neorome",
+        documentation_urls=("https://github.com/neorome/keepkeys",),
     )
     second_metadata = Metadata(
         name=name,
         variable="KEEPKEYS_DOCTOR_UPDATED",
         description="Updated temporary KeepKeys verification",
-        provider="BarnLabs",
+        provider="Neorome",
         documentation_urls=(
-            "https://github.com/barnlabs/keepkeys/blob/main/README.md",
+            "https://github.com/neorome/keepkeys/blob/main/README.md",
         ),
     )
     try:
@@ -1861,8 +1861,8 @@ def action_self_test() -> dict[str, Any]:
         name="self-test",
         variable="KEEPKEYS_TEST",
         description="Synthetic scoped-process self-test",
-        provider="BarnLabs",
-        documentation_urls=("https://github.com/barnlabs/keepkeys",),
+        provider="Neorome",
+        documentation_urls=("https://github.com/neorome/keepkeys",),
     )
     label = encode_label(metadata)
     if decode_label(label) != metadata:

@@ -320,7 +320,7 @@ class LinuxBackendTests(unittest.TestCase):
             "[/org/freedesktop/secrets/collection/login/1]\n"
             "label = KeepKeys metadata · demo\n"
             f"secret = {keepkeys_linux.encode_label(valid)}\n"
-            "attribute.service = net.barnlabs.keepkeys.metadata\n"
+            "attribute.service = net.neorome.keepkeys.metadata\n"
             "attribute.name = demo\n"
             "[/org/freedesktop/secrets/collection/login/2]\n"
             "label = unrelated\n"

@@ -16,8 +16,8 @@ const manifest = {
   version: "0.4.1",
   sourceCommit: "a".repeat(40),
   catalogCommit: "b".repeat(40),
-  installGuide: "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
-  releaseNotes: "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md",
+  installGuide: "https://github.com/neorome/keepkeys/blob/main/INSTALL.md",
+  releaseNotes: "https://github.com/neorome/keepkeys/blob/main/CHANGELOG.md",
 };
 
 test("semantic versions compare without coercion or prerelease ambiguity", () => {
@@ -27,7 +27,7 @@ test("semantic versions compare without coercion or prerelease ambiguity", () =>
   assert.throws(() => compareVersions("main", "0.4.1"), /Invalid local/);
 });
 
-test("stable update manifests require immutable commits and BarnLabs URLs", () => {
+test("stable update manifests require immutable commits and Neorome URLs", () => {
   assert.deepEqual(validateUpdateManifest({ ...manifest }), manifest);
   assert.throws(
     () => validateUpdateManifest({ ...manifest, sourceCommit: "main" }),

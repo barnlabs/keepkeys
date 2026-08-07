@@ -4,8 +4,8 @@ import Darwin
 import Foundation
 import Security
 
-private let keepKeysVersion = "0.6.0"
-private let keychainService = "net.barnlabs.keepkeys"
+private let keepKeysVersion = "0.7.0"
+private let keychainService = "net.neorome.keepkeys"
 private let maximumSecretBytes = 2_048
 private let maximumCapturedBytes = 1_048_576
 private let portalCapabilityBytes = 32
@@ -1737,8 +1737,8 @@ private func runDoctor() throws -> [String: Any] {
         name: name,
         variable: "KEEPKEYS_DOCTOR",
         description: "Temporary KeepKeys Keychain verification",
-        provider: "BarnLabs",
-        documentationURLs: ["https://github.com/barnlabs/keepkeys"],
+        provider: "Neorome",
+        documentationURLs: ["https://github.com/neorome/keepkeys"],
         secret: firstSecret
     )
     var firstLoad = try KeychainStore.load(name: name)
@@ -1752,8 +1752,8 @@ private func runDoctor() throws -> [String: Any] {
         name: name,
         variable: "KEEPKEYS_DOCTOR_UPDATED",
         description: "Updated temporary KeepKeys verification",
-        provider: "BarnLabs",
-        documentationURLs: ["https://github.com/barnlabs/keepkeys/blob/main/README.md"],
+        provider: "Neorome",
+        documentationURLs: ["https://github.com/neorome/keepkeys/blob/main/README.md"],
         secret: secondSecret
     )
     var secondLoad = try KeychainStore.load(name: name)
@@ -1761,15 +1761,15 @@ private func runDoctor() throws -> [String: Any] {
         secondLoad.secret == secondSecret
         && secondLoad.metadata.variable == "KEEPKEYS_DOCTOR_UPDATED"
         && secondLoad.metadata.description == "Updated temporary KeepKeys verification"
-        && secondLoad.metadata.provider == "BarnLabs"
+        && secondLoad.metadata.provider == "Neorome"
         && secondLoad.metadata.documentationURLs
-            == ["https://github.com/barnlabs/keepkeys/blob/main/README.md"]
+            == ["https://github.com/neorome/keepkeys/blob/main/README.md"]
     secondLoad.secret = ""
     let listed = try KeychainStore.entries().contains { entry in
         entry["name"] as? String == name
             && entry["variable"] as? String == "KEEPKEYS_DOCTOR_UPDATED"
             && entry["description"] as? String == "Updated temporary KeepKeys verification"
-            && entry["provider"] as? String == "BarnLabs"
+            && entry["provider"] as? String == "Neorome"
     }
 
     try KeychainStore.remove(name: name)
@@ -1858,8 +1858,8 @@ private func runSelfTests() throws -> [String: Any] {
             version: 3,
             variable: "KEEPKEYS_TEST",
             description: "Synthetic scoped-process self-test",
-            provider: "BarnLabs",
-            documentationURLs: ["https://github.com/barnlabs/keepkeys"],
+            provider: "Neorome",
+            documentationURLs: ["https://github.com/neorome/keepkeys"],
             allowRules: []
         ),
         secret: marker

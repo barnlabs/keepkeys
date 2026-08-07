@@ -32,7 +32,7 @@ const PORTAL_CAPABILITY_BYTES = 32;
 const PORTAL_LOCK_TIMEOUT_MS = 30 * 1000;
 const TAILNET_TEST_CLEANUP_TIMEOUT_MS = 15 * 1000;
 const SELF_TEST_DOCUMENTATION_URL =
-  "https://github.com/barnlabs/keepkeys";
+  "https://github.com/neorome/keepkeys";
 const RESERVED_VARIABLES = new Set([
   "BASH_ENV",
   "CDPATH",
@@ -244,7 +244,7 @@ export function renderPortalHtml({ metadata, replacing, nonce, expiresAt }) {
   <main>
     <p class="eyebrow">KeepKeys private phone intake</p>
     <h1>Paste the key on this device.</h1>
-    <p class="lede">This one-time page is available only inside your Tailscale network. The key goes to this computer's operating-system vault. It is not returned to ChatGPT, Codex, or BarnLabs.</p>
+    <p class="lede">This one-time page is available only inside your Tailscale network. The key goes to this computer's operating-system vault. It is not returned to ChatGPT, Codex, or Neorome.</p>
     <dl>
       <dt>Name</dt><dd>${escapeHtml(metadata.name)}</dd>
       <dt>Variable</dt><dd>${escapeHtml(metadata.variable)}</dd>
@@ -873,14 +873,14 @@ function defaultPortalLockRoot() {
       homedir(),
       "Library",
       "Caches",
-      "net.barnlabs.keepkeys",
+      "net.neorome.keepkeys",
       "portal-locks",
     );
   }
   if (process.platform === "win32") {
     return resolve(
       process.env.LOCALAPPDATA ?? resolve(homedir(), "AppData", "Local"),
-      "BarnLabs",
+      "Neorome",
       "KeepKeys",
       "portal-locks",
     );
@@ -1695,7 +1695,7 @@ async function runNativePortalSelfTest() {
     name: `keepkeys-portal-test-${randomBytes(12).toString("hex")}`,
     variable: "KEEPKEYS_PORTAL_TEST",
     description: "Temporary UTF-8 phone intake verification",
-    provider: "BarnLabs",
+    provider: "Neorome",
     documentationUrls: [SELF_TEST_DOCUMENTATION_URL],
   };
   const secret = Buffer.from(
@@ -1817,7 +1817,7 @@ async function runTailnetPortalSelfTest() {
     name: `keepkeys-portal-test-${randomBytes(12).toString("hex")}`,
     variable: "KEEPKEYS_PORTAL_TEST",
     description: "Temporary authenticated tailnet intake verification",
-    provider: "BarnLabs",
+    provider: "Neorome",
     documentationUrls: [SELF_TEST_DOCUMENTATION_URL],
   };
   const secret = Buffer.from(

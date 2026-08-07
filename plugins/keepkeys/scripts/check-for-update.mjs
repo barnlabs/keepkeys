@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const UPDATE_MANIFEST_URL =
-  "https://raw.githubusercontent.com/barnlabs/keepkeys/main/update.json";
+  "https://raw.githubusercontent.com/neorome/keepkeys/main/update.json";
 export const UPDATE_MANIFEST_HOST = "raw.githubusercontent.com";
 
 const EXPECTED_KEYS = [
@@ -43,7 +43,7 @@ export function validateUpdateManifest(value) {
     assert.equal(parsed.password, "");
     assert.equal(parsed.search, "");
     assert.equal(parsed.hash, "");
-    assert.match(parsed.pathname, /^\/barnlabs\/keepkeys(?:\/|$)/);
+    assert.match(parsed.pathname, /^\/neorome\/keepkeys(?:\/|$)/);
   }
   return value;
 }
@@ -126,7 +126,7 @@ export async function fetchStableUpdate({
     const response = await fetchImpl(UPDATE_MANIFEST_URL, {
       headers: {
         Accept: "application/json",
-        "User-Agent": "BarnLabs-KeepKeys-update-check",
+        "User-Agent": "Neorome-KeepKeys-update-check",
       },
       cache: "no-store",
       redirect: "error",
@@ -141,7 +141,7 @@ export async function fetchStableUpdate({
     assert.equal(responseUrl.password, "");
     assert.equal(responseUrl.search, "");
     assert.equal(responseUrl.hash, "");
-    assert.equal(responseUrl.pathname, "/barnlabs/keepkeys/main/update.json");
+    assert.equal(responseUrl.pathname, "/neorome/keepkeys/main/update.json");
     return validateUpdateManifest(JSON.parse(await readBoundedBody(response)));
   } finally {
     clearTimeout(timeout);

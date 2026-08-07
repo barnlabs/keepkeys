@@ -4,9 +4,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$Script:Version = "0.6.0"
-$Script:MetadataPrefix = "net.barnlabs.keepkeys/meta/"
-$Script:SecretPrefix = "net.barnlabs.keepkeys/secret/"
+$Script:Version = "0.7.0"
+$Script:MetadataPrefix = "net.neorome.keepkeys/meta/"
+$Script:SecretPrefix = "net.neorome.keepkeys/secret/"
 $Script:MaximumSecretBytes = 2048
 $Script:MaximumMetadataBytes = 2560
 $Script:MaximumAllowRules = 8
@@ -34,7 +34,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace BarnLabs.KeepKeys
+namespace Neorome.KeepKeys
 {
     public static class ProcessIdentity
     {
@@ -818,7 +818,7 @@ function Show-KeepKeysStoreDialog {
                 } `
                 -StoreSecret {
                     param([string]$candidateSecret)
-                    if ($null -ne [BarnLabs.KeepKeys.CredentialVault]::Read(
+                    if ($null -ne [Neorome.KeepKeys.CredentialVault]::Read(
                         $Script:MetadataPrefix + $Name,
                         $false
                     )) {
@@ -1247,7 +1247,7 @@ function ConvertFrom-KeepKeysMetadataCredential {
 
 function Read-KeepKeysMetadata {
     param([string]$Name)
-    $credential = [BarnLabs.KeepKeys.CredentialVault]::Read(
+    $credential = [Neorome.KeepKeys.CredentialVault]::Read(
         $Script:MetadataPrefix + $Name,
         $true
     )
@@ -1288,7 +1288,7 @@ function New-KeepKeysNameMutex {
             $digest = ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace("-", "")
         } finally { $sha.Dispose() }
     } finally { [Array]::Clear($bytes, 0, $bytes.Length) }
-    $mutex = [Threading.Mutex]::new($false, "Local\BarnLabs.KeepKeys.$digest")
+    $mutex = [Threading.Mutex]::new($false, "Local\Neorome.KeepKeys.$digest")
     try {
         [void]$mutex.WaitOne()
     } catch [Threading.AbandonedMutexException] {
@@ -1325,7 +1325,7 @@ function Save-KeepKeysAllowRule {
     $bytes = ConvertTo-KeepKeysMetadataBytes $current.Provider `
         ([string[]]$current.DocumentationUrls) ([object[]]$rules.ToArray())
     try {
-        [BarnLabs.KeepKeys.CredentialVault]::Write(
+        [Neorome.KeepKeys.CredentialVault]::Write(
             $Script:MetadataPrefix + $Name, $current.UserName, $current.Comment, $bytes
         )
     } finally { [Array]::Clear($bytes, 0, $bytes.Length) }
@@ -1349,7 +1349,7 @@ function Clear-KeepKeysAllowRules {
         $bytes = ConvertTo-KeepKeysMetadataBytes $current.Provider `
             ([string[]]$current.DocumentationUrls)
         try {
-            [BarnLabs.KeepKeys.CredentialVault]::Write(
+            [Neorome.KeepKeys.CredentialVault]::Write(
                 $Script:MetadataPrefix + $Name,
                 $current.UserName,
                 $current.Comment,
@@ -1364,7 +1364,7 @@ function Clear-KeepKeysAllowRules {
 }
 
 function Get-KeepKeysCredentials {
-    $items = [BarnLabs.KeepKeys.CredentialVault]::Enumerate($Script:MetadataPrefix + "*")
+    $items = [Neorome.KeepKeys.CredentialVault]::Enumerate($Script:MetadataPrefix + "*")
     $results = [Collections.Generic.List[object]]::new()
     foreach ($item in $items) {
         if (-not $item.TargetName.StartsWith(
@@ -1406,7 +1406,7 @@ function Save-KeepKeysRecord {
         $Provider $DocumentationUrls
     $metadataTarget = $Script:MetadataPrefix + $Name
     $secretTarget = $Script:SecretPrefix + $Name
-    $previousMetadata = [BarnLabs.KeepKeys.CredentialVault]::Read(
+    $previousMetadata = [Neorome.KeepKeys.CredentialVault]::Read(
         $metadataTarget,
         $true
     )
@@ -1427,18 +1427,18 @@ function Save-KeepKeysRecord {
             "Start a new phone intake and review the replacement warning."
         )
     }
-    $previousSecret = [BarnLabs.KeepKeys.CredentialVault]::Read(
+    $previousSecret = [Neorome.KeepKeys.CredentialVault]::Read(
         $secretTarget,
         $true
     )
     try {
-        [BarnLabs.KeepKeys.CredentialVault]::Write(
+        [Neorome.KeepKeys.CredentialVault]::Write(
             $secretTarget,
             "KEEPKEYS_SECRET",
             "KeepKeys protected value",
             $secretBytes
         )
-        [BarnLabs.KeepKeys.CredentialVault]::Write(
+        [Neorome.KeepKeys.CredentialVault]::Write(
             $metadataTarget,
             $Variable,
             $Description,
@@ -1449,11 +1449,11 @@ function Save-KeepKeysRecord {
         $rollbackFailures = [Collections.Generic.List[Exception]]::new()
         try {
             if ($null -eq $previousSecret) {
-                [void][BarnLabs.KeepKeys.CredentialVault]::Delete(
+                [void][Neorome.KeepKeys.CredentialVault]::Delete(
                     $secretTarget
                 )
             } else {
-                [BarnLabs.KeepKeys.CredentialVault]::Write(
+                [Neorome.KeepKeys.CredentialVault]::Write(
                     $secretTarget,
                     "KEEPKEYS_SECRET",
                     "KeepKeys protected value",
@@ -1465,11 +1465,11 @@ function Save-KeepKeysRecord {
         }
         try {
             if ($null -eq $previousMetadata) {
-                [void][BarnLabs.KeepKeys.CredentialVault]::Delete(
+                [void][Neorome.KeepKeys.CredentialVault]::Delete(
                     $metadataTarget
                 )
             } else {
-                [BarnLabs.KeepKeys.CredentialVault]::Write(
+                [Neorome.KeepKeys.CredentialVault]::Write(
                     $metadataTarget,
                     $previousMetadata.UserName,
                     $previousMetadata.Comment,
@@ -1526,7 +1526,7 @@ function Save-KeepKeysRecord {
 function Test-KeepKeysPortalParent {
     param([int]$ParentProcessId)
     try {
-        if (-not [BarnLabs.KeepKeys.ProcessIdentity]::IsNodeProcess(
+        if (-not [Neorome.KeepKeys.ProcessIdentity]::IsNodeProcess(
             $ParentProcessId
         )) {
             return $false
@@ -1538,7 +1538,7 @@ function Test-KeepKeysPortalParent {
             [String]::IsNullOrWhiteSpace($process.CommandLine)) {
             return $false
         }
-        $arguments = [BarnLabs.KeepKeys.CommandLine]::Parse(
+        $arguments = [Neorome.KeepKeys.CommandLine]::Parse(
             $process.CommandLine
         )
         if ($arguments.Length -lt 2) {
@@ -1568,7 +1568,7 @@ function Read-KeepKeysPortalSecret {
         $expectedDigest -cnotmatch "^[a-f0-9]{64}$" -or
         -not [int]::TryParse($expectedParent, [ref]$parentPid) -or
         $parentPid -le 0 -or
-        $parentPid -ne [BarnLabs.KeepKeys.ProcessIdentity]::ParentProcessId() -or
+        $parentPid -ne [Neorome.KeepKeys.ProcessIdentity]::ParentProcessId() -or
         -not (Test-KeepKeysPortalParent $parentPid)) {
         throw (
             "The private phone-intake commit requires the live KeepKeys " +
@@ -1687,7 +1687,7 @@ function Invoke-KeepKeysRun {
         (Get-KeepKeysFingerprint $Request.Entrypoint) -cne $Request.EntrypointFingerprint) {
         throw "The script entrypoint changed after approval details were prepared. KeepKeys refused to run it."
     }
-    $run = [BarnLabs.KeepKeys.ScopedRunner]::Run(
+    $run = [Neorome.KeepKeys.ScopedRunner]::Run(
         $Request.Program,
         [string[]]$Request.Arguments,
         $Request.WorkingDirectory,
@@ -1735,7 +1735,7 @@ function Invoke-KeepKeysDoctor {
     }
     try {
         $firstBytes = [Text.Encoding]::UTF8.GetBytes($first)
-        [BarnLabs.KeepKeys.CredentialVault]::Write(
+        [Neorome.KeepKeys.CredentialVault]::Write(
             $secretTarget,
             "KEEPKEYS_SECRET",
             "KeepKeys protected value",
@@ -1744,9 +1744,9 @@ function Invoke-KeepKeysDoctor {
         [Array]::Clear($firstBytes, 0, $firstBytes.Length)
         $firstMetadataBytes = ConvertTo-KeepKeysMetadataBytes `
             "KeepKeys Doctor" `
-            ([string[]]@("https://github.com/barnlabs/keepkeys"))
+            ([string[]]@("https://github.com/neorome/keepkeys"))
         try {
-            [BarnLabs.KeepKeys.CredentialVault]::Write(
+            [Neorome.KeepKeys.CredentialVault]::Write(
                 $metadataTarget,
                 "KEEPKEYS_DOCTOR",
                 "Temporary KeepKeys Credential Manager verification",
@@ -1759,7 +1759,7 @@ function Invoke-KeepKeysDoctor {
                 $firstMetadataBytes.Length
             )
         }
-        $firstRead = [BarnLabs.KeepKeys.CredentialVault]::Read($secretTarget, $true)
+        $firstRead = [Neorome.KeepKeys.CredentialVault]::Read($secretTarget, $true)
         $firstMetadata = Read-KeepKeysMetadata $name
         $firstListed = @(
             Get-KeepKeysCredentials | Where-Object {
@@ -1774,13 +1774,13 @@ function Invoke-KeepKeysDoctor {
             $firstMetadata.Comment -ceq "Temporary KeepKeys Credential Manager verification" -and
             $firstMetadata.Provider -ceq "KeepKeys Doctor" -and
             $firstMetadata.DocumentationUrls.Count -eq 1 -and
-            $firstMetadata.DocumentationUrls[0] -ceq "https://github.com/barnlabs/keepkeys" -and
+            $firstMetadata.DocumentationUrls[0] -ceq "https://github.com/neorome/keepkeys" -and
             $firstListed.Count -eq 1 -and
             (Test-KeepKeysMetadataEqual $firstMetadata $firstListed[0])
         )
         $firstValue = ""
         $secondBytes = [Text.Encoding]::UTF8.GetBytes($second)
-        [BarnLabs.KeepKeys.CredentialVault]::Write(
+        [Neorome.KeepKeys.CredentialVault]::Write(
             $secretTarget,
             "KEEPKEYS_SECRET",
             "KeepKeys protected value",
@@ -1788,13 +1788,13 @@ function Invoke-KeepKeysDoctor {
         )
         [Array]::Clear($secondBytes, 0, $secondBytes.Length)
         $secondMetadataBytes = ConvertTo-KeepKeysMetadataBytes `
-            "BarnLabs" `
+            "Neorome" `
             ([string[]]@(
-                "https://github.com/barnlabs/keepkeys",
-                "https://github.com/barnlabs/keepkeys/blob/main/README.md"
+                "https://github.com/neorome/keepkeys",
+                "https://github.com/neorome/keepkeys/blob/main/README.md"
             ))
         try {
-            [BarnLabs.KeepKeys.CredentialVault]::Write(
+            [Neorome.KeepKeys.CredentialVault]::Write(
                 $metadataTarget,
                 "KEEPKEYS_DOCTOR_UPDATED",
                 "Updated temporary KeepKeys verification",
@@ -1807,7 +1807,7 @@ function Invoke-KeepKeysDoctor {
                 $secondMetadataBytes.Length
             )
         }
-        $secondRead = [BarnLabs.KeepKeys.CredentialVault]::Read($secretTarget, $true)
+        $secondRead = [Neorome.KeepKeys.CredentialVault]::Read($secretTarget, $true)
         $secondMetadata = Read-KeepKeysMetadata $name
         $secondValue = [Text.Encoding]::UTF8.GetString($secondRead.Secret)
         [Array]::Clear($secondRead.Secret, 0, $secondRead.Secret.Length)
@@ -1815,20 +1815,20 @@ function Invoke-KeepKeysDoctor {
             $secondValue -ceq $second -and
             $secondMetadata.UserName -ceq "KEEPKEYS_DOCTOR_UPDATED" -and
             $secondMetadata.Comment -ceq "Updated temporary KeepKeys verification" -and
-            $secondMetadata.Provider -ceq "BarnLabs" -and
+            $secondMetadata.Provider -ceq "Neorome" -and
             $secondMetadata.DocumentationUrls.Count -eq 2 -and
-            $secondMetadata.DocumentationUrls[1] -ceq "https://github.com/barnlabs/keepkeys/blob/main/README.md"
+            $secondMetadata.DocumentationUrls[1] -ceq "https://github.com/neorome/keepkeys/blob/main/README.md"
         )
         $secondValue = ""
     } finally {
-        [void][BarnLabs.KeepKeys.CredentialVault]::Delete($metadataTarget)
-        [void][BarnLabs.KeepKeys.CredentialVault]::Delete($secretTarget)
+        [void][Neorome.KeepKeys.CredentialVault]::Delete($metadataTarget)
+        [void][Neorome.KeepKeys.CredentialVault]::Delete($secretTarget)
         $first = ""
         $second = ""
     }
     if (-not $firstMatches -or -not $secondMatches -or
-        $null -ne [BarnLabs.KeepKeys.CredentialVault]::Read($metadataTarget, $false) -or
-        $null -ne [BarnLabs.KeepKeys.CredentialVault]::Read($secretTarget, $false)) {
+        $null -ne [Neorome.KeepKeys.CredentialVault]::Read($metadataTarget, $false) -or
+        $null -ne [Neorome.KeepKeys.CredentialVault]::Read($secretTarget, $false)) {
         throw "The temporary Credential Manager round trip did not verify."
     }
     return @{
@@ -2040,7 +2040,7 @@ public static class KeepKeysScopeProbe
     try {
         Add-Type -TypeDefinition $probeSource -Language CSharp `
             -OutputAssembly $probePath -OutputType ConsoleApplication
-        $run = [BarnLabs.KeepKeys.ScopedRunner]::Run(
+        $run = [Neorome.KeepKeys.ScopedRunner]::Run(
             $probePath,
             [string[]]@(),
             $probeRoot,
@@ -2221,10 +2221,10 @@ try {
             $metadataTarget = $Script:MetadataPrefix + $name
             try {
                 if ($nativeSelfTestValue -ceq "replace-to-create") {
-                    [void][BarnLabs.KeepKeys.CredentialVault]::Delete(
+                    [void][Neorome.KeepKeys.CredentialVault]::Delete(
                         $metadataTarget
                     )
-                    [void][BarnLabs.KeepKeys.CredentialVault]::Delete(
+                    [void][Neorome.KeepKeys.CredentialVault]::Delete(
                         $secretTarget
                     )
                     $rejected = $false
@@ -2245,11 +2245,11 @@ try {
                         )
                         if (-not $rejected) { throw }
                     }
-                    $metadataAfter = [BarnLabs.KeepKeys.CredentialVault]::Read(
+                    $metadataAfter = [Neorome.KeepKeys.CredentialVault]::Read(
                         $metadataTarget,
                         $true
                     )
-                    $secretAfter = [BarnLabs.KeepKeys.CredentialVault]::Read(
+                    $secretAfter = [Neorome.KeepKeys.CredentialVault]::Read(
                         $secretTarget,
                         $true
                     )
@@ -2303,7 +2303,7 @@ try {
                     $storedMetadata = $null
                     $matches = $false
                     try {
-                        $storedSecret = [BarnLabs.KeepKeys.CredentialVault]::Read(
+                        $storedSecret = [Neorome.KeepKeys.CredentialVault]::Read(
                             $secretTarget,
                             $true
                         )
@@ -2349,7 +2349,7 @@ try {
                                 $raceSecret = ""
                             }
                             $secretAfterRace = (
-                                [BarnLabs.KeepKeys.CredentialVault]::Read(
+                                [Neorome.KeepKeys.CredentialVault]::Read(
                                     $secretTarget,
                                     $true
                                 )
@@ -2403,18 +2403,18 @@ try {
                                 $storedSecret.Secret.Length
                             )
                         }
-                        [void][BarnLabs.KeepKeys.CredentialVault]::Delete(
+                        [void][Neorome.KeepKeys.CredentialVault]::Delete(
                             $metadataTarget
                         )
-                        [void][BarnLabs.KeepKeys.CredentialVault]::Delete(
+                        [void][Neorome.KeepKeys.CredentialVault]::Delete(
                             $secretTarget
                         )
                     }
-                    $metadataAfter = [BarnLabs.KeepKeys.CredentialVault]::Read(
+                    $metadataAfter = [Neorome.KeepKeys.CredentialVault]::Read(
                         $metadataTarget,
                         $true
                     )
-                    $secretAfter = [BarnLabs.KeepKeys.CredentialVault]::Read(
+                    $secretAfter = [Neorome.KeepKeys.CredentialVault]::Read(
                         $secretTarget,
                         $true
                     )
@@ -2458,10 +2458,10 @@ try {
                 }
             } finally {
                 if ($nativeSelfTest) {
-                    [void][BarnLabs.KeepKeys.CredentialVault]::Delete(
+                    [void][Neorome.KeepKeys.CredentialVault]::Delete(
                         $Script:MetadataPrefix + $name
                     )
-                    [void][BarnLabs.KeepKeys.CredentialVault]::Delete(
+                    [void][Neorome.KeepKeys.CredentialVault]::Delete(
                         $Script:SecretPrefix + $name
                     )
                 }
@@ -2504,7 +2504,7 @@ try {
             $secretTarget = $Script:SecretPrefix + $name
             $mutex = New-KeepKeysNameMutex $name
             try {
-            $credential = [BarnLabs.KeepKeys.CredentialVault]::Read(
+            $credential = [Neorome.KeepKeys.CredentialVault]::Read(
                 $metadataTarget,
                 $false
             )
@@ -2520,10 +2520,10 @@ try {
                 $result = @{ status = "cancelled"; message = "Secret removal was cancelled." }
                 break
             }
-            $removedMetadata = [BarnLabs.KeepKeys.CredentialVault]::Delete(
+            $removedMetadata = [Neorome.KeepKeys.CredentialVault]::Delete(
                 $metadataTarget
             )
-            $removedSecret = [BarnLabs.KeepKeys.CredentialVault]::Delete(
+            $removedSecret = [Neorome.KeepKeys.CredentialVault]::Delete(
                 $secretTarget
             )
             $removed = $removedMetadata -or $removedSecret
@@ -2582,7 +2582,7 @@ try {
                 $metadata = Save-KeepKeysAllowRule $request.Name $metadata `
                     (Get-KeepKeysRuleFromRequest $request)
             }
-            $record = [BarnLabs.KeepKeys.CredentialVault]::Read(
+            $record = [Neorome.KeepKeys.CredentialVault]::Read(
                 $secretTarget,
                 $true
             )

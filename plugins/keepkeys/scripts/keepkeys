@@ -9,10 +9,10 @@ fi
 script_dir=$(CDPATH='' cd -- "$(/usr/bin/dirname -- "$0")" && pwd)
 source_file="$script_dir/keepkeys.swift"
 launcher_file="$script_dir/keepkeys"
-cache_dir="${KEEPKEYS_CACHE_DIR:-${HOME}/Library/Caches/net.barnlabs.keepkeys}"
+cache_dir="${KEEPKEYS_CACHE_DIR:-${HOME}/Library/Caches/net.neorome.keepkeys}"
 binary="$cache_dir/keepkeys-helper"
 hash_file="$cache_dir/build-inputs.sha256"
-expected_source_hash="e330f060e1f175097d58d1adc856031aa706c1d65529eaeaa39cb726061da9c9"
+expected_source_hash="266288839c334fdf782e358bafda583ecf2b880f255db44e661d1bd09412b038"
 
 umask 077
 if [ -L "$cache_dir" ]; then

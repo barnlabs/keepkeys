@@ -45,7 +45,7 @@ class HermesAdapterTests(unittest.TestCase):
                 {
                     "name": "github-release",
                     "variable": "GITHUB_TOKEN",
-                    "description": "Publishes approved BarnLabs releases",
+                    "description": "Publishes approved Neorome releases",
                     "provider": "GitHub",
                     "documentation_urls": ["https://docs.github.com/en/rest"],
                 },
@@ -57,7 +57,7 @@ class HermesAdapterTests(unittest.TestCase):
                 "--variable",
                 "GITHUB_TOKEN",
                 "--description",
-                "Publishes approved BarnLabs releases",
+                "Publishes approved Neorome releases",
                 "--provider",
                 "GitHub",
                 "--documentation-url",
@@ -77,7 +77,7 @@ class HermesAdapterTests(unittest.TestCase):
                 {
                     "name": "github-release",
                     "variable": "GITHUB_TOKEN",
-                    "description": "Publishes approved BarnLabs releases",
+                    "description": "Publishes approved Neorome releases",
                     "provider": "GitHub",
                     "documentation_urls": [
                         "https://docs.github.com/en/rest",
@@ -92,7 +92,7 @@ class HermesAdapterTests(unittest.TestCase):
                 "--variable",
                 "GITHUB_TOKEN",
                 "--description",
-                "Publishes approved BarnLabs releases",
+                "Publishes approved Neorome releases",
                 "--provider",
                 "GitHub",
                 "--documentation-url",
@@ -296,12 +296,12 @@ class HermesAdapterTests(unittest.TestCase):
         with patch.object(
             plugin,
             "_run_helper",
-            return_value={"status": "ok", "version": "0.6.0"},
+            return_value={"status": "ok", "version": "0.7.0"},
         ):
             result = plugin._handler_for("keepkeys_status")({})
         self.assertEqual(
             json.loads(result),
-            {"status": "ok", "version": "0.6.0"},
+            {"status": "ok", "version": "0.7.0"},
         )
 
 

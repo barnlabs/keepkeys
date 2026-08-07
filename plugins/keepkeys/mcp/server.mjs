@@ -268,7 +268,7 @@ export function createRequestHandler(helperRunner = runHelper) {
               ? params.protocolVersion
               : PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: "keepkeys", version: "0.6.0" },
+          serverInfo: { name: "keepkeys", version: "0.7.0" },
           instructions:
             "KeepKeys stores values outside chat and never exposes plaintext secrets. Use keepkeys_store_from_phone only when the user asks for phone intake, and never open its one-time link. Use keepkeys_run only for direct commands the user intends to approve.",
         },
