@@ -35,7 +35,7 @@ assert.equal(manifest.name, "keepkeys");
 assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
 assert.equal(manifest.skills, "./skills/");
 assert.equal(manifest.mcpServers, "./.mcp.json");
-assert.equal(manifest.author.name, "BarnLabs");
+assert.equal(manifest.author.name, "Neorome");
 assert.equal(manifest.license, "Apache-2.0");
 assert.ok(Array.isArray(manifest.interface.defaultPrompt));
 assert.ok(manifest.interface.defaultPrompt.length <= 3);
@@ -50,7 +50,7 @@ for (const field of ["composerIcon", "logo", "logoDark"]) {
   assert.ok(existsSync(resolve(pluginRoot, relative)), `${field} file is missing`);
 }
 
-assert.equal(marketplace.name, "barnlabs");
+assert.equal(marketplace.name, "neorome");
 const entry = marketplace.plugins.find((plugin) => plugin.name === "keepkeys");
 assert.ok(entry, "marketplace entry is missing");
 assert.equal(entry.source.source, "local");
@@ -411,7 +411,7 @@ assert.doesNotMatch(
 );
 assert.deepEqual(
   portalSource.match(/https?:\/\/(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^"'\s]*)?/gi) ?? [],
-  ["https://github.com/barnlabs/keepkeys"],
+  ["https://github.com/neorome/keepkeys"],
   "phone intake source may contain only the official self-test documentation URL, not a hosted relay",
 );
 const platformDispatcher = readFileSync(

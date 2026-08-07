@@ -34,7 +34,7 @@ assert.equal(manifest.name, "keepkeys");
 assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
 assert.equal(manifest.skills, "./skills/");
 assert.equal(manifest.mcpServers, undefined);
-assert.equal(manifest.author.name, "BarnLabs");
+assert.equal(manifest.author.name, "Neorome");
 assert.equal(manifest.license, "Apache-2.0");
 for (const relative of [
   "assets/icon.png",

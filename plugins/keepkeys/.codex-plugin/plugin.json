@@ -1,13 +1,13 @@
 {
   "name": "keepkeys",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Store secrets in a native OS vault, rotate them safely, and approve exact agent commands without returning plaintext.",
   "author": {
-    "name": "BarnLabs",
-    "url": "https://github.com/barnlabs"
+    "name": "Neorome",
+    "url": "https://github.com/neorome"
   },
-  "homepage": "https://github.com/barnlabs/keepkeys",
-  "repository": "https://github.com/barnlabs/keepkeys",
+  "homepage": "https://github.com/neorome/keepkeys",
+  "repository": "https://github.com/neorome/keepkeys",
   "license": "Apache-2.0",
   "keywords": [
     "secrets",
@@ -28,7 +28,7 @@
     "displayName": "KeepKeys",
     "shortDescription": "Local secrets for approved agent commands",
     "longDescription": "KeepKeys lets the agent prepare names, variables, descriptions, providers, and official documentation links. At the host, press Paste & Store to put the clipboard value into the operating-system vault. From a phone, use a ten-minute Tailscale Serve page that never opens to the public internet. Then approve each command that may use the key. Secret values are never returned to the model.",
-    "developerName": "BarnLabs",
+    "developerName": "Neorome",
     "category": "Productivity",
     "capabilities": [
       "Explicit Paste & Store",
@@ -39,9 +39,9 @@
       "Exact-command always-allow and revocation",
       "Metadata-preserving key rotation"
     ],
-    "websiteURL": "https://github.com/barnlabs/keepkeys",
-    "privacyPolicyURL": "https://github.com/barnlabs/keepkeys/blob/main/docs/privacy-and-data-handling.md",
-    "termsOfServiceURL": "https://github.com/barnlabs/keepkeys/blob/main/TERMS.md",
+    "websiteURL": "https://github.com/neorome/keepkeys",
+    "privacyPolicyURL": "https://github.com/neorome/keepkeys/blob/main/docs/privacy-and-data-handling.md",
+    "termsOfServiceURL": "https://github.com/neorome/keepkeys/blob/main/TERMS.md",
     "defaultPrompt": [
       "Store a new secret with KeepKeys.",
       "Store a new secret from my phone with KeepKeys.",

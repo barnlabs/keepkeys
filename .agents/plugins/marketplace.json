@@ -1,7 +1,7 @@
 {
-  "name": "barnlabs",
+  "name": "neorome",
   "interface": {
-    "displayName": "BarnLabs"
+    "displayName": "Neorome"
   },
   "plugins": [
     {

@@ -1,8 +1,8 @@
 {
-  "name": "barnlabs",
-  "description": "Open-source agent tools from BarnLabs.",
+  "name": "neorome",
+  "description": "Open-source agent tools from Neorome.",
   "owner": {
-    "name": "BarnLabs"
+    "name": "Neorome"
   },
   "plugins": [
     {
@@ -13,10 +13,10 @@
         "type": "local",
         "path": "./plugins/keepkeys"
       },
-      "homepage": "https://github.com/barnlabs/keepkeys",
-      "version": "0.6.0",
+      "homepage": "https://github.com/neorome/keepkeys",
+      "version": "0.7.0",
       "author": {
-        "name": "BarnLabs"
+        "name": "Neorome"
       },
       "keywords": [
         "KeepKeys",
