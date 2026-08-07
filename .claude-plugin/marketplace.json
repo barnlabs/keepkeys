@@ -21,7 +21,7 @@
         "url": "https://github.com/neorome/keepkeys.git",
         "path": "plugins/keepkeys",
         "ref": "main",
-        "sha": "5ea0d1774af52c93db117b095e0f36169f8f9660"
+        "sha": "2525a3358831d2a539d6a1dbdcb5f7148c0418b5"
       },
       "category": "security",
       "homepage": "https://github.com/neorome/keepkeys",
