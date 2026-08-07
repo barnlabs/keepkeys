@@ -1,6 +1,6 @@
 # Publish KeepKeys in the Codex plugin directory
 
-This is the handoff for the BarnLabs publisher. It follows the official OpenAI
+This is the handoff for the Neorome publisher. It follows the official OpenAI
 plugin submission workflow reviewed on 2026-07-28 and keeps account-owned
 attestations with a human publisher.
 
@@ -20,12 +20,12 @@ local launcher when the client has no `keepkeys_*` MCP tools.
 
 ## Publisher prerequisites
 
-Before opening the portal, the BarnLabs Platform organization must have:
+Before opening the portal, the Neorome Platform organization must have:
 
 1. a publisher with **Apps Management: Write** permission;
 2. completed developer or business identity verification;
 3. authority to accept OpenAI's policy, data, and listing attestations for
-   BarnLabs.
+   Neorome.
 
 Those are account-owned decisions. Repository automation must not claim or
 accept them.
@@ -38,12 +38,12 @@ From a reviewed checkout:
 ./scripts/check
 ./scripts/test
 ./scripts/package-submission
-(cd dist && shasum -a 256 -c keepkeys-skills-0.6.0.zip.sha256)
+(cd dist && shasum -a 256 -c keepkeys-skills-0.7.0.zip.sha256)
 ```
 
 Upload:
 
-`dist/keepkeys-skills-0.6.0.zip`
+`dist/keepkeys-skills-0.7.0.zip`
 
 Expected SHA-256:
 
@@ -65,12 +65,12 @@ and use:
 | --- | --- |
 | Submission type | Skills only |
 | Name | KeepKeys |
-| Developer | BarnLabs |
+| Developer | Neorome |
 | Category | Productivity |
-| Website | `https://github.com/barnlabs/keepkeys` |
-| Support | `https://github.com/barnlabs/keepkeys/blob/main/.github/SUPPORT.md` |
-| Privacy | `https://github.com/barnlabs/keepkeys/blob/main/docs/privacy-and-data-handling.md` |
-| Terms | `https://github.com/barnlabs/keepkeys/blob/main/TERMS.md` |
+| Website | `https://github.com/neorome/keepkeys` |
+| Support | `https://github.com/neorome/keepkeys/blob/main/.github/SUPPORT.md` |
+| Privacy | `https://github.com/neorome/keepkeys/blob/main/docs/privacy-and-data-handling.md` |
+| Terms | `https://github.com/neorome/keepkeys/blob/main/TERMS.md` |
 | Logo | `plugins/keepkeys/assets/logo.png` |
 | Dark logo | `plugins/keepkeys/assets/logo-dark.png` |
 | Composer icon | `plugins/keepkeys/assets/icon.png` |
@@ -99,7 +99,7 @@ credential into the portal, a test prompt, a screenshot, or reviewer notes.
 Verify the rendered listing:
 
 - the public name is **KeepKeys** and the internal slug is `keepkeys`;
-- BarnLabs is the publisher;
+- Neorome is the publisher;
 - the Keykeeper old-man-with-key-ring artwork is crisp in light and dark
   surfaces;
 - macOS, Windows, and Linux support is stated with the Linux desktop/Secret
@@ -107,13 +107,13 @@ Verify the rendered listing:
 - the local-host, no-account, no-telemetry, and no-plaintext-retrieval
   boundaries are present, with the optional tailnet-only phone route described
   separately;
-- release notes say 0.6.0;
+- release notes say 0.7.0;
 - ChatGPT mobile Remote is described as using a connected Mac or Windows host,
-  not as a hosted BarnLabs service;
-- every URL resolves to the public BarnLabs repository;
+  not as a hosted Neorome service;
+- every URL resolves to the public Neorome repository;
 - the upload is the freshly checksummed skills archive.
 
-Then review the policy and data attestations as the BarnLabs publisher and
+Then review the policy and data attestations as the Neorome publisher and
 submit. OpenAI review and directory publication are external states; record the
 submission ID and final decision in `CHECKLIST.md` only after the portal shows
 them.

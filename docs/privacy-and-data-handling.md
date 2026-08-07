@@ -1,7 +1,7 @@
 # Privacy and data handling
 
 KeepKeys has no account, cloud service, telemetry, analytics, advertising,
-tracking, or BarnLabs-operated credential store. Native storage and command use
+tracking, or Neorome-operated credential store. Native storage and command use
 stay on the host. Optional phone intake crosses the user's private Tailscale
 network directly to that host.
 
@@ -20,8 +20,8 @@ network directly to that host.
 | Tailscale user login for the active page | Transient portal memory from a Tailscale Serve identity header | No | Until success, failure, or ten-minute expiry |
 | Run purpose, path, arguments, cwd, hashes | Native approval window and transient helper memory | Yes; proposed by agent | Not persisted by KeepKeys |
 | Bounded redacted stdout/stderr | MCP or Hermes result | Yes | Controlled by the host client |
-| Compiled macOS helper cache | `~/Library/Caches/net.barnlabs.keepkeys` | Not credential data | Until cache removal |
-| Stable release metadata | `raw.githubusercontent.com/barnlabs/keepkeys/main/update.json` when the user explicitly checks | Version and public Git commit SHAs only | Not persisted by KeepKeys |
+| Compiled macOS helper cache | `~/Library/Caches/net.neorome.keepkeys` | Not credential data | Until cache removal |
+| Stable release metadata | `raw.githubusercontent.com/neorome/keepkeys/main/update.json` when the user explicitly checks | Version and public Git commit SHAs only | Not persisted by KeepKeys |
 
 Linux Secret Service attributes and labels, macOS Keychain attributes, and
 Windows Credential Manager metadata are not treated as secret values. Keep
@@ -47,7 +47,7 @@ Tailscale network. The page receives the value only after the user presses
 capability-framed pipe, and closes. The native helper accepts that pipe only
 from the exact bundled portal parent. KeepKeys cannot clear the phone clipboard
 or its history. It never enables Tailscale Funnel, opens the page to the public
-internet, or sends the value to BarnLabs.
+internet, or sends the value to Neorome.
 
 - macOS transfers the value between AppKit's pasteboard API,
   Security.framework, and the approved child environment.

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0 - Unreleased
+
+- Moved KeepKeys to Neorome across repository ownership, marketplaces, package
+  metadata, documentation links, support routes, and the update endpoint.
+- Established fresh Neorome vault, cache, lock, and Windows mutex namespaces.
+  The helpers do not read, export, or migrate records from a prior namespace;
+  users who need a record in 0.7.0 store it again through **Paste & Store**.
+- Replaced the Keykeeper master, plugin-store crops, and GitHub social preview.
+  The social asset now carries the Neorome open-source identity.
+
 ## 0.6.0 - 2026-07-30
 
 - Added exact-command **Always allow** decisions on macOS, Windows, and Linux.
@@ -181,7 +191,7 @@
 
 - Standardized the product as **KeepKeys** with `keepkeys` as the lowercase
   internal slug required by plugin hosts.
-- Added a native Grok Build plugin manifest, BarnLabs Grok marketplace catalog,
+- Added a native Grok Build plugin manifest, Neorome Grok marketplace catalog,
   exact-SHA install guidance, and local Grok validation.
 - Replaced the generic lock branding with the original Keykeeper character: a
   capable old steward carrying a visible ring of keys.
@@ -206,7 +216,7 @@
 
 ## 0.1.0 — 2026-07-24
 
-- Added the BarnLabs KeepKeys Codex plugin and repository marketplace.
+- Added the Neorome KeepKeys Codex plugin and repository marketplace.
 - Added native macOS secure entry, overwrite, removal, and per-command approval.
 - Added device-local macOS Keychain storage with no plaintext retrieval tool.
 - Added direct, empty-environment child execution with executable hashing and bounded output redaction.

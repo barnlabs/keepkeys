@@ -1,8 +1,15 @@
 # Submission release notes
 
-KeepKeys 0.6.0 is the current BarnLabs submission.
+KeepKeys 0.7.0 is the unreleased Neorome submission candidate.
 
-Version 0.6.0 adds native exact-command automatic approval on macOS, Windows,
+Version 0.7.0 moves the project, marketplaces, package metadata, support
+routes, update endpoint, and native storage namespaces to Neorome. It creates a
+fresh vault/cache namespace on every supported platform. It does not read,
+export, or migrate prior namespaced records; users store a required record again
+through the native **Paste & Store** flow. The Keykeeper and social preview were
+regenerated for the Neorome identity.
+
+The prior 0.6.0 release added native exact-command automatic approval on macOS, Windows,
 and Linux. The user can choose **Always allow this exact command** after
 reviewing the purpose, canonical executable, SHA-256, arguments, working
 directory, and optional interpreter entrypoint fingerprint. The rule contains

@@ -195,8 +195,8 @@ Phone intake is opt-in and requires Tailscale 1.52 or newer on the host, a
 signed-in phone in the same tailnet, MagicDNS, and tailnet HTTPS. KeepKeys
 starts one localhost HTTP listener and invokes `tailscale serve` in the
 foreground with an unguessable path. It never invokes `tailscale funnel`,
-listens on a LAN address, creates a BarnLabs account, or sends the key through a
-BarnLabs server.
+listens on a LAN address, creates a Neorome account, or sends the key through a
+Neorome server.
 
 Tailscale Serve strips caller-supplied identity headers and adds the
 authenticated Tailscale user identity for tailnet traffic. KeepKeys rejects
@@ -229,8 +229,8 @@ checks, destructive confirmation, and the selected write or deletion. A
 desktop-versus-phone replacement race or removal-versus-store race therefore
 cannot interleave vault mutations. A process crash can leave an orphaned lock
 file; subsequent mutation fails closed until that file is removed from
-`~/Library/Caches/net.barnlabs.keepkeys/portal-locks` on macOS,
-`%LOCALAPPDATA%\BarnLabs\KeepKeys\portal-locks` on Windows, or
+`~/Library/Caches/net.neorome.keepkeys/portal-locks` on macOS,
+`%LOCALAPPDATA%\Neorome\KeepKeys\portal-locks` on Windows, or
 `${XDG_RUNTIME_DIR:-~/.cache}/keepkeys/portal-locks` on Linux.
 If the native vault write succeeds but closing or removing that lock fails,
 KeepKeys retains the committed state, returns `stored: true` with the cleanup

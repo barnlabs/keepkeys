@@ -4,8 +4,8 @@ description: Store named secrets outside the conversation and use them through K
 license: Apache-2.0
 compatibility: macOS 13+, Windows 10/11, or desktop Linux; Node.js 18+ and the platform prerequisites documented in INSTALL.md.
 metadata:
-  author: BarnLabs
-  version: "0.6.0"
+  author: Neorome
+  version: "0.7.0"
 ---
 
 # KeepKeys
@@ -80,7 +80,7 @@ are controlling the host through ChatGPT Remote.
 
 If Tailscale Serve is unavailable, offer the native Store flow at the host.
 Never use Funnel, another public tunnel, email, chat, or a form hosted by
-BarnLabs as a fallback.
+Neorome as a fallback.
 
 ## Use
 

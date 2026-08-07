@@ -13,6 +13,6 @@ Use the narrowest channel that fits:
 - **Security:** do not open an issue. Use **Security → Report a vulnerability**
   as described in [SECURITY.md](../SECURITY.md).
 
-BarnLabs does not provide emergency credential recovery. KeepKeys has no backup
+Neorome does not provide emergency credential recovery. KeepKeys has no backup
 or plaintext export path; use the issuing service’s revocation, rotation, and
 recovery process.

@@ -23,9 +23,9 @@ const tools = parse("plugins/keepkeys/mcp/tools.json");
 const update = parse("update.json");
 
 const version = codex.version;
-const releaseCommit = "28f3e8426eb24c867f566064760edd6612062c85";
-const catalogCommit = "e1d4470f32cf236024107230f5dbb0aa420f0137";
-assert.equal(version, "0.6.0");
+const releaseCommit = "2525a3358831d2a539d6a1dbdcb5f7148c0418b5";
+const catalogCommit = "fbccd06be00df77db27004355a6cac8b29e8533e";
+assert.equal(version, "0.7.0");
 const expectedUpdate =
   update.sourceCommit === releaseCommit
     ? {
@@ -35,8 +35,8 @@ const expectedUpdate =
         version,
         sourceCommit: releaseCommit,
         catalogCommit,
-        installGuide: "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
-        releaseNotes: "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md",
+        installGuide: "https://github.com/neorome/keepkeys/blob/main/INSTALL.md",
+        releaseNotes: "https://github.com/neorome/keepkeys/blob/main/CHANGELOG.md",
       }
     : {
         schemaVersion: 1,
@@ -45,8 +45,8 @@ const expectedUpdate =
         version: "0.5.0",
         sourceCommit: "3afd9aa7b8d2b0b3b24562231f5e6d97db25be3d",
         catalogCommit: "33afe85cf245c0b8003c0d1638c90c56defeb128",
-        installGuide: "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
-        releaseNotes: "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md",
+        installGuide: "https://github.com/neorome/keepkeys/blob/main/INSTALL.md",
+        releaseNotes: "https://github.com/neorome/keepkeys/blob/main/CHANGELOG.md",
       };
 assert.deepEqual(update, expectedUpdate);
 assert.equal(claude.version, version);
@@ -65,7 +65,7 @@ assert.deepEqual(
 const installGuide = read("INSTALL.md");
 for (const command of [
   "omp plugin marketplace add",
-  "omp plugin install keepkeys@barnlabs",
+  "omp plugin install keepkeys@neorome",
   "omp plugin list",
 ]) {
   assert.match(
@@ -92,11 +92,11 @@ assert.deepEqual(claudeMcp.mcpServers.keepkeys, {
   args: ["${CLAUDE_PLUGIN_ROOT}/mcp/server.mjs", "--stdio"],
   cwd: "${CLAUDE_PLUGIN_ROOT}",
 });
-assert.equal(claudeMarketplace.name, "barnlabs");
+assert.equal(claudeMarketplace.name, "neorome");
 assert.equal(claudeMarketplace.plugins[0].displayName, "KeepKeys");
 assert.deepEqual(claudeMarketplace.plugins[0].source, {
   source: "git-subdir",
-  url: "https://github.com/barnlabs/keepkeys.git",
+  url: "https://github.com/neorome/keepkeys.git",
   path: "plugins/keepkeys",
   ref: "main",
   sha: releaseCommit,
@@ -111,7 +111,7 @@ assert.deepEqual(grokMcp.mcpServers.keepkeys, {
   args: ["${GROK_PLUGIN_ROOT}/mcp/server.mjs", "--stdio"],
   cwd: "${GROK_PLUGIN_ROOT}",
 });
-assert.equal(grokMarketplace.name, "barnlabs");
+assert.equal(grokMarketplace.name, "neorome");
 assert.equal(grokMarketplace.plugins[0].name, "keepkeys");
 assert.equal(grokMarketplace.plugins[0].version, version);
 assert.deepEqual(grokMarketplace.plugins[0].source, {

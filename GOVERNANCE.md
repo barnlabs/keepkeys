@@ -1,6 +1,6 @@
 # Governance
 
-KeepKeys is a BarnLabs open-source initiative. BarnLabs maintains the security
+KeepKeys is a Neorome open-source initiative. Neorome maintains the security
 boundary, repository, release process, client adapters, and public project
 identity.
 
@@ -30,7 +30,7 @@ integration with an established product.
 
 ## Releases and ownership
 
-BarnLabs owns release naming, official directory submissions, vulnerability
+Neorome owns release naming, official directory submissions, vulnerability
 disclosure, and repository settings. Contributor copyright remains with its
 author and is licensed under Apache-2.0 when contributed.
 

@@ -129,7 +129,7 @@ is gone.
 
 ### macOS
 
-The Keychain service is `net.barnlabs.keepkeys`. The friendly name is the
+The Keychain service is `net.neorome.keepkeys`. The friendly name is the
 account attribute. A versioned JSON payload in `kSecAttrGeneric` stores the
 variable, description, provider, and documentation URLs. Version-1 records
 remain readable; new stores write version 2. The value is the same
@@ -146,8 +146,8 @@ when the source or build recipe changes.
 Each friendly name owns two generic Credential Manager records:
 
 ```text
-net.barnlabs.keepkeys/meta/<name>    variable + description + provider/docs JSON
-net.barnlabs.keepkeys/secret/<name>  protected value; no user metadata
+net.neorome.keepkeys/meta/<name>    variable + description + provider/docs JSON
+net.neorome.keepkeys/secret/<name>  protected value; no user metadata
 ```
 
 Listing and pre-approval lookup enumerate only `meta/*`. The `secret/*` record
@@ -166,8 +166,8 @@ such as GNOME Keyring or a compatible KWallet service. Each friendly name owns
 two items:
 
 ```text
-service=net.barnlabs.keepkeys.metadata  encoded variable + description + provider/docs
-service=net.barnlabs.keepkeys.secret    protected value
+service=net.neorome.keepkeys.metadata  encoded variable + description + provider/docs
+service=net.neorome.keepkeys.secret    protected value
 ```
 
 `secret-tool search` is used only against the metadata service. Although the

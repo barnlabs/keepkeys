@@ -27,11 +27,11 @@ source documents this complete install sequence:
 ```sh
 omp plugin marketplace add \
   REVIEWED_IMMUTABLE_RAW_CATALOG_URL
-omp plugin install keepkeys@barnlabs
+omp plugin install keepkeys@neorome
 omp plugin list
 ```
 
-The BarnLabs catalog lives at `.omp-plugin/marketplace.json`. Its
+The Neorome catalog lives at `.omp-plugin/marketplace.json`. Its
 `source: "git-subdir"` entry includes the repository URL, plugin subdirectory,
 and immutable functional-source `sha`. KeepKeys tests require the OMP catalog
 to be structurally identical to the Claude catalog so the compatibility claim

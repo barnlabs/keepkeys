@@ -1,11 +1,11 @@
 # Maintainers
 
-## BarnLabs
+## Neorome
 
-BarnLabs is the project owner and release authority for KeepKeys.
+Neorome is the project owner and release authority for KeepKeys.
 
-- Organization: [github.com/barnlabs](https://github.com/barnlabs)
-- Repository: [barnlabs/keepkeys](https://github.com/barnlabs/keepkeys)
+- Organization: [github.com/neorome](https://github.com/neorome)
+- Repository: [neorome/keepkeys](https://github.com/neorome/keepkeys)
 - Security reports: GitHub **Security → Report a vulnerability**
 - General support: [GitHub Discussions or issues](.github/SUPPORT.md)
 

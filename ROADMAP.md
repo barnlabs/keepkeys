@@ -5,7 +5,7 @@ KeepKeys develops by proof, not by feature count.
 ## 0.5 — private phone intake
 
 - [x] one-use, ten-minute phone page through Tailscale Serve
-- [x] no Funnel, public listener, BarnLabs relay, or server-side storage
+- [x] no Funnel, public listener, Neorome relay, or server-side storage
 - [x] Tailscale identity, browser-session, origin, type, and size checks
 - [x] direct standard-input handoff to the native vault helper
 - [x] fail-closed replacement-race check on macOS, Windows, and Linux
@@ -25,14 +25,14 @@ KeepKeys develops by proof, not by feature count.
 ## 0.3 — KeepKeys identity and Grok Build
 
 - [x] unified `keepkeys` install slug with **KeepKeys** display branding
-- [x] native Grok Build plugin manifest and BarnLabs marketplace catalog
+- [x] native Grok Build plugin manifest and Neorome marketplace catalog
 - [x] exact-SHA Grok installation and inventory validation
 - [x] Keykeeper mascot, refreshed social preview, icon crops, and brand rules
 - [x] GitHub repository and search metadata aligned to KeepKeys
 
 ## 0.2 — multi-agent foundation
 
-- [x] Codex plugin and BarnLabs marketplace
+- [x] Codex plugin and Neorome marketplace
 - [x] Claude Code marketplace/plugin adapter
 - [x] Oh My Pi marketplace adapter
 - [x] Hermes repository plugin

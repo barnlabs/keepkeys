@@ -51,7 +51,7 @@ agent-prepared metadata and a replacement warning before the user presses
 **Paste & Store**. The local session serializes same-name commits and passes
 the submitted bytes through a capability-framed redirected pipe to a native
 vault helper that verifies the exact bundled portal parent. The value does not
-enter tool input, tool output, argv, a file, or a BarnLabs service.
+enter tool input, tool output, argv, a file, or a Neorome service.
 
 The phone's clipboard remains outside KeepKeys' control. The page tells the
 user to copy only when it is ready and submit immediately. Submission,

@@ -23,6 +23,40 @@ findings to the same implementer, repair only those failures, rerun regression
 checks, and send the new diff to the same reviewer. Default to two repair
 cycles. Check the box only after reviewer `PASS` and root integration proof.
 
+## Release candidate — 0.7.0 (not released)
+
+- [ ] **Neorome namespace migration is independently reviewed.**
+  - Implementer context: repository ownership, marketplace/package metadata,
+    canonical repository and update URLs, macOS Keychain service/cache,
+    Windows Credential Manager prefixes/cache/mutex, Linux Secret Service
+    names, phone-portal locks, regenerated images, and documentation.
+  - Required tests: literal legacy-name scan, positive new-namespace store and
+    status behavior on every native vault, negative proof that no helper reads
+    a prior namespace, source-fingerprint validation, and regression coverage
+    for the metadata-only/plaintext boundary.
+  - Acceptance: every public and runtime identifier uses Neorome; new storage
+    never discovers prior-namespace records; no secret value crosses migration
+    code because there is no migration code.
+- [ ] **0.7.0 release proof is complete.**
+  - Implementer context: immutable `F → C → docs` chain, generated packages,
+    native-vault doctors, public CI, public immutable URLs, and rollback.
+  - Required tests: complete macOS/Windows/Linux matrix, all three native
+    doctors, packages, secret scan, independent adversarial review, and the
+    public release gate.
+  - Acceptance: reviewer returns `PASS`; the exact public evidence, archive
+    digests, rollback, and release decision are recorded below.
+
+### 0.7.0 source chain
+
+- Functional source (`F`):
+  `2525a3358831d2a539d6a1dbdcb5f7148c0418b5`.
+- Catalog commit (`C`):
+  `fbccd06be00df77db27004355a6cac8b29e8533e`.
+- Pre-release evidence: [docs/release-evidence-0.7.0.md](docs/release-evidence-0.7.0.md).
+  It records local proof and the remaining release gates. The documentation
+  commit, public CI, independent review, packages, and release decision remain
+  unrecorded until those actions actually happen.
+
 ## Release candidate - 0.6.0
 
 - [x] **Exact-command Always allow rules are bounded and revocable.**
@@ -77,14 +111,14 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 - Documentation candidate (`D`):
   `2958441afca00f4f6eb30b979e5550b8e6abb98e`.
 - Exact-head public proof:
-  [30600005949](https://github.com/barnlabs/keepkeys/actions/runs/30600005949)
+  [30600005949](https://github.com/neorome/keepkeys/actions/runs/30600005949)
   at `D`, passed all 11 jobs and the release gate. Exact archive hashes,
   member counts, forbidden-member checks, known limitations, rollback, and
   critic dispositions are recorded in the evidence packet.
 - Proof-closure ledger commit:
   `723f2930c02f35810ea7840a0aaec2c818d18b5b`.
 - Proof-closure public CI:
-  [30600275437](https://github.com/barnlabs/keepkeys/actions/runs/30600275437)
+  [30600275437](https://github.com/neorome/keepkeys/actions/runs/30600275437)
   passed all 11 jobs and the release gate.
 - Final independent read-only critic returned `APPROVE` on the exact proof
   closure head with no P0, P1, or P2 findings; the disposition is recorded in
@@ -101,7 +135,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
     and no-Funnel regressions; generated-value tailnet-to-vault smoke test.
   - Acceptance: the model receives only metadata and the one-time URL; no
     plaintext reaches tool input/output, argv, files, logs, persistent
-    environment, the public internet, or a BarnLabs service.
+    environment, the public internet, or a Neorome service.
 - [x] **Phone setup and failure states are complete.**
   - Implementer context: ChatGPT Remote guidance, same-tailnet prerequisites,
     MagicDNS/HTTPS requirements, port conflict, unavailable Tailscale, and
@@ -137,7 +171,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 - Reviewed documentation candidate (`D`):
   `b097643a5c266c61fe3376b042b2269ae7b20bf0`.
 - Candidate public CI
-  [30411325064](https://github.com/barnlabs/keepkeys/actions/runs/30411325064)
+  [30411325064](https://github.com/neorome/keepkeys/actions/runs/30411325064)
   passed all 11 jobs, including both Windows Node versions, all three native
   vault jobs, reproducible packaging, and the release gate.
 - Independent read-only review returned `PASS` on the exact `F → C → D` chain
@@ -146,22 +180,22 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 - Stable promotion (`P`):
   `d1c50c7e9e50e9d9daeb016fadc357c879bc631e`.
 - Promotion public CI
-  [30411469791](https://github.com/barnlabs/keepkeys/actions/runs/30411469791)
+  [30411469791](https://github.com/neorome/keepkeys/actions/runs/30411469791)
   passed all 11 jobs.
 - Evidence commit (`E`):
   `9d8160e4f1d286cb420f6ce9823b58e235db49a6`.
 - Evidence public CI
-  [30411621867](https://github.com/barnlabs/keepkeys/actions/runs/30411621867)
+  [30411621867](https://github.com/neorome/keepkeys/actions/runs/30411621867)
   passed all 11 jobs.
 - Proof-closure commit (`Q`):
   `2ddc984248ead200c8cb6d2a1479ad9c2acb9d58`.
 - Proof-closure public CI
-  [30411787656](https://github.com/barnlabs/keepkeys/actions/runs/30411787656)
+  [30411787656](https://github.com/neorome/keepkeys/actions/runs/30411787656)
   passed all 11 jobs.
 - Final ledger CI and exact-head GitHub Codex review remain pending for this
   repaired chain.
 - Exact-head GitHub Codex review
-  [4802681598](https://github.com/barnlabs/keepkeys/pull/4#pullrequestreview-4802681598)
+  [4802681598](https://github.com/neorome/keepkeys/pull/4#pullrequestreview-4802681598)
   reopened the prior ledger head for four additional repairs: wait for the
   portal's child-side confirmation before returning the ready link, treat an
   incomplete error receipt as uncertain, terminate a startup process group
@@ -189,7 +223,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `8e9cc1be510c45bcaea9698293d137af85086bdb`, catalog
   `0f8b2a3c2d1e4130cbaa5daf2dbbc0b599f8c5d4`, and documentation
   `7806b048c050f151e6d6419a639090bf239eb650`. Public run
-  [30410825036](https://github.com/barnlabs/keepkeys/actions/runs/30410825036)
+  [30410825036](https://github.com/neorome/keepkeys/actions/runs/30410825036)
   passed packaging, both Unix Node matrices, and all three native-vault jobs.
   Both Windows Node jobs showed that `taskkill` without `/F` cannot stop a
   console process tree and that OS-level disappearance must still be followed
@@ -200,7 +234,7 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `9335564192b5d505d618a8413b84a9e2e6969b12`, catalog
   `85c958738cef2f907b226622382cc2fe5276c4da`, and documentation
   `b50a6fcb94ff0633c6ce0c7c511fb62e3c9fe30a`. Public run
-  [30409331772](https://github.com/barnlabs/keepkeys/actions/runs/30409331772)
+  [30409331772](https://github.com/neorome/keepkeys/actions/runs/30409331772)
   passed both Unix Node matrices, all three native-vault jobs, and reproducible
   packaging, but both Windows Node jobs exposed unverified process-tree exit
   handling. That candidate was stopped before promotion. The current repair
@@ -214,11 +248,11 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `3a10a89e3de30e8e4f60900fd325d128ad9f3dc3`, proof closure
   `be6ebb8f63c6b1dcecc4a961c3ee0b6515dba828`, and ledger closure
   `a1bce44d388a449e010f9ac81cfdc7fdb9e31709`. Public runs
-  [30406317033](https://github.com/barnlabs/keepkeys/actions/runs/30406317033),
-  [30406522588](https://github.com/barnlabs/keepkeys/actions/runs/30406522588),
-  [30406686042](https://github.com/barnlabs/keepkeys/actions/runs/30406686042),
-  [30406826613](https://github.com/barnlabs/keepkeys/actions/runs/30406826613),
-  and [30407355247](https://github.com/barnlabs/keepkeys/actions/runs/30407355247)
+  [30406317033](https://github.com/neorome/keepkeys/actions/runs/30406317033),
+  [30406522588](https://github.com/neorome/keepkeys/actions/runs/30406522588),
+  [30406686042](https://github.com/neorome/keepkeys/actions/runs/30406686042),
+  [30406826613](https://github.com/neorome/keepkeys/actions/runs/30406826613),
+  and [30407355247](https://github.com/neorome/keepkeys/actions/runs/30407355247)
   passed all 11 jobs, but exact-head review `4802681598` found the four
   delivery gaps above, so that chain is not a release candidate.
 - Superseded portal-delivery chain: functional
@@ -228,10 +262,10 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `e3422f2b00e16ad29af60a5ff59c0a150ecc9ca7`, evidence
   `887c2901511d19b090168bdd3edc4fdfcd9fc06c`, and proof closure
   `9041654c2114a1e50e4431dec7345ff941a7382a`. Public runs
-  [30403710815](https://github.com/barnlabs/keepkeys/actions/runs/30403710815),
-  [30403950497](https://github.com/barnlabs/keepkeys/actions/runs/30403950497),
-  [30404113522](https://github.com/barnlabs/keepkeys/actions/runs/30404113522),
-  and [30404286615](https://github.com/barnlabs/keepkeys/actions/runs/30404286615)
+  [30403710815](https://github.com/neorome/keepkeys/actions/runs/30403710815),
+  [30403950497](https://github.com/neorome/keepkeys/actions/runs/30403950497),
+  [30404113522](https://github.com/neorome/keepkeys/actions/runs/30404113522),
+  and [30404286615](https://github.com/neorome/keepkeys/actions/runs/30404286615)
   passed all 11 jobs, but exact-head review `4802351808` found the four
   delivery gaps above, so that chain is not a release candidate.
 - Superseded launcher-lifecycle chain: functional
@@ -241,10 +275,10 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `b90e8588d694e2c9186cb73d1eb3b775a802b097`, evidence
   `03a27b2e509270896d29ec36c3a1c17aca46be70`, and proof closure
   `3201689385ecfcf053e010ba7397efa82914aa3c`. Public runs
-  [30400773539](https://github.com/barnlabs/keepkeys/actions/runs/30400773539),
-  [30401202501](https://github.com/barnlabs/keepkeys/actions/runs/30401202501),
-  [30401418081](https://github.com/barnlabs/keepkeys/actions/runs/30401418081),
-  and [30401624974](https://github.com/barnlabs/keepkeys/actions/runs/30401624974)
+  [30400773539](https://github.com/neorome/keepkeys/actions/runs/30400773539),
+  [30401202501](https://github.com/neorome/keepkeys/actions/runs/30401202501),
+  [30401418081](https://github.com/neorome/keepkeys/actions/runs/30401418081),
+  and [30401624974](https://github.com/neorome/keepkeys/actions/runs/30401624974)
   passed all 11 jobs, but exact-head review `4802130390` found the four
   lifecycle gaps above, so that chain is not a release candidate.
 - Superseded Linux uncertainty chain: functional
@@ -254,10 +288,10 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `4ab861c88043bd2cc60f3203ca29f28d69b17a4c`, evidence
   `471d0798e1817d876924f6461bc61366eb7f3f0d`, and proof closure
   `2d458cf6a200b5b583ed571a194267347b17b2b5`. Public runs
-  [30398247740](https://github.com/barnlabs/keepkeys/actions/runs/30398247740),
-  [30398539657](https://github.com/barnlabs/keepkeys/actions/runs/30398539657),
-  [30398737699](https://github.com/barnlabs/keepkeys/actions/runs/30398737699),
-  and [30399131533](https://github.com/barnlabs/keepkeys/actions/runs/30399131533)
+  [30398247740](https://github.com/neorome/keepkeys/actions/runs/30398247740),
+  [30398539657](https://github.com/neorome/keepkeys/actions/runs/30398539657),
+  [30398737699](https://github.com/neorome/keepkeys/actions/runs/30398737699),
+  and [30399131533](https://github.com/neorome/keepkeys/actions/runs/30399131533)
   passed all 11 jobs, but exact-head review `4801887230` found the three Linux
   gaps above, so that chain is not a release candidate.
 - Superseded prior final chain: functional
@@ -266,9 +300,9 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `d2dcaa5246f5fe9ce54425762a36433edfb962df`, promotion
   `6ada0021905e0ea7b677b54c6ee1c7007ec103a4`, and final proof
   `8e7a8e259f8d455feba4703a11cf86c2cea9c658`. Public runs
-  [30395067056](https://github.com/barnlabs/keepkeys/actions/runs/30395067056),
-  [30395379321](https://github.com/barnlabs/keepkeys/actions/runs/30395379321),
-  and [30395577746](https://github.com/barnlabs/keepkeys/actions/runs/30395577746)
+  [30395067056](https://github.com/neorome/keepkeys/actions/runs/30395067056),
+  [30395379321](https://github.com/neorome/keepkeys/actions/runs/30395379321),
+  and [30395577746](https://github.com/neorome/keepkeys/actions/runs/30395577746)
   passed all 11 jobs, but exact-head review `4801551714` found the three gaps
   above, so that chain is not a release candidate.
 - Superseded publisher-checksum chain: functional
@@ -277,9 +311,9 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `51f72623e27d92970b89d073eff686851b6937f4`, promotion
   `c4d0bc3bec1d686cfeb09ebf2872d07a9f9b3f39`, and final proof
   `0bb986864e21e22793d40c42979a1f6191b8787f`. Public runs
-  [30392719709](https://github.com/barnlabs/keepkeys/actions/runs/30392719709),
-  [30392872749](https://github.com/barnlabs/keepkeys/actions/runs/30392872749),
-  and [30393019397](https://github.com/barnlabs/keepkeys/actions/runs/30393019397)
+  [30392719709](https://github.com/neorome/keepkeys/actions/runs/30392719709),
+  [30392872749](https://github.com/neorome/keepkeys/actions/runs/30392872749),
+  and [30393019397](https://github.com/neorome/keepkeys/actions/runs/30393019397)
   passed all 11 jobs, but exact-head review `4801311339` found the four gaps
   above, so that chain is not a release candidate.
 - Superseded cleanup chain: functional
@@ -288,9 +322,9 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `aab8c8605f412df0aaf1f77386aad32d43334eeb`, promotion
   `c98fd0951c129920d2810c4e36025922bba76aa0`, and final proof
   `ce65ee10202d919ae72aadb8a234b281d9771751`. Public runs
-  [30391619827](https://github.com/barnlabs/keepkeys/actions/runs/30391619827),
-  [30391841893](https://github.com/barnlabs/keepkeys/actions/runs/30391841893),
-  and [30391990018](https://github.com/barnlabs/keepkeys/actions/runs/30391990018)
+  [30391619827](https://github.com/neorome/keepkeys/actions/runs/30391619827),
+  [30391841893](https://github.com/neorome/keepkeys/actions/runs/30391841893),
+  and [30391990018](https://github.com/neorome/keepkeys/actions/runs/30391990018)
   passed all 11 jobs, but the publisher guide named a superseded upload
   checksum instead of the generated archive checksum, so that documentation
   candidate is not a release candidate.
@@ -300,9 +334,9 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
   `6f749af83bb56e9d84bcb3764a4f613a476587a0`, promotion
   `fd0b503f3c0179bc68ac9885000f7727369a6dd7`, and final proof
   `b5e74deb7b33e6cdbd9f27602939d81d2e4e3a4c`. Public runs
-  [30389726448](https://github.com/barnlabs/keepkeys/actions/runs/30389726448),
-  [30389987843](https://github.com/barnlabs/keepkeys/actions/runs/30389987843),
-  and [30390148371](https://github.com/barnlabs/keepkeys/actions/runs/30390148371)
+  [30389726448](https://github.com/neorome/keepkeys/actions/runs/30389726448),
+  [30389987843](https://github.com/neorome/keepkeys/actions/runs/30389987843),
+  and [30390148371](https://github.com/neorome/keepkeys/actions/runs/30390148371)
   passed all 11 jobs, but exact-head review `4801015633` found the three gaps
   above, so that chain is not a release candidate. Review `4800622135` had
   previously reopened the older `c204e69a4396f46ef6f2961300ffdefeb894fa43`
@@ -370,11 +404,11 @@ cycles. Check the box only after reviewer `PASS` and root integration proof.
 - Stable promotion commit:
   `1b823ffbeb91fab761a81ef4e35e2db2bb632552`
 - Candidate public CI run:
-  [30148884739](https://github.com/barnlabs/keepkeys/actions/runs/30148884739)
+  [30148884739](https://github.com/neorome/keepkeys/actions/runs/30148884739)
   — macOS, Windows, and Linux Node 18/22; all three native-vault doctors;
   reproducible packages; and `Release gate` passed.
 - Stable-promotion public CI run:
-  [30149156624](https://github.com/barnlabs/keepkeys/actions/runs/30149156624)
+  [30149156624](https://github.com/neorome/keepkeys/actions/runs/30149156624)
   — the same 11 proof jobs passed on the exact promotion commit, including the
   strict rejection of stale 0.4.1 update metadata.
 - Independent reviewer verdict: `PASS` after reopening the focused repair;

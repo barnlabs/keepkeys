@@ -1,7 +1,7 @@
 # KeepKeys favicon family
 
 These repository-owned files are the canonical small-mark assets for the
-[KeepKeys website](https://keepkeys.barnlabs.net/) and other surfaces that
+[KeepKeys website](https://keepkeys.neorome.net/) and other surfaces that
 support custom icons. GitHub renders them in Markdown and file views, but it
 controls its own browser-tab favicon and does not offer a per-repository favicon
 setting. See [GitHub's README documentation](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes).

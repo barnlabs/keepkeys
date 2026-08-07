@@ -24,7 +24,7 @@ node plugins/keepkeys/scripts/check-for-update.mjs
 ```
 
 The checker makes one explicit HTTPS request to
-`raw.githubusercontent.com/barnlabs/keepkeys/main/update.json`, caps the response
+`raw.githubusercontent.com/neorome/keepkeys/main/update.json`, caps the response
 at 16 KiB, accepts a strict schema, and prints the stable version plus the full
 functional and catalog commit SHAs, whether explicit installation is required,
 and the source/catalog review requirement. It does not modify the checkout,

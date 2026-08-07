@@ -1,7 +1,12 @@
 # Compatibility
 
-KeepKeys 0.6.0 uses the same nine-tool contract on macOS, Windows, and desktop Linux.
+KeepKeys 0.7.0 uses the same nine-tool contract on macOS, Windows, and desktop Linux.
 Node.js 18 or newer is required by the MCP server and cross-platform launcher.
+
+Version 0.7.0 establishes fresh Neorome vault, cache, lock, and mutex
+namespaces. It does not read, export, or automatically migrate records from a
+prior namespace. Store a record again through the native **Paste & Store**
+surface before using it with 0.7.0.
 
 | Platform | Supported baseline | Native requirements | CI proof |
 | --- | --- | --- | --- |

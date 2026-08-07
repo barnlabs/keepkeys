@@ -10,7 +10,7 @@ KeepKeys stays small because every additional capability expands a credential bo
    account system, telemetry service, silent/background updater, or raw-secret
    retrieval path. Deliberate update discovery must stay read-only and
    user-initiated. The optional phone path must stay one-use, tailnet-only, and
-   free of BarnLabs-hosted secret handling.
+   free of Neorome-hosted secret handling.
 4. Preserve the one shared contract and dispatcher. A new client integration
    must be a thin adapter; a new operating system needs a threat-modeled native
    vault and human-gate backend.

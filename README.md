@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="plugins/keepkeys/assets/social-preview.png" width="100%" alt="KeepKeys — the BarnLabs Keykeeper holding a ring of keys beside the words Use secrets. Never reveal them." />
+  <img src="plugins/keepkeys/assets/social-preview.png" width="100%" alt="KeepKeys — the Neorome Keykeeper holding a ring of keys beside the words Use secrets. Never reveal them." />
 </p>
 
 <p align="center">
@@ -7,13 +7,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/barnlabs/keepkeys/actions/workflows/ci.yml"><img alt="macOS, Windows, and Linux CI" src="https://github.com/barnlabs/keepkeys/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/neorome/keepkeys/actions/workflows/ci.yml"><img alt="macOS, Windows, and Linux CI" src="https://github.com/neorome/keepkeys/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="LICENSE"><img alt="Apache-2.0 license" src="https://img.shields.io/badge/license-Apache--2.0-41544C.svg" /></a>
   <a href="SECURITY.md"><img alt="Security policy" src="https://img.shields.io/badge/security-policy-D96C4D.svg" /></a>
   <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-1F2D27.svg" />
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-1F2D27.svg" />
   <img alt="desktop Linux" src="https://img.shields.io/badge/Linux-desktop-1F2D27.svg" />
-  <img alt="KeepKeys 0.6.0" src="https://img.shields.io/badge/version-0.6.0-D96C4D.svg" />
+  <img alt="KeepKeys 0.7.0" src="https://img.shields.io/badge/version-0.7.0-D96C4D.svg" />
 </p>
 
 KeepKeys is the open-source, local secret-use broker for coding agents. It
@@ -24,7 +24,7 @@ command with one named secret after you review the exact request.
 If you are talking to ChatGPT Remote from a phone, KeepKeys can also open a
 one-time page inside your private Tailscale network. Paste the key there and it
 goes straight to the connected computer's native vault. KeepKeys does not use
-Tailscale Funnel or a BarnLabs server.
+Tailscale Funnel or a Neorome server.
 
 There is no `get`, `show`, `copy`, reveal, or export tool. Friendly names,
 environment-variable names, descriptions, providers, and official
@@ -74,12 +74,12 @@ It never falls back to a plaintext keyring, terminal password prompt, or file.
 
 | Client | Package surface | Immutable install |
 | --- | --- | --- |
-| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref 28f3e8426eb24c867f566064760edd6612062c85`<br>`codex plugin add keepkeys@barnlabs` |
-| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'barnlabs/keepkeys@28f3e8426eb24c867f566064760edd6612062c85#plugins/keepkeys' --trust` |
+| **Codex** | Codex plugin + Neorome marketplace | `codex plugin marketplace add neorome/keepkeys --ref 2525a3358831d2a539d6a1dbdcb5f7148c0418b5`<br>`codex plugin add keepkeys@neorome` |
+| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'neorome/keepkeys@2525a3358831d2a539d6a1dbdcb5f7148c0418b5#plugins/keepkeys' --trust` |
 | **Claude Code** | Claude plugin + pinned catalog | see [Install](INSTALL.md#claude-code) |
 | **Oh My Pi** | OMP/Claude-compatible pinned catalog | see [Install](INSTALL.md#oh-my-pi) |
 | **Hermes** | repository-root Hermes plugin | see [Install](INSTALL.md#hermes) |
-| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref 28f3e8426eb24c867f566064760edd6612062c85` |
+| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/neorome/keepkeys --ref 2525a3358831d2a539d6a1dbdcb5f7148c0418b5` |
 | **Agent Skills clients** | standard `skills/keepkeys/SKILL.md` | reviewed checkout or skills-only archive |
 
 All integrations expose the same nine tools and dispatch to the same
@@ -96,8 +96,8 @@ platform-native boundary:
 - `keepkeys_doctor`
 
 Claude Code and Oh My Pi use the immutable catalog at commit
-`e1d4470f32cf236024107230f5dbb0aa420f0137`; that catalog pins the functional
-plugin source at `28f3e8426eb24c867f566064760edd6612062c85`. See
+`fbccd06be00df77db27004355a6cac8b29e8533e`; that catalog pins the functional
+plugin source at `2525a3358831d2a539d6a1dbdcb5f7148c0418b5`. See
 [INSTALL.md](INSTALL.md) for copy-paste commands and platform prerequisites.
 
 ## What the user experiences
@@ -265,9 +265,9 @@ does not install code, touch the native vault, or run in the background. See
 - [Brand guidelines](plugins/keepkeys/assets/brand-guidelines.md)
 - [Favicon and small-mark assets](.github/assets/keepkeys/README.md)
 
-## BarnLabs open source
+## Neorome open source
 
-KeepKeys is a BarnLabs open-source initiative, licensed under Apache-2.0. The
+KeepKeys is a Neorome open-source initiative, licensed under Apache-2.0. The
 Keykeeper—an old steward carrying a real ring of keys—represents the product's
 job: hold authority carefully, explain exactly where it is going, and hand over
 only the one key needed for the approved task.

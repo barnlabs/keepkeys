@@ -4,7 +4,8 @@
 
 | Version | Status |
 | --- | --- |
-| `0.6.0` | Current stable source release; macOS, Windows, desktop Linux, exact-command approvals, rotation, and optional private phone intake |
+| `0.7.0` | Unreleased Neorome namespace candidate; do not install until the public matrix and release gate pass |
+| `0.6.0` | Supported for critical security fixes |
 | `0.5.0` | Supported for critical security fixes |
 | `0.4.2` | Supported for critical security fixes |
 | `0.4.1` | Supported for critical security fixes |
@@ -31,11 +32,11 @@ Please include:
   another process, the public internet, or an unintended tailnet device;
 - a suggested fix if you have one.
 
-BarnLabs aims to acknowledge a well-formed report within seven calendar days. Disclosure timing is coordinated after a fix and verification are available.
+Neorome aims to acknowledge a well-formed report within seven calendar days. Disclosure timing is coordinated after a fix and verification are available.
 
 ## Research boundary
 
-Good-faith, non-destructive research against your own local clone and synthetic credentials is welcome. Do not test BarnLabs infrastructure, other users, third-party accounts, production services, or real credentials. Do not publish an exploit before coordinated remediation.
+Good-faith, non-destructive research against your own local clone and synthetic credentials is welcome. Do not test Neorome infrastructure, other users, third-party accounts, production services, or real credentials. Do not publish an exploit before coordinated remediation.
 
 ## Release gates
 

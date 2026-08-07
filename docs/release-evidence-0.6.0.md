@@ -111,7 +111,7 @@ Node, native-vault, and package proof is supplied by public CI rather than
 claimed as a local run.
 
 The exact-head public proof is GitHub Actions run
-[30600005949](https://github.com/barnlabs/keepkeys/actions/runs/30600005949) at
+[30600005949](https://github.com/neorome/keepkeys/actions/runs/30600005949) at
 `2958441afca00f4f6eb30b979e5550b8e6abb98e`. Its 11 successful jobs are:
 
 - reproducible packages
@@ -176,5 +176,5 @@ it is not record synchronization.
 The final independent read-only critic returned `APPROVE` on proof-closure
 commit `723f2930c02f35810ea7840a0aaec2c818d18b5b` with no P0, P1, or P2
 findings. Proof-closure CI
-[30600275437](https://github.com/barnlabs/keepkeys/actions/runs/30600275437)
+[30600275437](https://github.com/neorome/keepkeys/actions/runs/30600275437)
 then completed successfully across all 11 jobs and the release gate.

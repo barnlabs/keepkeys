@@ -25,7 +25,7 @@ Primary assets:
   including separate full and 16px optical masters.
 
 The character artwork is an original OpenAI-generated illustration produced for
-BarnLabs on 2026-07-24. Do not substitute stock art, another product's mascot,
+Neorome on 2026-08-07. Do not substitute stock art, another product's mascot,
 or a recognizable real person.
 
 ## Palette
