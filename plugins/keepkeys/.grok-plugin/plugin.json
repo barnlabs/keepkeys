@@ -1,13 +1,13 @@
 {
   "name": "keepkeys",
-  "version": "0.4.2",
-  "description": "KeepKeys pastes local secrets into the native OS vault and lets Grok use them through approval-gated commands.",
+  "version": "0.7.0",
+  "description": "KeepKeys stores secrets in a native OS vault from the host or a private Tailscale phone page, then lets Grok use them through approved commands.",
   "author": {
-    "name": "BarnLabs",
-    "url": "https://github.com/barnlabs"
+    "name": "Neorome",
+    "url": "https://github.com/neorome"
   },
-  "homepage": "https://github.com/barnlabs/keepkeys",
-  "repository": "https://github.com/barnlabs/keepkeys",
+  "homepage": "https://github.com/neorome/keepkeys",
+  "repository": "https://github.com/neorome/keepkeys",
   "license": "Apache-2.0",
   "keywords": [
     "KeepKeys",
@@ -15,6 +15,8 @@
     "credential-vault",
     "windows",
     "linux",
+    "tailscale",
+    "mobile",
     "agents",
     "mcp"
   ],

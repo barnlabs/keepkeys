@@ -91,9 +91,9 @@ def _helper_arguments(tool_name: str, raw_args: Any) -> list[str]:
     if any(key not in allowed for key in args):
         raise ValueError("Tool arguments contain an unsupported field.")
 
-    if tool_name == "keepkeys_store":
+    if tool_name in {"keepkeys_store", "keepkeys_store_from_phone"}:
         command = [
-            "store",
+            "store" if tool_name == "keepkeys_store" else "portal-store",
             "--name",
             _required_string(args, "name", 128),
             "--variable",
@@ -108,6 +108,10 @@ def _helper_arguments(tool_name: str, raw_args: Any) -> list[str]:
         return command
     if tool_name == "keepkeys_list":
         return ["list"]
+    if tool_name == "keepkeys_rotate":
+        return ["rotate", "--name", _required_string(args, "name", 128)]
+    if tool_name == "keepkeys_revoke":
+        return ["revoke", "--name", _required_string(args, "name", 128)]
     if tool_name == "keepkeys_remove":
         return ["remove", "--name", _required_string(args, "name", 128)]
     if tool_name == "keepkeys_status":

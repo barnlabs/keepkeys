@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "product": "KeepKeys",
   "channel": "stable",
-  "version": "0.4.2",
-  "sourceCommit": "e5276925d390704fccdf4aaeba47280464762a1c",
-  "catalogCommit": "c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd",
-  "installGuide": "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
-  "releaseNotes": "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md"
+  "version": "0.7.0",
+  "sourceCommit": "2525a3358831d2a539d6a1dbdcb5f7148c0418b5",
+  "catalogCommit": "fbccd06be00df77db27004355a6cac8b29e8533e",
+  "installGuide": "https://github.com/neorome/keepkeys/blob/main/INSTALL.md",
+  "releaseNotes": "https://github.com/neorome/keepkeys/blob/main/CHANGELOG.md"
 }

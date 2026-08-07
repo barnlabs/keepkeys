@@ -1,16 +1,32 @@
 import AppKit
 import CryptoKit
+import Darwin
 import Foundation
 import Security
 
-private let keepKeysVersion = "0.4.2"
-private let keychainService = "net.barnlabs.keepkeys"
+private let keepKeysVersion = "0.7.0"
+private let keychainService = "net.neorome.keepkeys"
 private let maximumSecretBytes = 2_048
 private let maximumCapturedBytes = 1_048_576
+private let portalCapabilityBytes = 32
+private let portalReplacementStateMessage =
+    "The stored KeepKeys name changed after the phone page opened. "
+    + "Start a new phone intake and review the replacement warning."
 
 private struct KeepKeysFailure: LocalizedError {
     let message: String
     var errorDescription: String? { message }
+}
+
+private struct ApprovalRule: Codable, Equatable {
+    let version: Int
+    let purpose: String
+    let program: String
+    let fingerprint: String
+    let arguments: [String]
+    let workingDirectory: String?
+    let entrypoint: String?
+    let entrypointFingerprint: String?
 }
 
 private struct EntryMetadata: Codable, Equatable {
@@ -19,19 +35,22 @@ private struct EntryMetadata: Codable, Equatable {
     let description: String
     let provider: String?
     let documentationURLs: [String]?
+    let allowRules: [ApprovalRule]
 
     init(
         version: Int,
         variable: String,
         description: String,
         provider: String? = nil,
-        documentationURLs: [String]? = nil
+        documentationURLs: [String]? = nil,
+        allowRules: [ApprovalRule] = []
     ) {
         self.version = version
         self.variable = variable
         self.description = description
         self.provider = provider
         self.documentationURLs = documentationURLs
+        self.allowRules = allowRules
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -40,6 +59,7 @@ private struct EntryMetadata: Codable, Equatable {
         case description
         case provider
         case documentationURLs
+        case allowRules
     }
 
     init(from decoder: Decoder) throws {
@@ -52,6 +72,10 @@ private struct EntryMetadata: Codable, Equatable {
             [String].self,
             forKey: .documentationURLs
         )
+        allowRules = try values.decodeIfPresent(
+            [ApprovalRule].self,
+            forKey: .allowRules
+        ) ?? []
     }
 }
 
@@ -105,6 +129,12 @@ private struct RunRequest {
     let entrypoint: URL?
     let entrypointFingerprint: String?
     let risk: ExecutionRisk
+}
+
+private enum ApprovalDecision: Equatable {
+    case once
+    case always
+    case cancel
 }
 
 private func emit(_ object: [String: Any]) {
@@ -246,12 +276,52 @@ private func validDocumentationURL(_ value: String) -> Bool {
     return true
 }
 
+private func validFingerprint(_ value: String) -> Bool {
+    value.utf8.count == 64 && value.utf8.allSatisfy { byte in
+        (byte >= 48 && byte <= 57) || (byte >= 97 && byte <= 102)
+    }
+}
+
+private func validApprovalRule(_ rule: ApprovalRule) -> Bool {
+    guard rule.version == 1,
+          validDescription(rule.purpose),
+          rule.program.hasPrefix("/"),
+          !hasControlCharacters(rule.program),
+          validFingerprint(rule.fingerprint),
+          rule.arguments.count <= 64,
+          rule.arguments.allSatisfy({ $0.utf8.count <= 4_096 && !hasControlCharacters($0) })
+    else {
+        return false
+    }
+    if let workingDirectory = rule.workingDirectory,
+       (!workingDirectory.hasPrefix("/") || hasControlCharacters(workingDirectory))
+    {
+        return false
+    }
+    if let entrypoint = rule.entrypoint,
+       (!entrypoint.hasPrefix("/") || hasControlCharacters(entrypoint))
+    {
+        return false
+    }
+    if let entrypointFingerprint = rule.entrypointFingerprint,
+       !validFingerprint(entrypointFingerprint)
+    {
+        return false
+    }
+    return (rule.entrypoint == nil) == (rule.entrypointFingerprint == nil)
+}
+
 private func validMetadata(_ metadata: EntryMetadata) -> Bool {
-    guard (metadata.version == 1 || metadata.version == 2),
+    guard (metadata.version == 1 || metadata.version == 2 || metadata.version == 3),
           validVariable(metadata.variable),
           validDescription(metadata.description)
     else {
         return false
+    }
+    if metadata.version == 1 || metadata.version == 2 {
+        guard metadata.allowRules.isEmpty else {
+            return false
+        }
     }
     if metadata.version == 1 {
         return true
@@ -266,7 +336,8 @@ private func validMetadata(_ metadata: EntryMetadata) -> Bool {
     else {
         return false
     }
-    return true
+    return metadata.version == 2 ||
+        (metadata.allowRules.count <= 8 && metadata.allowRules.allSatisfy(validApprovalRule))
 }
 
 private func keychainQuery(name: String) -> [String: Any] {
@@ -302,11 +373,12 @@ private enum KeychainStore {
     ) throws {
         try validateSecret(secret)
         let metadata = EntryMetadata(
-            version: 2,
+            version: 3,
             variable: variable,
             description: description,
             provider: provider,
-            documentationURLs: documentationURLs
+            documentationURLs: documentationURLs,
+            allowRules: []
         )
         guard validMetadata(metadata) else {
             throw KeepKeysFailure(message: "The agent supplied invalid KeepKeys metadata.")
@@ -463,6 +535,89 @@ private enum KeychainStore {
         }
         throw KeepKeysFailure(message: "Keychain deletion failed (OSStatus \(status)).")
     }
+
+    static func addAllowRule(
+        name: String,
+        expected: EntryMetadata,
+        rule: ApprovalRule
+    ) throws -> EntryMetadata {
+        guard expected.version != 1,
+              let provider = expected.provider,
+              let documentationURLs = expected.documentationURLs
+        else {
+            throw KeepKeysFailure(
+                message: "Always allow requires current provider documentation. Rotate this legacy key first."
+            )
+        }
+        guard validApprovalRule(rule) else {
+            throw KeepKeysFailure(message: "KeepKeys rejected an invalid exact-command allow rule.")
+        }
+        let current = try metadata(name: name)
+        guard current == expected else {
+            throw KeepKeysFailure(
+                message: "The secret metadata changed before the allow rule could be saved. Try again."
+            )
+        }
+        let existingRules = current.allowRules
+        let rules = existingRules.contains(rule) ? existingRules : existingRules + [rule]
+        guard rules.count <= 8 else {
+            throw KeepKeysFailure(
+                message: "KeepKeys already has eight exact-command allow rules for this name. Revoke unused rules first."
+            )
+        }
+        let updated = EntryMetadata(
+            version: 3,
+            variable: current.variable,
+            description: current.description,
+            provider: provider,
+            documentationURLs: documentationURLs,
+            allowRules: rules
+        )
+        guard validMetadata(updated) else {
+            throw KeepKeysFailure(message: "KeepKeys could not validate the saved allow rule.")
+        }
+        let encodedMetadata = try JSONEncoder().encode(updated)
+        let status = SecItemUpdate(
+            keychainQuery(name: name) as CFDictionary,
+            [kSecAttrGeneric as String: encodedMetadata] as CFDictionary
+        )
+        guard status == errSecSuccess else {
+            throw KeepKeysFailure(message: "Keychain policy update failed (OSStatus \(status)).")
+        }
+        return updated
+    }
+
+    static func clearAllowRules(name: String, expected: EntryMetadata) throws -> Int {
+        guard !expected.allowRules.isEmpty else { return 0 }
+        let current = try metadata(name: name)
+        guard current == expected else {
+            throw KeepKeysFailure(
+                message: "The secret metadata changed before its allow rules could be revoked. Try again."
+            )
+        }
+        guard let provider = current.provider,
+              let documentationURLs = current.documentationURLs
+        else {
+            throw KeepKeysFailure(message: "KeepKeys could not validate the current metadata.")
+        }
+        let updated = EntryMetadata(
+            version: 3,
+            variable: current.variable,
+            description: current.description,
+            provider: provider,
+            documentationURLs: documentationURLs,
+            allowRules: []
+        )
+        let encodedMetadata = try JSONEncoder().encode(updated)
+        let status = SecItemUpdate(
+            keychainQuery(name: name) as CFDictionary,
+            [kSecAttrGeneric as String: encodedMetadata] as CFDictionary
+        )
+        guard status == errSecSuccess else {
+            throw KeepKeysFailure(message: "Keychain policy update failed (OSStatus \(status)).")
+        }
+        return current.allowRules.count
+    }
 }
 
 private enum Brand {
@@ -542,7 +697,8 @@ private func storeInteractively(
     suggestedVariable: String?,
     suggestedDescription: String?,
     suggestedProvider: String?,
-    suggestedDocumentationURLs: [String]
+    suggestedDocumentationURLs: [String],
+    expectedExisting: Bool? = nil
 ) throws
     -> [String: Any]
 {
@@ -563,11 +719,12 @@ private func storeInteractively(
         $0.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     let metadata = EntryMetadata(
-        version: 2,
+        version: 3,
         variable: variable,
         description: description,
         provider: provider,
-        documentationURLs: documentationURLs
+        documentationURLs: documentationURLs,
+        allowRules: []
     )
     guard validName(name), validMetadata(metadata) else {
         throw KeepKeysFailure(
@@ -660,7 +817,13 @@ private func storeInteractively(
                 currentClipboardVersion: { pasteboard.changeCount },
                 clearClipboard: { pasteboard.clearContents() },
                 storeSecret: { secret in
-                    if try KeychainStore.exists(name: name) {
+                    let exists = try KeychainStore.exists(name: name)
+                    if let expectedExisting, exists != expectedExisting {
+                        throw KeepKeysFailure(
+                            message: "The stored KeepKeys name changed before rotation. Start a new rotation and review the replacement warning."
+                        )
+                    }
+                    if exists {
                         let overwrite = NSAlert()
                         overwrite.alertStyle = .critical
                         overwrite.messageText = "Replace '\(name)'?"
@@ -700,6 +863,363 @@ private func storeInteractively(
     }
 }
 
+private func constantTimeEqual(_ first: String, _ second: String) -> Bool {
+    let firstBytes = Array(first.utf8)
+    let secondBytes = Array(second.utf8)
+    guard firstBytes.count == secondBytes.count else {
+        return false
+    }
+    var difference: UInt8 = 0
+    for index in firstBytes.indices {
+        difference |= firstBytes[index] ^ secondBytes[index]
+    }
+    return difference == 0
+}
+
+private func processArguments(_ processID: Int32) -> [String]? {
+    var query: [Int32] = [CTL_KERN, KERN_PROCARGS2, processID]
+    var byteCount = 0
+    let sizeStatus = query.withUnsafeMutableBufferPointer {
+        sysctl($0.baseAddress, UInt32($0.count), nil, &byteCount, nil, 0)
+    }
+    guard sizeStatus == 0, byteCount > MemoryLayout<Int32>.size else {
+        return nil
+    }
+    var buffer = [UInt8](repeating: 0, count: byteCount)
+    let readStatus = query.withUnsafeMutableBufferPointer { queryPointer in
+        buffer.withUnsafeMutableBytes { bufferPointer in
+            sysctl(
+                queryPointer.baseAddress,
+                UInt32(queryPointer.count),
+                bufferPointer.baseAddress,
+                &byteCount,
+                nil,
+                0
+            )
+        }
+    }
+    guard readStatus == 0, byteCount > MemoryLayout<Int32>.size else {
+        return nil
+    }
+    var argumentCount: Int32 = 0
+    withUnsafeMutableBytes(of: &argumentCount) { destination in
+        buffer.withUnsafeBytes { source in
+            destination.copyBytes(
+                from: source.prefix(MemoryLayout<Int32>.size)
+            )
+        }
+    }
+    guard argumentCount > 0 else {
+        return nil
+    }
+    var cursor = MemoryLayout<Int32>.size
+    while cursor < byteCount, buffer[cursor] != 0 {
+        cursor += 1
+    }
+    while cursor < byteCount, buffer[cursor] == 0 {
+        cursor += 1
+    }
+    var arguments: [String] = []
+    while cursor < byteCount, arguments.count < Int(argumentCount) {
+        let start = cursor
+        while cursor < byteCount, buffer[cursor] != 0 {
+            cursor += 1
+        }
+        guard let argument = String(
+            bytes: buffer[start..<cursor],
+            encoding: .utf8
+        ) else {
+            return nil
+        }
+        arguments.append(argument)
+        while cursor < byteCount, buffer[cursor] == 0 {
+            cursor += 1
+        }
+    }
+    return arguments.count == Int(argumentCount) ? arguments : nil
+}
+
+private func portalParentIsBundledPortal(_ parentPID: Int32) -> Bool {
+    var path = [CChar](repeating: 0, count: 4_096)
+    let length = proc_pidpath(parentPID, &path, UInt32(path.count))
+    guard length > 0,
+          let arguments = processArguments(parentPID),
+          arguments.count > 1,
+          let assetsDirectory =
+              ProcessInfo.processInfo.environment["KEEPKEYS_ASSETS_DIR"]
+    else {
+        return false
+    }
+    let executableName = URL(fileURLWithPath: String(cString: path))
+        .lastPathComponent
+        .lowercased()
+    let expectedPortal = URL(fileURLWithPath: assetsDirectory)
+        .deletingLastPathComponent()
+        .appendingPathComponent("scripts", isDirectory: true)
+        .appendingPathComponent("keepkeys-portal.mjs")
+        .resolvingSymlinksInPath()
+        .standardizedFileURL
+    let parentScript = URL(fileURLWithPath: arguments[1])
+        .resolvingSymlinksInPath()
+        .standardizedFileURL
+    return (executableName == "node" || executableName == "nodejs") &&
+        parentScript == expectedPortal
+}
+
+private func authorizePortalChannel() throws {
+    let environment = ProcessInfo.processInfo.environment
+    let expectedDigest = environment["KEEPKEYS_PORTAL_CAPABILITY_SHA256"] ?? ""
+    let expectedParent = environment["KEEPKEYS_PORTAL_PARENT_PID"] ?? ""
+    unsetenv("KEEPKEYS_PORTAL_CAPABILITY_SHA256")
+    unsetenv("KEEPKEYS_PORTAL_PARENT_PID")
+    guard isatty(STDIN_FILENO) == 0,
+          expectedDigest.count == 64,
+          expectedDigest.allSatisfy({
+              ("0"..."9").contains($0) || ("a"..."f").contains($0)
+          }),
+          let parentPID = Int32(expectedParent),
+          parentPID > 0,
+          parentPID == getppid(),
+          portalParentIsBundledPortal(parentPID)
+    else {
+        throw KeepKeysFailure(
+            message: "The private phone-intake commit requires the live KeepKeys portal channel."
+        )
+    }
+    var capability = Data()
+    while capability.count < portalCapabilityBytes {
+        let remaining = portalCapabilityBytes - capability.count
+        guard let chunk = try FileHandle.standardInput.read(upToCount: remaining),
+              !chunk.isEmpty
+        else {
+            break
+        }
+        capability.append(chunk)
+    }
+    defer { capability.resetBytes(in: 0..<capability.count) }
+    guard capability.count == portalCapabilityBytes else {
+        throw KeepKeysFailure(
+            message: "The private phone-intake channel ended before authorization."
+        )
+    }
+    let actualDigest = SHA256.hash(data: capability)
+        .map { String(format: "%02x", $0) }
+        .joined()
+    guard constantTimeEqual(actualDigest, expectedDigest) else {
+        throw KeepKeysFailure(
+            message: "The private phone-intake channel was not authorized."
+        )
+    }
+}
+
+private func requirePortalReplacementState(
+    name: String,
+    expectedExisting: Bool
+) throws {
+    guard try KeychainStore.exists(name: name) == expectedExisting else {
+        throw KeepKeysFailure(message: portalReplacementStateMessage)
+    }
+}
+
+private func portalReplacementStateWasRejected(
+    name: String,
+    expectedExisting: Bool
+) throws -> Bool {
+    do {
+        try requirePortalReplacementState(
+            name: name,
+            expectedExisting: expectedExisting
+        )
+        return false
+    } catch let error as KeepKeysFailure {
+        guard error.message == portalReplacementStateMessage else {
+            throw error
+        }
+        return true
+    }
+}
+
+private func storeFromPortal(arguments: [String]) throws -> [String: Any] {
+    guard let rawName = try parseOption(arguments, name: "--name"),
+          let rawVariable = try parseOption(arguments, name: "--variable"),
+          let rawDescription = try parseOption(arguments, name: "--description"),
+          let rawProvider = try parseOption(arguments, name: "--provider"),
+          let expectedValue = try parseOption(arguments, name: "--expect-existing")
+    else {
+        throw KeepKeysFailure(message: "The private phone-intake request is incomplete.")
+    }
+    let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+    let variable = rawVariable.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    let description = rawDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+    let provider = rawProvider.trimmingCharacters(in: .whitespacesAndNewlines)
+    let documentationURLs = try parseOptions(arguments, name: "--documentation-url").map {
+        $0.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    let metadata = EntryMetadata(
+        version: 3,
+        variable: variable,
+        description: description,
+        provider: provider,
+        documentationURLs: documentationURLs,
+        allowRules: []
+    )
+    guard validName(name), validMetadata(metadata) else {
+        throw KeepKeysFailure(message: "The agent supplied invalid KeepKeys metadata.")
+    }
+    guard expectedValue == "yes" || expectedValue == "no" else {
+        throw KeepKeysFailure(message: "The private phone-intake replacement state is invalid.")
+    }
+    let nativeSelfTestValue = try parseOption(arguments, name: "--native-self-test") ?? "no"
+    let nativeSelfTestScenarios: Set<String> = [
+        "round-trip",
+        "create-to-replace",
+        "replace-to-create",
+    ]
+    guard nativeSelfTestValue == "no"
+            || nativeSelfTestScenarios.contains(nativeSelfTestValue)
+    else {
+        throw KeepKeysFailure(message: "The private native portal test request is invalid.")
+    }
+    let nativeSelfTest = nativeSelfTestValue != "no"
+    let nativeSelfTestFlag =
+        ProcessInfo.processInfo.environment["KEEPKEYS_PORTAL_NATIVE_TEST"]
+    unsetenv("KEEPKEYS_PORTAL_NATIVE_TEST")
+    if nativeSelfTest {
+        guard nativeSelfTestFlag == "1",
+              name.hasPrefix("keepkeys-portal-test-"),
+              (
+                  nativeSelfTestValue == "replace-to-create"
+                      ? expectedValue == "yes"
+                      : expectedValue == "no"
+              )
+        else {
+            throw KeepKeysFailure(
+                message: "KeepKeys rejected an unauthorized native portal test."
+            )
+        }
+    }
+    try authorizePortalChannel()
+    if nativeSelfTest {
+        try KeychainStore.remove(name: name)
+    }
+    defer {
+        if nativeSelfTest {
+            try? KeychainStore.remove(name: name)
+        }
+    }
+    if nativeSelfTestValue == "create-to-replace" {
+        var baselineSecret = UUID().uuidString + UUID().uuidString
+        defer { baselineSecret = "" }
+        try KeychainStore.store(
+            name: name,
+            variable: variable,
+            description: description,
+            provider: provider,
+            documentationURLs: documentationURLs,
+            secret: baselineSecret
+        )
+        let rejected = try portalReplacementStateWasRejected(
+            name: name,
+            expectedExisting: false
+        )
+        var stored = try KeychainStore.load(name: name)
+        let preserved =
+            stored.secret == baselineSecret
+            && stored.metadata == metadata
+        stored.secret = ""
+        try KeychainStore.remove(name: name)
+        guard rejected, preserved, !(try KeychainStore.exists(name: name)) else {
+            throw KeepKeysFailure(
+                message: "The temporary native portal create-to-replace rejection did not verify."
+            )
+        }
+        return [
+            "status": "ok",
+            "message": "Temporary native portal create-to-replace rejection verified.",
+            "cleaned": true,
+            "scenario": nativeSelfTestValue,
+        ]
+    }
+    if nativeSelfTestValue == "replace-to-create" {
+        let rejected = try portalReplacementStateWasRejected(
+            name: name,
+            expectedExisting: true
+        )
+        guard rejected, !(try KeychainStore.exists(name: name)) else {
+            throw KeepKeysFailure(
+                message: "The temporary native portal replace-to-create rejection did not verify."
+            )
+        }
+        return [
+            "status": "ok",
+            "message": "Temporary native portal replace-to-create rejection verified.",
+            "cleaned": true,
+            "scenario": nativeSelfTestValue,
+        ]
+    }
+    let expectedExisting = expectedValue == "yes"
+    try requirePortalReplacementState(
+        name: name,
+        expectedExisting: expectedExisting
+    )
+
+    var secretData = try FileHandle.standardInput.read(
+        upToCount: maximumSecretBytes + 1
+    ) ?? Data()
+    defer { secretData.resetBytes(in: 0..<secretData.count) }
+    guard secretData.count <= maximumSecretBytes,
+          var secret = String(data: secretData, encoding: .utf8)
+    else {
+        throw KeepKeysFailure(message: "The phone submitted an invalid UTF-8 key.")
+    }
+    defer { secret = "" }
+    try validateSecret(secret)
+    try KeychainStore.store(
+        name: name,
+        variable: variable,
+        description: description,
+        provider: provider,
+        documentationURLs: documentationURLs,
+        secret: secret
+    )
+    if nativeSelfTest {
+        var stored = try KeychainStore.load(name: name)
+        defer { stored.secret = "" }
+        let listed = try KeychainStore.entries().contains { entry in
+            entry["name"] as? String == name
+                && entry["variable"] as? String == variable
+        }
+        let matches =
+            stored.secret == secret
+            && stored.metadata.variable == variable
+            && stored.metadata.description == description
+            && stored.metadata.provider == provider
+            && stored.metadata.documentationURLs == documentationURLs
+            && listed
+        try KeychainStore.remove(name: name)
+        guard matches, !(try KeychainStore.exists(name: name)) else {
+            throw KeepKeysFailure(
+                message: "The temporary native portal Keychain round trip did not verify."
+            )
+        }
+        return [
+            "status": "ok",
+            "message": "Temporary native portal Keychain round trip verified.",
+            "cleaned": true,
+            "scenario": nativeSelfTestValue,
+        ]
+    }
+    return [
+        "status": "ok",
+        "message": "Stored '\(name)' in macOS Keychain.",
+        "name": name,
+        "variable": variable,
+        "description": description,
+        "provider": provider,
+        "documentationUrls": documentationURLs,
+    ]
+}
+
 private func removeInteractively(name: String) throws -> [String: Any] {
     guard validName(name) else {
         throw KeepKeysFailure(message: "The requested KeepKeys name is invalid.")
@@ -722,6 +1242,46 @@ private func removeInteractively(name: String) throws -> [String: Any] {
     }
     try KeychainStore.remove(name: name)
     return ["status": "ok", "message": "Removed '\(name)' from macOS Keychain.", "removed": true]
+}
+
+private func revokeAllowRulesInteractively(name: String) throws -> [String: Any] {
+    guard validName(name) else {
+        throw KeepKeysFailure(message: "The requested KeepKeys name is invalid.")
+    }
+    guard try KeychainStore.exists(name: name) else {
+        return [
+            "status": "ok",
+            "message": "No KeepKeys item named '\(name)' exists.",
+            "revokedRules": 0,
+        ]
+    }
+    let metadata = try KeychainStore.metadata(name: name)
+    guard !metadata.allowRules.isEmpty else {
+        return [
+            "status": "ok",
+            "message": "No always-allow rules are stored for '\(name)'.",
+            "revokedRules": 0,
+        ]
+    }
+
+    activateApplication()
+    let alert = NSAlert()
+    alert.alertStyle = .warning
+    alert.icon = loadBrandImage(named: "icon.png")
+    alert.messageText = "Disable automatic approvals for '\(name)'?"
+    alert.informativeText =
+        "This removes \(metadata.allowRules.count) exact-command rule(s). Future uses will show the native approval window again."
+    alert.addButton(withTitle: "Disable automatic approvals")
+    alert.addButton(withTitle: "Cancel")
+    guard alert.runModal() == .alertFirstButtonReturn else {
+        return ["status": "cancelled", "message": "Always-allow revocation was cancelled."]
+    }
+    let revokedRules = try KeychainStore.clearAllowRules(name: name, expected: metadata)
+    return [
+        "status": "ok",
+        "message": "Disabled automatic approvals for '\(name)'.",
+        "revokedRules": revokedRules,
+    ]
 }
 
 private func executableFingerprint(_ url: URL) throws -> String {
@@ -784,7 +1344,24 @@ private func displayArgument(_ value: String) -> String {
     return "\"\(value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\""
 }
 
-private func approveRun(_ request: RunRequest, metadata: EntryMetadata) -> Bool {
+private func approvalRule(for request: RunRequest) -> ApprovalRule {
+    ApprovalRule(
+        version: 1,
+        purpose: request.purpose,
+        program: request.program.path,
+        fingerprint: request.fingerprint,
+        arguments: request.arguments,
+        workingDirectory: request.workingDirectory?.path,
+        entrypoint: request.entrypoint?.path,
+        entrypointFingerprint: request.entrypointFingerprint
+    )
+}
+
+private func matches(_ rule: ApprovalRule, request: RunRequest) -> Bool {
+    rule == approvalRule(for: request)
+}
+
+private func approveRun(_ request: RunRequest, metadata: EntryMetadata) -> ApprovalDecision {
     activateApplication()
     let displayedArguments = request.arguments.map(displayArgument).joined(separator: " ")
     let entrypointDetails: String
@@ -863,11 +1440,19 @@ private func approveRun(_ request: RunRequest, metadata: EntryMetadata) -> Bool 
     )
     alert.messageText = "Allow this command to use '\(request.name)'?"
     alert.informativeText =
-        "The program and any child processes can read the secret. Review every detail before allowing it."
+        "The program and any child processes can read the secret. Review every detail before allowing it. Always allow is limited to this exact fingerprinted request and is cleared by key rotation."
     alert.accessoryView = scrollView
     alert.addButton(withTitle: "Allow once")
+    alert.addButton(withTitle: "Always allow exact command")
     alert.addButton(withTitle: "Cancel")
-    return alert.runModal() == .alertFirstButtonReturn
+    switch alert.runModal() {
+    case .alertFirstButtonReturn:
+        return .once
+    case .alertSecondButtonReturn:
+        return .always
+    default:
+        return .cancel
+    }
 }
 
 private final class BoundedCapture: @unchecked Sendable {
@@ -1014,11 +1599,27 @@ private func executeProcess(_ request: RunRequest, record: inout SecretRecord) t
 }
 
 private func runApproved(_ request: RunRequest, metadata: EntryMetadata) throws -> [String: Any] {
-    guard approveRun(request, metadata: metadata) else {
+    let decision: ApprovalDecision
+    if metadata.allowRules.contains(where: { matches($0, request: request) }) {
+        decision = .once
+    } else {
+        decision = approveRun(request, metadata: metadata)
+    }
+    guard decision != .cancel else {
         return ["status": "cancelled", "message": "Command use was cancelled."]
     }
+    let approvedMetadata: EntryMetadata
+    if decision == .always {
+        approvedMetadata = try KeychainStore.addAllowRule(
+            name: request.name,
+            expected: metadata,
+            rule: approvalRule(for: request)
+        )
+    } else {
+        approvedMetadata = metadata
+    }
     var record = try KeychainStore.load(name: request.name)
-    guard record.metadata == metadata else {
+    guard record.metadata == approvedMetadata else {
         record.secret = ""
         throw KeepKeysFailure(
             message: "The secret metadata changed after approval. KeepKeys refused to run."
@@ -1136,8 +1737,8 @@ private func runDoctor() throws -> [String: Any] {
         name: name,
         variable: "KEEPKEYS_DOCTOR",
         description: "Temporary KeepKeys Keychain verification",
-        provider: "BarnLabs",
-        documentationURLs: ["https://github.com/barnlabs/keepkeys"],
+        provider: "Neorome",
+        documentationURLs: ["https://github.com/neorome/keepkeys"],
         secret: firstSecret
     )
     var firstLoad = try KeychainStore.load(name: name)
@@ -1151,8 +1752,8 @@ private func runDoctor() throws -> [String: Any] {
         name: name,
         variable: "KEEPKEYS_DOCTOR_UPDATED",
         description: "Updated temporary KeepKeys verification",
-        provider: "BarnLabs",
-        documentationURLs: ["https://github.com/barnlabs/keepkeys/blob/main/README.md"],
+        provider: "Neorome",
+        documentationURLs: ["https://github.com/neorome/keepkeys/blob/main/README.md"],
         secret: secondSecret
     )
     var secondLoad = try KeychainStore.load(name: name)
@@ -1160,15 +1761,15 @@ private func runDoctor() throws -> [String: Any] {
         secondLoad.secret == secondSecret
         && secondLoad.metadata.variable == "KEEPKEYS_DOCTOR_UPDATED"
         && secondLoad.metadata.description == "Updated temporary KeepKeys verification"
-        && secondLoad.metadata.provider == "BarnLabs"
+        && secondLoad.metadata.provider == "Neorome"
         && secondLoad.metadata.documentationURLs
-            == ["https://github.com/barnlabs/keepkeys/blob/main/README.md"]
+            == ["https://github.com/neorome/keepkeys/blob/main/README.md"]
     secondLoad.secret = ""
     let listed = try KeychainStore.entries().contains { entry in
         entry["name"] as? String == name
             && entry["variable"] as? String == "KEEPKEYS_DOCTOR_UPDATED"
             && entry["description"] as? String == "Updated temporary KeepKeys verification"
-            && entry["provider"] as? String == "BarnLabs"
+            && entry["provider"] as? String == "Neorome"
     }
 
     try KeychainStore.remove(name: name)
@@ -1254,11 +1855,12 @@ private func runSelfTests() throws -> [String: Any] {
     let environmentPrinter = URL(fileURLWithPath: "/usr/bin/env")
     var record = SecretRecord(
         metadata: EntryMetadata(
-            version: 2,
+            version: 3,
             variable: "KEEPKEYS_TEST",
             description: "Synthetic scoped-process self-test",
-            provider: "BarnLabs",
-            documentationURLs: ["https://github.com/barnlabs/keepkeys"]
+            provider: "Neorome",
+            documentationURLs: ["https://github.com/neorome/keepkeys"],
+            allowRules: []
         ),
         secret: marker
     )
@@ -1273,6 +1875,35 @@ private func runSelfTests() throws -> [String: Any] {
         entrypointFingerprint: nil,
         risk: .routine
     )
+    let policy = approvalRule(for: request)
+    let changedRequest = RunRequest(
+        name: request.name,
+        purpose: request.purpose,
+        program: request.program,
+        arguments: ["--changed"],
+        workingDirectory: request.workingDirectory,
+        fingerprint: request.fingerprint,
+        entrypoint: request.entrypoint,
+        entrypointFingerprint: request.entrypointFingerprint,
+        risk: request.risk
+    )
+    let staleFingerprintRequest = RunRequest(
+        name: request.name,
+        purpose: request.purpose,
+        program: request.program,
+        arguments: request.arguments,
+        workingDirectory: request.workingDirectory,
+        fingerprint: String(repeating: "f", count: 64),
+        entrypoint: request.entrypoint,
+        entrypointFingerprint: request.entrypointFingerprint,
+        risk: request.risk
+    )
+    guard matches(policy, request: request),
+          !matches(policy, request: changedRequest),
+          !matches(policy, request: staleFingerprintRequest)
+    else {
+        throw KeepKeysFailure(message: "Exact-command allow policy self-test failed.")
+    }
     let processResult = try executeProcess(request, record: &record)
     guard processResult["exitCode"] as? Int == 0,
           let stdout = processResult["stdout"] as? String,
@@ -1299,22 +1930,61 @@ private func main() {
         let result: [String: Any]
         switch action {
         case "store":
+            guard ProcessInfo.processInfo.environment["KEEPKEYS_SERIALIZED_MUTATION"] == "1"
+            else {
+                throw KeepKeysFailure(
+                    message: "KeepKeys store, remove, and policy actions must use the shared per-name coordinator."
+                )
+            }
+            unsetenv("KEEPKEYS_SERIALIZED_MUTATION")
             let rest = Array(args.dropFirst())
+            let expectedExisting: Bool?
+            if let expected = try parseOption(rest, name: "--expect-existing") {
+                guard expected == "yes" || expected == "no" else {
+                    throw KeepKeysFailure(message: "The rotation existence check is invalid.")
+                }
+                expectedExisting = expected == "yes"
+            } else {
+                expectedExisting = nil
+            }
             result = try storeInteractively(
                 suggestedName: parseOption(rest, name: "--name"),
                 suggestedVariable: parseOption(rest, name: "--variable"),
                 suggestedDescription: parseOption(rest, name: "--description"),
                 suggestedProvider: parseOption(rest, name: "--provider"),
-                suggestedDocumentationURLs: parseOptions(rest, name: "--documentation-url")
+                suggestedDocumentationURLs: parseOptions(rest, name: "--documentation-url"),
+                expectedExisting: expectedExisting
             )
+        case "_portal-commit":
+            result = try storeFromPortal(arguments: Array(args.dropFirst()))
         case "list":
             result = ["status": "ok", "entries": try KeychainStore.entries()]
         case "remove":
+            guard ProcessInfo.processInfo.environment["KEEPKEYS_SERIALIZED_MUTATION"] == "1"
+            else {
+                throw KeepKeysFailure(
+                    message: "KeepKeys store, remove, and policy actions must use the shared per-name coordinator."
+                )
+            }
+            unsetenv("KEEPKEYS_SERIALIZED_MUTATION")
             let rest = Array(args.dropFirst())
             guard let name = try parseOption(rest, name: "--name") else {
                 throw KeepKeysFailure(message: "Remove requires --name.")
             }
             result = try removeInteractively(name: name)
+        case "revoke":
+            guard ProcessInfo.processInfo.environment["KEEPKEYS_SERIALIZED_MUTATION"] == "1"
+            else {
+                throw KeepKeysFailure(
+                    message: "KeepKeys store, remove, and policy actions must use the shared per-name coordinator."
+                )
+            }
+            unsetenv("KEEPKEYS_SERIALIZED_MUTATION")
+            let rest = Array(args.dropFirst())
+            guard let name = try parseOption(rest, name: "--name") else {
+                throw KeepKeysFailure(message: "Revoke requires --name.")
+            }
+            result = try revokeAllowRulesInteractively(name: name)
         case "run":
             let request = try parseRun(Array(args.dropFirst()))
             let metadata = try KeychainStore.metadata(name: request.name)

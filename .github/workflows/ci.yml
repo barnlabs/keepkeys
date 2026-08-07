@@ -58,10 +58,27 @@ jobs:
         with:
           python-version: "3.12"
       - if: runner.os == 'macOS'
-        run: ./scripts/doctor
+        run: |
+          ./scripts/doctor
+          KEEPKEYS_PORTAL_NATIVE_TEST=1 \
+            node "$PWD/plugins/keepkeys/scripts/keepkeys-portal.mjs" \
+            --native-portal-self-test
       - if: runner.os == 'Windows'
         shell: powershell
-        run: .\scripts\doctor.ps1
+        run: |
+          .\scripts\doctor.ps1
+          $env:KEEPKEYS_PORTAL_NATIVE_TEST = "1"
+          try {
+            $portal = (Resolve-Path `
+              plugins/keepkeys/scripts/keepkeys-portal.mjs).Path
+            node $portal --native-portal-self-test
+            if ($LASTEXITCODE -ne 0) {
+              throw "KeepKeys native portal integration test failed."
+            }
+          } finally {
+            Remove-Item Env:KEEPKEYS_PORTAL_NATIVE_TEST `
+              -ErrorAction SilentlyContinue
+          }
       - if: runner.os == 'Linux'
         run: |
           sudo apt-get update
@@ -79,8 +96,25 @@ jobs:
           node-version: "22"
       - run: ./scripts/package-submission
       - run: ./scripts/package-release
-      - run: unzip -l dist/keepkeys-skills-0.4.2.zip
-      - run: unzip -l dist/keepkeys-0.4.2-source.zip
+      - name: Verify byte-for-byte reproducible rebuilds
+        shell: bash
+        run: |
+          version=$(node -p \
+            "require('./plugins/keepkeys/.codex-plugin/plugin.json').version")
+          submission="dist/keepkeys-skills-${version}.zip"
+          release="dist/keepkeys-${version}-source.zip"
+          submission_before=$(shasum -a 256 "$submission")
+          release_before=$(shasum -a 256 "$release")
+          ./scripts/package-submission >/dev/null
+          ./scripts/package-release >/dev/null
+          test "$submission_before" = "$(shasum -a 256 "$submission")"
+          test "$release_before" = "$(shasum -a 256 "$release")"
+      - name: Inspect release archives
+        run: |
+          version=$(node -p \
+            "require('./plugins/keepkeys/.codex-plugin/plugin.json').version")
+          unzip -l "dist/keepkeys-skills-${version}.zip"
+          unzip -l "dist/keepkeys-${version}-source.zip"
 
   release-gate:
     name: Release gate

@@ -47,7 +47,8 @@ auditable, and complete—not a large framework or a list of speculative
 features. Its chosen wedge is the best local, human-controlled secret-use broker
 for desktop coding agents: no cloud, no daemon, no reveal action, native
 credential stores, executable identity, and the same human gate on all three
-desktop operating systems.
+desktop operating systems. Its optional phone page is a temporary tailnet-only
+input route to one of those local stores, not a hosted KeepKeys service.
 
 ## Information hierarchy
 

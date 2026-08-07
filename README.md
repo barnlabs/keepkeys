@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="plugins/keepkeys/assets/social-preview.png" width="100%" alt="KeepKeys — the BarnLabs Keykeeper holding a ring of keys beside the words Use secrets. Never reveal them." />
+  <img src="plugins/keepkeys/assets/social-preview.png" width="100%" alt="KeepKeys — the Neorome Keykeeper holding a ring of keys beside the words Use secrets. Never reveal them." />
 </p>
 
 <p align="center">
@@ -7,19 +7,24 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/barnlabs/keepkeys/actions/workflows/ci.yml"><img alt="macOS, Windows, and Linux CI" src="https://github.com/barnlabs/keepkeys/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/neorome/keepkeys/actions/workflows/ci.yml"><img alt="macOS, Windows, and Linux CI" src="https://github.com/neorome/keepkeys/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="LICENSE"><img alt="Apache-2.0 license" src="https://img.shields.io/badge/license-Apache--2.0-41544C.svg" /></a>
   <a href="SECURITY.md"><img alt="Security policy" src="https://img.shields.io/badge/security-policy-D96C4D.svg" /></a>
   <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-1F2D27.svg" />
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-1F2D27.svg" />
   <img alt="desktop Linux" src="https://img.shields.io/badge/Linux-desktop-1F2D27.svg" />
-  <img alt="KeepKeys 0.4.2" src="https://img.shields.io/badge/version-0.4.2-D96C4D.svg" />
+  <img alt="KeepKeys 0.7.0" src="https://img.shields.io/badge/version-0.7.0-D96C4D.svg" />
 </p>
 
 KeepKeys is the open-source, local secret-use broker for coding agents. It
 opens a native paste-and-store window, stores the value in the operating system's
 credential vault, and gives the agent one narrow capability: run a specific
 command with one named secret after you review the exact request.
+
+If you are talking to ChatGPT Remote from a phone, KeepKeys can also open a
+one-time page inside your private Tailscale network. Paste the key there and it
+goes straight to the connected computer's native vault. KeepKeys does not use
+Tailscale Funnel or a Neorome server.
 
 There is no `get`, `show`, `copy`, reveal, or export tool. Friendly names,
 environment-variable names, descriptions, providers, and official
@@ -37,15 +42,15 @@ KeepKeys is deliberately narrower:
 | Property | KeepKeys |
 | --- | --- |
 | At-rest storage | macOS Keychain, Windows Credential Manager, or Linux Secret Service |
-| Secret entry | Explicit native **Paste & Store**, never chat or terminal |
+| Secret entry | Explicit native **Paste & Store**, or a one-time tailnet-only phone page |
 | Agent API | Research and store metadata, list metadata, remove, and approval-gated Run |
 | Plaintext retrieval | No tool or helper action |
-| Authorization | One native **Allow once** decision per command |
+| Authorization | Native **Allow once** or exact-command automatic approval, with revocation |
 | Process scope | Empty child environment plus one approved variable |
 | Executable identity | Canonical path and SHA-256, rechecked after approval |
 | Interpreter identity | Detected script entrypoint gets a second SHA-256 |
 | Output | Concurrent 1 MiB bounds and common-representation redaction |
-| Service model | Local, offline, no KeepKeys account, cloud, daemon, or telemetry |
+| Service model | Local helper; optional private Tailscale transport; no KeepKeys account, cloud service, daemon, or telemetry |
 
 The distinction is simple: KeepKeys provides approval-gated use without adding
 a reveal operation to the agent protocol.
@@ -69,35 +74,38 @@ It never falls back to a plaintext keyring, terminal password prompt, or file.
 
 | Client | Package surface | Immutable install |
 | --- | --- | --- |
-| **Codex** | Codex plugin + BarnLabs marketplace | `codex plugin marketplace add barnlabs/keepkeys --ref e5276925d390704fccdf4aaeba47280464762a1c`<br>`codex plugin add keepkeys@barnlabs` |
-| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'barnlabs/keepkeys@e5276925d390704fccdf4aaeba47280464762a1c#plugins/keepkeys' --trust` |
+| **Codex** | Codex plugin + Neorome marketplace | `codex plugin marketplace add neorome/keepkeys --ref 2525a3358831d2a539d6a1dbdcb5f7148c0418b5`<br>`codex plugin add keepkeys@neorome` |
+| **Grok Build / Grok Code** | native Grok plugin | `grok plugin install 'neorome/keepkeys@2525a3358831d2a539d6a1dbdcb5f7148c0418b5#plugins/keepkeys' --trust` |
 | **Claude Code** | Claude plugin + pinned catalog | see [Install](INSTALL.md#claude-code) |
 | **Oh My Pi** | OMP/Claude-compatible pinned catalog | see [Install](INSTALL.md#oh-my-pi) |
 | **Hermes** | repository-root Hermes plugin | see [Install](INSTALL.md#hermes) |
-| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/barnlabs/keepkeys --ref e5276925d390704fccdf4aaeba47280464762a1c` |
+| **Gemini CLI** | Gemini extension + Agent Skill | `gemini extensions install https://github.com/neorome/keepkeys --ref 2525a3358831d2a539d6a1dbdcb5f7148c0418b5` |
 | **Agent Skills clients** | standard `skills/keepkeys/SKILL.md` | reviewed checkout or skills-only archive |
 
-All integrations expose the same six tools and dispatch to the same
+All integrations expose the same nine tools and dispatch to the same
 platform-native boundary:
 
 - `keepkeys_store`
+- `keepkeys_store_from_phone`
 - `keepkeys_list`
+- `keepkeys_rotate`
+- `keepkeys_revoke`
 - `keepkeys_remove`
 - `keepkeys_run`
 - `keepkeys_status`
 - `keepkeys_doctor`
 
 Claude Code and Oh My Pi use the immutable catalog at commit
-`c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd`; that catalog pins the functional
-plugin source at `e5276925d390704fccdf4aaeba47280464762a1c`. See
+`fbccd06be00df77db27004355a6cac8b29e8533e`; that catalog pins the functional
+plugin source at `2525a3358831d2a539d6a1dbdcb5f7148c0418b5`. See
 [INSTALL.md](INSTALL.md) for copy-paste commands and platform prerequisites.
 
 ## What the user experiences
 
 Store:
 
-1. The agent gathers any missing non-secret context, researches official
-   credential documentation, and chooses the name, environment variable,
+1. The agent gathers any missing non-secret context, uses search tools to find
+   and verify official credential documentation, and chooses the name, environment variable,
    description, provider, and one to three official HTTPS documentation links.
 2. KeepKeys validates that metadata before opening and displays it read-only.
 3. The user copies the key from the provider and presses **Paste & Store**.
@@ -105,18 +113,57 @@ Store:
    clears the current clipboard, then the operating-system vault stores the
    value without returning it through the agent protocol.
 
+Store from a phone:
+
+1. The agent prepares and validates the same non-secret metadata.
+2. KeepKeys starts a ten-minute, one-use HTTPS page on an unguessable Tailscale
+   Serve path.
+3. The user opens the link on a phone in the same tailnet, reviews the metadata
+   and any replacement warning, pastes the key, and presses
+   **Paste & Store**.
+4. The page sends the value through the private tailnet to the connected
+   computer, where the native helper writes it to the operating-system vault.
+   KeepKeys stops the owned Serve process and confirms exact route removal
+   before the browser can show **Stored**. The localhost listener then closes.
+   Desktop Store, phone Store, and Remove share one per-name coordinator, so
+   removal cannot race a write and stores cannot silently race past the
+   replacement warning. If the vault write succeeds but Serve cleanup fails,
+   the page says the key
+   was stored and reports the cleanup failure. If Linux storage and rollback
+   both fail—or Windows Credential Manager cannot complete its paired-record
+   rollback—the page says the final vault state is uncertain and tells the
+   user to inspect and remove the name before retrying. A helper that ends
+   without a valid commit receipt is uncertain for the same reason. If lock
+   cleanup also fails, the page reports both problems.
+
+The detached portal does not survive a cancelled launcher until the launcher
+acknowledges the ready link and the portal confirms that it processed that
+acknowledgment after rechecking Serve. KeepKeys also watches the foreground
+Serve process after readiness, including both sides of that handshake; an
+unexpected exit closes the portal instead of leaving a dead link advertised
+until expiry.
+
+Phone intake requires Tailscale 1.52 or newer, MagicDNS, tailnet HTTPS, and a
+phone signed into the same tailnet. See the
+[install guide](INSTALL.md#optional-phone-intake-with-tailscale).
+
 Run:
 
 1. The agent proposes an absolute executable, fixed argument list, purpose, and
    optional working directory.
 2. KeepKeys displays the risk class, stored metadata, executable path, SHA-256,
    arguments, directory, environment scope, and detected script fingerprint.
-3. The user chooses **Allow once** or **Cancel**.
+3. The user chooses **Allow once**, **Always allow this exact command**, or
+   **Cancel**. Automatic approval binds the purpose, canonical executable,
+   executable fingerprint, arguments, working directory, and script entrypoint
+   fingerprint when present.
 4. Only after approval does KeepKeys load the value and run the direct child.
 
-Remove always opens a native destructive-action confirmation and deletes the
-complete named record. Uninstalling a client does not silently delete
-credentials.
+Rotate reuses the reviewed metadata, opens the same native Paste & Store flow,
+and clears old exact-command rules after the replacement succeeds. Revoke opens
+a native confirmation and removes only automatic-approval rules. Remove always
+opens a native destructive-action confirmation and deletes the complete named
+record. Uninstalling a client does not silently delete credentials.
 
 ## The security promise—and its edge
 
@@ -124,6 +171,11 @@ KeepKeys does:
 
 - keep plaintext out of model prompts, tool inputs/results, plugin metadata,
   argv, persistent environment, and plaintext files;
+- keep the optional phone page inside the user's tailnet, bind it to one
+  Tailscale identity and browser cookie, serialize same-name commits, and close
+  it after one authenticated submission attempt or at the advertised
+  ten-minute expiry, withholding browser success until both Serve-process and
+  exact-route verification pass;
 - read the system clipboard only after **Paste & Store** and clear its current
   contents immediately after capture;
 - pin native helper sources and fail closed on integrity mismatch;
@@ -141,6 +193,10 @@ KeepKeys does not:
 - prevent same-user software, a coding host with unrestricted local-command
   execution, or operating-system clipboard history from observing a value
   while it is on the shared clipboard;
+- clear a phone's clipboard or clipboard history after phone intake;
+- make a Tailscale account, device, ACL, or signed-in host trustworthy;
+- silently synchronize vault values across devices; phone intake is a deliberate
+  one-use transfer and never background replication;
 - protect against malware, a compromised signed-in account, administrator/root,
   debuggers, keyloggers, or modified local plugin code;
 - promise forensic erasure inside operating-system-managed storage;
@@ -207,10 +263,11 @@ does not install code, touch the native vault, or run in the background. See
 - [Contributing](CONTRIBUTING.md)
 - [Governance](GOVERNANCE.md)
 - [Brand guidelines](plugins/keepkeys/assets/brand-guidelines.md)
+- [Favicon and small-mark assets](.github/assets/keepkeys/README.md)
 
-## BarnLabs open source
+## Neorome open source
 
-KeepKeys is a BarnLabs open-source initiative, licensed under Apache-2.0. The
+KeepKeys is a Neorome open-source initiative, licensed under Apache-2.0. The
 Keykeeper—an old steward carrying a real ring of keys—represents the product's
 job: hold authority carefully, explain exactly where it is going, and hand over
 only the one key needed for the approved task.

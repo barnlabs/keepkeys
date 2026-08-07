@@ -1,31 +1,31 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "barnlabs",
-  "version": "0.4.2",
-  "description": "Open-source agent tools from BarnLabs.",
+  "name": "neorome",
+  "version": "0.7.0",
+  "description": "Open-source agent tools from Neorome.",
   "owner": {
-    "name": "BarnLabs",
-    "url": "https://github.com/barnlabs"
+    "name": "Neorome",
+    "url": "https://github.com/neorome"
   },
   "plugins": [
     {
       "name": "keepkeys",
       "displayName": "KeepKeys",
-      "description": "Local native-vault secrets for approval-gated agent commands on macOS, Windows, and Linux, without plaintext retrieval.",
+      "description": "Local native-vault secrets with exact-command approval, rotation, revocation, optional private phone intake, and no plaintext retrieval.",
       "author": {
-        "name": "BarnLabs",
-        "url": "https://github.com/barnlabs"
+        "name": "Neorome",
+        "url": "https://github.com/neorome"
       },
       "source": {
         "source": "git-subdir",
-        "url": "https://github.com/barnlabs/keepkeys.git",
+        "url": "https://github.com/neorome/keepkeys.git",
         "path": "plugins/keepkeys",
         "ref": "main",
-        "sha": "e5276925d390704fccdf4aaeba47280464762a1c"
+        "sha": "2525a3358831d2a539d6a1dbdcb5f7148c0418b5"
       },
       "category": "security",
-      "homepage": "https://github.com/barnlabs/keepkeys",
-      "repository": "https://github.com/barnlabs/keepkeys",
+      "homepage": "https://github.com/neorome/keepkeys",
+      "repository": "https://github.com/neorome/keepkeys",
       "license": "Apache-2.0",
       "keywords": [
         "secrets",
@@ -33,7 +33,9 @@
         "mcp",
         "macos",
         "windows",
-        "linux"
+        "linux",
+        "tailscale",
+        "phone"
       ]
     }
   ]

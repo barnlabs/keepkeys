@@ -4,11 +4,12 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$Script:Version = "0.4.2"
-$Script:MetadataPrefix = "net.barnlabs.keepkeys/meta/"
-$Script:SecretPrefix = "net.barnlabs.keepkeys/secret/"
+$Script:Version = "0.7.0"
+$Script:MetadataPrefix = "net.neorome.keepkeys/meta/"
+$Script:SecretPrefix = "net.neorome.keepkeys/secret/"
 $Script:MaximumSecretBytes = 2048
 $Script:MaximumMetadataBytes = 2560
+$Script:MaximumAllowRules = 8
 $Script:MaximumCapturedBytes = 1048576
 $Script:OmittedOutput = "[OUTPUT OMITTED BY KEEPKEYS: stream exceeded the 1 MiB safety limit]"
 
@@ -33,8 +34,114 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace BarnLabs.KeepKeys
+namespace Neorome.KeepKeys
 {
+    public static class ProcessIdentity
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        private struct PROCESS_BASIC_INFORMATION
+        {
+            public IntPtr Reserved1;
+            public IntPtr PebBaseAddress;
+            public IntPtr Reserved2_0;
+            public IntPtr Reserved2_1;
+            public IntPtr UniqueProcessId;
+            public IntPtr InheritedFromUniqueProcessId;
+        }
+
+        [DllImport("ntdll.dll")]
+        private static extern int NtQueryInformationProcess(
+            IntPtr processHandle,
+            int processInformationClass,
+            ref PROCESS_BASIC_INFORMATION processInformation,
+            int processInformationLength,
+            out int returnLength
+        );
+
+        public static int ParentProcessId()
+        {
+            PROCESS_BASIC_INFORMATION information =
+                new PROCESS_BASIC_INFORMATION();
+            int returnLength;
+            int status = NtQueryInformationProcess(
+                Process.GetCurrentProcess().Handle,
+                0,
+                ref information,
+                Marshal.SizeOf(information),
+                out returnLength
+            );
+            if (status != 0)
+            {
+                throw new InvalidOperationException(
+                    "KeepKeys could not verify its private portal parent."
+                );
+            }
+            return information.InheritedFromUniqueProcessId.ToInt32();
+        }
+
+        public static bool IsNodeProcess(int processId)
+        {
+            using (Process process = Process.GetProcessById(processId))
+            {
+                return
+                    string.Equals(
+                        process.ProcessName,
+                        "node",
+                        StringComparison.OrdinalIgnoreCase
+                    ) ||
+                    string.Equals(
+                        process.ProcessName,
+                        "nodejs",
+                        StringComparison.OrdinalIgnoreCase
+                    );
+            }
+        }
+    }
+
+    public static class CommandLine
+    {
+        [DllImport("shell32.dll", SetLastError = true)]
+        private static extern IntPtr CommandLineToArgvW(
+            [MarshalAs(UnmanagedType.LPWStr)] string commandLine,
+            out int argumentCount
+        );
+
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr LocalFree(IntPtr memory);
+
+        public static string[] Parse(string commandLine)
+        {
+            int argumentCount;
+            IntPtr arguments = CommandLineToArgvW(
+                commandLine,
+                out argumentCount
+            );
+            if (arguments == IntPtr.Zero)
+            {
+                throw new InvalidOperationException(
+                    "KeepKeys could not parse its private portal parent."
+                );
+            }
+            try
+            {
+                string[] result = new string[argumentCount];
+                for (int index = 0; index < argumentCount; index++)
+                {
+                    IntPtr value = Marshal.ReadIntPtr(
+                        arguments,
+                        index * IntPtr.Size
+                    );
+                    result[index] = Marshal.PtrToStringUni(value);
+                }
+                return result;
+            }
+            finally
+            {
+                LocalFree(arguments);
+            }
+        }
+    }
+
     public sealed class CredentialItem
     {
         public string TargetName;
@@ -330,6 +437,31 @@ function Stop-KeepKeys {
     param([Parameter(Mandatory = $true)][string]$Message)
     Write-KeepKeysJson @{ status = "error"; message = $Message }
     exit 1
+}
+
+function New-KeepKeysPortalStorageUncertainError {
+    param(
+        [Parameter(Mandatory = $true)][string]$Message,
+        [Exception]$Cause
+    )
+    $error = [InvalidOperationException]::new($Message, $Cause)
+    $error.Data["storageState"] = "uncertain"
+    $error.Data["cleanupKind"] = "native-rollback"
+    return $error
+}
+
+function ConvertTo-KeepKeysFailure {
+    param([Parameter(Mandatory = $true)][Exception]$Exception)
+    $failure = @{
+        status = "error"
+        message = $Exception.Message
+    }
+    if ($Exception.Data["storageState"] -ceq "uncertain" -and
+        $Exception.Data["cleanupKind"] -ceq "native-rollback") {
+        $failure.storageState = "uncertain"
+        $failure.cleanupKind = "native-rollback"
+    }
+    return $failure
 }
 
 function Test-KeepKeysName {
@@ -686,7 +818,7 @@ function Show-KeepKeysStoreDialog {
                 } `
                 -StoreSecret {
                     param([string]$candidateSecret)
-                    if ($null -ne [BarnLabs.KeepKeys.CredentialVault]::Read(
+                    if ($null -ne [Neorome.KeepKeys.CredentialVault]::Read(
                         $Script:MetadataPrefix + $Name,
                         $false
                     )) {
@@ -760,6 +892,37 @@ function Show-KeepKeysRemoveDialog {
     [void]$buttons.Children.Add($remove)
     [void]$buttons.Children.Add($cancel)
     $remove.Add_Click({ $window.DialogResult = $true })
+    $cancel.Add_Click({ $window.DialogResult = $false })
+    return $window.ShowDialog() -eq $true
+}
+
+function Show-KeepKeysRevokeDialog {
+    param([string]$Name, [string]$Variable, [string]$Description, [int]$RuleCount)
+    $window = New-KeepKeysWindow "KeepKeys - Disable automatic approvals" 640 440
+    $root = [Windows.Controls.DockPanel]::new()
+    $window.Content = $root
+    Add-KeepKeysHeader $root "Approval policy" "Disable automatic approvals for '$Name'?" `
+        "This removes $RuleCount exact-command rule(s). Future uses will show the native approval window again."
+    $body = [Windows.Controls.StackPanel]::new()
+    $body.Margin = [Windows.Thickness]::new(28, 20, 28, 24)
+    [void]$root.Children.Add($body)
+    $card = [Windows.Controls.TextBlock]::new()
+    $card.Text = "$Variable`n$Description"
+    $card.Background = [Windows.Media.Brushes]::White
+    $card.Foreground = New-KeepKeysBrush $Script:Night
+    $card.Padding = [Windows.Thickness]::new(15)
+    $card.TextWrapping = [Windows.TextWrapping]::Wrap
+    [void]$body.Children.Add($card)
+    $buttons = [Windows.Controls.StackPanel]::new()
+    $buttons.Orientation = [Windows.Controls.Orientation]::Horizontal
+    $buttons.HorizontalAlignment = [Windows.HorizontalAlignment]::Right
+    $buttons.Margin = [Windows.Thickness]::new(0, 24, 0, 0)
+    [void]$body.Children.Add($buttons)
+    $disable = New-KeepKeysButton "Disable automatic approvals" $Script:Brass $false
+    $cancel = New-KeepKeysButton "Cancel" ([Windows.Media.ColorConverter]::ConvertFromString("#E8E2D7")) $false
+    [void]$buttons.Children.Add($disable)
+    [void]$buttons.Children.Add($cancel)
+    $disable.Add_Click({ $window.DialogResult = $true })
     $cancel.Add_Click({ $window.DialogResult = $false })
     return $window.ShowDialog() -eq $true
 }
@@ -879,13 +1042,83 @@ function New-KeepKeysRunRequest {
     }
 }
 
+function Get-KeepKeysRuleFromRequest {
+    param($Request)
+    return [pscustomobject]@{
+        purpose = $Request.Purpose
+        program = $Request.Program
+        fingerprint = $Request.Fingerprint
+        arguments = [string[]]$Request.Arguments
+        workingDirectory = $Request.WorkingDirectory
+        entrypoint = $Request.Entrypoint
+        entrypointFingerprint = $Request.EntrypointFingerprint
+    }
+}
+
+function Assert-KeepKeysAllowRule {
+    param($Rule)
+    if ($null -eq $Rule -or
+        -not (Test-KeepKeysVisibleLine ([string]$Rule.purpose)) -or
+        -not [IO.Path]::IsPathRooted([string]$Rule.program) -or
+        ([string]$Rule.fingerprint) -cnotmatch "^[a-f0-9]{64}$" -or
+        $null -eq $Rule.arguments -or
+        @($Rule.arguments).Count -gt 64) {
+        throw "The stored KeepKeys allow rule is invalid."
+    }
+    foreach ($argument in @($Rule.arguments)) {
+        if ($null -eq $argument -or
+            [Text.Encoding]::UTF8.GetByteCount([string]$argument) -gt 4096 -or
+            ([string]$argument).IndexOfAny([char[]]@(0..31)) -ge 0) {
+            throw "The stored KeepKeys allow rule is invalid."
+        }
+    }
+    if ($null -ne $Rule.workingDirectory -and
+        -not [IO.Path]::IsPathRooted([string]$Rule.workingDirectory)) {
+        throw "The stored KeepKeys allow rule is invalid."
+    }
+    if (($null -eq $Rule.entrypoint) -ne ($null -eq $Rule.entrypointFingerprint) -or
+        ($null -ne $Rule.entrypoint -and (
+            -not [IO.Path]::IsPathRooted([string]$Rule.entrypoint) -or
+            ([string]$Rule.entrypointFingerprint) -cnotmatch "^[a-f0-9]{64}$"
+        ))) {
+        throw "The stored KeepKeys allow rule is invalid."
+    }
+}
+
+function Test-KeepKeysAllowRuleMatch {
+    param($Rule, $Request)
+    try { Assert-KeepKeysAllowRule $Rule } catch { return $false }
+    $workingDirectoryMatches = $null -eq $Rule.workingDirectory -and
+        $null -eq $Request.WorkingDirectory
+    if ($null -ne $Rule.workingDirectory -and
+        $null -ne $Request.WorkingDirectory) {
+        $workingDirectoryMatches = $Rule.workingDirectory -ceq $Request.WorkingDirectory
+    }
+    $entrypointMatches = $null -eq $Rule.entrypoint -and
+        $null -eq $Request.Entrypoint -and
+        $null -eq $Rule.entrypointFingerprint -and
+        $null -eq $Request.EntrypointFingerprint
+    if ($null -ne $Rule.entrypoint -and $null -ne $Request.Entrypoint) {
+        $entrypointMatches = $Rule.entrypoint -ceq $Request.Entrypoint -and
+            $Rule.entrypointFingerprint -ceq $Request.EntrypointFingerprint
+    }
+    return (
+        $Rule.purpose -ceq $Request.Purpose -and
+        $Rule.program -ceq $Request.Program -and
+        $Rule.fingerprint -ceq $Request.Fingerprint -and
+        (Test-KeepKeysStringArrayEqual ([string[]]$Rule.arguments) ([string[]]$Request.Arguments)) -and
+        $workingDirectoryMatches -and
+        $entrypointMatches
+    )
+}
+
 function Show-KeepKeysApprovalDialog {
     param($Request, $Credential)
     $window = New-KeepKeysWindow "KeepKeys - Approve secret use" 760 720
     $root = [Windows.Controls.DockPanel]::new()
     $window.Content = $root
     Add-KeepKeysHeader $root $Request.Risk "Allow this command to use '$($Request.Name)'?" `
-        "Approval is one-time. The executable and its child processes can read the secret."
+        "The executable and its child processes can read the secret. Always allow is limited to this exact command identity."
     $body = [Windows.Controls.DockPanel]::new()
     $body.Margin = [Windows.Thickness]::new(28, 18, 28, 24)
     [void]$root.Children.Add($body)
@@ -896,8 +1129,10 @@ function Show-KeepKeysApprovalDialog {
     [Windows.Controls.DockPanel]::SetDock($buttons, [Windows.Controls.Dock]::Bottom)
     [void]$body.Children.Add($buttons)
     $allow = New-KeepKeysButton "Allow once" $Script:Ember $true
+    $always = New-KeepKeysButton "Always allow this exact command" $Script:Brass $false
     $cancel = New-KeepKeysButton "Cancel" ([Windows.Media.ColorConverter]::ConvertFromString("#E8E2D7")) $false
     [void]$buttons.Children.Add($allow)
+    [void]$buttons.Children.Add($always)
     [void]$buttons.Children.Add($cancel)
     $argumentText = if ($Request.Arguments.Count -eq 0) {
         "(none)"
@@ -937,17 +1172,25 @@ function Show-KeepKeysApprovalDialog {
     $text.Background = [Windows.Media.Brushes]::White
     $text.Foreground = New-KeepKeysBrush $Script:Night
     [void]$body.Children.Add($text)
-    $allow.Add_Click({ $window.DialogResult = $true })
+    $decision = "cancel"
+    $allow.Add_Click({ $decision = "once"; $window.DialogResult = $true })
+    $always.Add_Click({ $decision = "always"; $window.DialogResult = $true })
     $cancel.Add_Click({ $window.DialogResult = $false })
-    return $window.ShowDialog() -eq $true
+    [void]$window.ShowDialog()
+    return $decision
 }
 
 function ConvertTo-KeepKeysMetadataBytes {
-    param([string]$Provider, [string[]]$DocumentationUrls)
+    param([string]$Provider, [string[]]$DocumentationUrls, [object[]]$AllowRules = @())
+    if ($AllowRules.Count -gt $Script:MaximumAllowRules) {
+        throw "KeepKeys metadata cannot contain more than $($Script:MaximumAllowRules) allow rules."
+    }
+    foreach ($rule in $AllowRules) { Assert-KeepKeysAllowRule $rule }
     $json = @{
-        version = 2
+        version = 3
         provider = $Provider
         documentationUrls = $DocumentationUrls
+        allowRules = $AllowRules
     } | ConvertTo-Json -Compress -Depth 4
     $bytes = [Text.Encoding]::UTF8.GetBytes($json)
     if ($bytes.Length -gt $Script:MaximumMetadataBytes) {
@@ -967,17 +1210,25 @@ function ConvertFrom-KeepKeysMetadataCredential {
     }
     $provider = ""
     $documentationUrls = [string[]]@()
+    $allowRules = [object[]]@()
     try {
         if ($null -ne $Credential.Secret -and $Credential.Secret.Length -gt 0) {
             $metadataJson = [Text.Encoding]::UTF8.GetString($Credential.Secret)
             $metadata = $metadataJson | ConvertFrom-Json
-            if ($metadata.version -ne 2) {
+            if ($metadata.version -ne 1 -and $metadata.version -ne 2 -and $metadata.version -ne 3) {
                 throw "The stored KeepKeys metadata version is unsupported."
             }
             $provider = [string]$metadata.provider
             $documentationUrls = [string[]]$metadata.documentationUrls
             Assert-KeepKeysMetadata $Name $Credential.UserName `
                 $Credential.Comment $provider $documentationUrls
+            if ($metadata.version -eq 3) {
+                $allowRules = [object[]]@($metadata.allowRules)
+                if ($allowRules.Count -gt $Script:MaximumAllowRules) {
+                    throw "The stored KeepKeys allow rules exceed the supported limit."
+                }
+                foreach ($rule in $allowRules) { Assert-KeepKeysAllowRule $rule }
+            }
         }
     } finally {
         if ($null -ne $Credential.Secret) {
@@ -990,12 +1241,13 @@ function ConvertFrom-KeepKeysMetadataCredential {
         Comment = $Credential.Comment
         Provider = $provider
         DocumentationUrls = $documentationUrls
+        AllowRules = $allowRules
     }
 }
 
 function Read-KeepKeysMetadata {
     param([string]$Name)
-    $credential = [BarnLabs.KeepKeys.CredentialVault]::Read(
+    $credential = [Neorome.KeepKeys.CredentialVault]::Read(
         $Script:MetadataPrefix + $Name,
         $true
     )
@@ -1021,12 +1273,98 @@ function Test-KeepKeysMetadataEqual {
         $First.Provider -ceq $Second.Provider -and
         (Test-KeepKeysStringArrayEqual `
             ([string[]]$First.DocumentationUrls) `
-            ([string[]]$Second.DocumentationUrls))
+            ([string[]]$Second.DocumentationUrls)) -and
+        (ConvertTo-Json @($First.AllowRules) -Compress -Depth 6) -ceq
+            (ConvertTo-Json @($Second.AllowRules) -Compress -Depth 6)
     )
 }
 
+function New-KeepKeysNameMutex {
+    param([string]$Name)
+    $bytes = [Text.Encoding]::UTF8.GetBytes($Name)
+    try {
+        $sha = [Security.Cryptography.SHA256]::Create()
+        try {
+            $digest = ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace("-", "")
+        } finally { $sha.Dispose() }
+    } finally { [Array]::Clear($bytes, 0, $bytes.Length) }
+    $mutex = [Threading.Mutex]::new($false, "Local\Neorome.KeepKeys.$digest")
+    try {
+        [void]$mutex.WaitOne()
+    } catch [Threading.AbandonedMutexException] {
+        # The OS transfers an abandoned per-name lock to this caller.
+    }
+    return $mutex
+}
+
+function Save-KeepKeysAllowRule {
+    param([string]$Name, $ExpectedMetadata, $Rule)
+    $mutex = New-KeepKeysNameMutex $Name
+    try {
+    Assert-KeepKeysAllowRule $Rule
+    $current = Read-KeepKeysMetadata $Name
+    if (-not (Test-KeepKeysMetadataEqual $ExpectedMetadata $current)) {
+        throw "The secret metadata changed after approval. KeepKeys refused to save an allow rule."
+    }
+    $rules = [Collections.Generic.List[object]]::new()
+    foreach ($existing in @($current.AllowRules)) { $rules.Add($existing) }
+    $requestForRule = [pscustomobject]@{
+        Purpose = $Rule.purpose; Program = $Rule.program; Fingerprint = $Rule.fingerprint;
+        Arguments = [string[]]$Rule.arguments; WorkingDirectory = $Rule.workingDirectory;
+        Entrypoint = $Rule.entrypoint; EntrypointFingerprint = $Rule.entrypointFingerprint
+    }
+    $duplicateRules = @($rules | Where-Object {
+        Test-KeepKeysAllowRuleMatch $_ $requestForRule
+    })
+    if ($duplicateRules.Count -eq 0) {
+        if ($rules.Count -ge $Script:MaximumAllowRules) {
+            throw "KeepKeys has reached the maximum number of always-allow rules for this secret."
+        }
+        $rules.Add($Rule)
+    }
+    $bytes = ConvertTo-KeepKeysMetadataBytes $current.Provider `
+        ([string[]]$current.DocumentationUrls) ([object[]]$rules.ToArray())
+    try {
+        [Neorome.KeepKeys.CredentialVault]::Write(
+            $Script:MetadataPrefix + $Name, $current.UserName, $current.Comment, $bytes
+        )
+    } finally { [Array]::Clear($bytes, 0, $bytes.Length) }
+    return Read-KeepKeysMetadata $Name
+    } finally {
+        $mutex.ReleaseMutex()
+        $mutex.Dispose()
+    }
+}
+
+function Clear-KeepKeysAllowRules {
+    param([string]$Name, $ExpectedMetadata)
+    $mutex = New-KeepKeysNameMutex $Name
+    try {
+        $current = Read-KeepKeysMetadata $Name
+        if (-not (Test-KeepKeysMetadataEqual $ExpectedMetadata $current)) {
+            throw "The secret metadata changed before approval rules could be revoked. Try again."
+        }
+        $count = @($current.AllowRules).Count
+        if ($count -eq 0) { return 0 }
+        $bytes = ConvertTo-KeepKeysMetadataBytes $current.Provider `
+            ([string[]]$current.DocumentationUrls)
+        try {
+            [Neorome.KeepKeys.CredentialVault]::Write(
+                $Script:MetadataPrefix + $Name,
+                $current.UserName,
+                $current.Comment,
+                $bytes
+            )
+        } finally { [Array]::Clear($bytes, 0, $bytes.Length) }
+        return $count
+    } finally {
+        $mutex.ReleaseMutex()
+        $mutex.Dispose()
+    }
+}
+
 function Get-KeepKeysCredentials {
-    $items = [BarnLabs.KeepKeys.CredentialVault]::Enumerate($Script:MetadataPrefix + "*")
+    $items = [Neorome.KeepKeys.CredentialVault]::Enumerate($Script:MetadataPrefix + "*")
     $results = [Collections.Generic.List[object]]::new()
     foreach ($item in $items) {
         if (-not $item.TargetName.StartsWith(
@@ -1046,6 +1384,272 @@ function Get-KeepKeysCredentials {
     return @($results | Sort-Object {
         $_.TargetName.Substring($Script:MetadataPrefix.Length)
     })
+}
+
+function Save-KeepKeysRecord {
+    param(
+        [string]$Name,
+        [string]$Variable,
+        [string]$Description,
+        [string]$Provider,
+        [string[]]$DocumentationUrls,
+        [string]$Secret,
+        [Nullable[bool]]$ExpectedExisting = $null
+    )
+    $mutex = New-KeepKeysNameMutex $Name
+    try {
+    Assert-KeepKeysMetadata $Name $Variable $Description $Provider `
+        $DocumentationUrls
+    Assert-KeepKeysSecret $Secret
+    $secretBytes = [Text.Encoding]::UTF8.GetBytes($Secret)
+    $metadataBytes = ConvertTo-KeepKeysMetadataBytes `
+        $Provider $DocumentationUrls
+    $metadataTarget = $Script:MetadataPrefix + $Name
+    $secretTarget = $Script:SecretPrefix + $Name
+    $previousMetadata = [Neorome.KeepKeys.CredentialVault]::Read(
+        $metadataTarget,
+        $true
+    )
+    if ($null -ne $ExpectedExisting -and
+        (($null -ne $previousMetadata) -ne [bool]$ExpectedExisting)) {
+        if ($null -ne $previousMetadata -and
+            $null -ne $previousMetadata.Secret) {
+            [Array]::Clear(
+                $previousMetadata.Secret,
+                0,
+                $previousMetadata.Secret.Length
+            )
+        }
+        [Array]::Clear($secretBytes, 0, $secretBytes.Length)
+        [Array]::Clear($metadataBytes, 0, $metadataBytes.Length)
+        throw (
+            "The stored KeepKeys name changed after the phone page opened. " +
+            "Start a new phone intake and review the replacement warning."
+        )
+    }
+    $previousSecret = [Neorome.KeepKeys.CredentialVault]::Read(
+        $secretTarget,
+        $true
+    )
+    try {
+        [Neorome.KeepKeys.CredentialVault]::Write(
+            $secretTarget,
+            "KEEPKEYS_SECRET",
+            "KeepKeys protected value",
+            $secretBytes
+        )
+        [Neorome.KeepKeys.CredentialVault]::Write(
+            $metadataTarget,
+            $Variable,
+            $Description,
+            $metadataBytes
+        )
+    } catch {
+        $writeFailure = $_
+        $rollbackFailures = [Collections.Generic.List[Exception]]::new()
+        try {
+            if ($null -eq $previousSecret) {
+                [void][Neorome.KeepKeys.CredentialVault]::Delete(
+                    $secretTarget
+                )
+            } else {
+                [Neorome.KeepKeys.CredentialVault]::Write(
+                    $secretTarget,
+                    "KEEPKEYS_SECRET",
+                    "KeepKeys protected value",
+                    $previousSecret.Secret
+                )
+            }
+        } catch {
+            $rollbackFailures.Add($_.Exception)
+        }
+        try {
+            if ($null -eq $previousMetadata) {
+                [void][Neorome.KeepKeys.CredentialVault]::Delete(
+                    $metadataTarget
+                )
+            } else {
+                [Neorome.KeepKeys.CredentialVault]::Write(
+                    $metadataTarget,
+                    $previousMetadata.UserName,
+                    $previousMetadata.Comment,
+                    $previousMetadata.Secret
+                )
+            }
+        } catch {
+            $rollbackFailures.Add($_.Exception)
+        }
+        if ($rollbackFailures.Count -gt 0) {
+            throw (New-KeepKeysPortalStorageUncertainError `
+                -Message (
+                    "Credential Manager failed during storage and rollback. " +
+                    "Remove '$Name' from KeepKeys before retrying."
+                ) `
+                -Cause $rollbackFailures[0])
+        }
+        throw $writeFailure
+    } finally {
+        [Array]::Clear($secretBytes, 0, $secretBytes.Length)
+        [Array]::Clear($metadataBytes, 0, $metadataBytes.Length)
+        if ($null -ne $previousSecret -and
+            $null -ne $previousSecret.Secret) {
+            [Array]::Clear(
+                $previousSecret.Secret,
+                0,
+                $previousSecret.Secret.Length
+            )
+        }
+        if ($null -ne $previousMetadata -and
+            $null -ne $previousMetadata.Secret) {
+            [Array]::Clear(
+                $previousMetadata.Secret,
+                0,
+                $previousMetadata.Secret.Length
+            )
+        }
+    }
+    return @{
+        status = "ok"
+        message = "Stored '$Name' in Windows Credential Manager."
+        name = $Name
+        variable = $Variable
+        description = $Description
+        provider = $Provider
+        documentationUrls = $DocumentationUrls
+    }
+    } finally {
+        $mutex.ReleaseMutex()
+        $mutex.Dispose()
+    }
+}
+
+function Test-KeepKeysPortalParent {
+    param([int]$ParentProcessId)
+    try {
+        if (-not [Neorome.KeepKeys.ProcessIdentity]::IsNodeProcess(
+            $ParentProcessId
+        )) {
+            return $false
+        }
+        $process = Get-WmiObject -Class Win32_Process -Filter (
+            "ProcessId = $ParentProcessId"
+        ) -ErrorAction Stop
+        if ($null -eq $process -or
+            [String]::IsNullOrWhiteSpace($process.CommandLine)) {
+            return $false
+        }
+        $arguments = [Neorome.KeepKeys.CommandLine]::Parse(
+            $process.CommandLine
+        )
+        if ($arguments.Length -lt 2) {
+            return $false
+        }
+        $expectedPortal = [IO.Path]::GetFullPath(
+            (Join-Path $PSScriptRoot "keepkeys-portal.mjs")
+        )
+        $parentScript = [IO.Path]::GetFullPath($arguments[1])
+        return [String]::Equals(
+            $parentScript,
+            $expectedPortal,
+            [StringComparison]::OrdinalIgnoreCase
+        )
+    } catch {
+        return $false
+    }
+}
+
+function Read-KeepKeysPortalSecret {
+    $expectedDigest = [string]$env:KEEPKEYS_PORTAL_CAPABILITY_SHA256
+    $expectedParent = [string]$env:KEEPKEYS_PORTAL_PARENT_PID
+    $env:KEEPKEYS_PORTAL_CAPABILITY_SHA256 = $null
+    $env:KEEPKEYS_PORTAL_PARENT_PID = $null
+    $parentPid = 0
+    if (-not [Console]::IsInputRedirected -or
+        $expectedDigest -cnotmatch "^[a-f0-9]{64}$" -or
+        -not [int]::TryParse($expectedParent, [ref]$parentPid) -or
+        $parentPid -le 0 -or
+        $parentPid -ne [Neorome.KeepKeys.ProcessIdentity]::ParentProcessId() -or
+        -not (Test-KeepKeysPortalParent $parentPid)) {
+        throw (
+            "The private phone-intake commit requires the live KeepKeys " +
+            "portal channel."
+        )
+    }
+    $stream = [Console]::OpenStandardInput()
+    $capability = [byte[]]::new(32)
+    $capabilityCount = 0
+    while ($capabilityCount -lt $capability.Length) {
+        $read = $stream.Read(
+            $capability,
+            $capabilityCount,
+            $capability.Length - $capabilityCount
+        )
+        if ($read -eq 0) { break }
+        $capabilityCount += $read
+    }
+    if ($capabilityCount -ne $capability.Length) {
+        [Array]::Clear($capability, 0, $capability.Length)
+        throw (
+            "The private phone-intake channel ended before authorization."
+        )
+    }
+    $expectedBytes = [byte[]]::new(32)
+    $actualBytes = $null
+    try {
+        for ($index = 0; $index -lt $expectedBytes.Length; $index += 1) {
+            $expectedBytes[$index] = [Convert]::ToByte(
+                $expectedDigest.Substring($index * 2, 2),
+                16
+            )
+        }
+        $sha256 = [Security.Cryptography.SHA256]::Create()
+        try {
+            $actualBytes = $sha256.ComputeHash($capability)
+        } finally {
+            $sha256.Dispose()
+        }
+        $difference = 0
+        for ($index = 0; $index -lt $actualBytes.Length; $index += 1) {
+            $difference = $difference -bor (
+                $actualBytes[$index] -bxor $expectedBytes[$index]
+            )
+        }
+        if ($difference -ne 0) {
+            throw (
+                "The private phone-intake channel was not authorized."
+            )
+        }
+    } finally {
+        [Array]::Clear($capability, 0, $capability.Length)
+        [Array]::Clear($expectedBytes, 0, $expectedBytes.Length)
+        if ($null -ne $actualBytes) {
+            [Array]::Clear($actualBytes, 0, $actualBytes.Length)
+        }
+    }
+    $buffer = [byte[]]::new($Script:MaximumSecretBytes + 1)
+    $count = 0
+    while ($count -lt $buffer.Length) {
+        $read = $stream.Read($buffer, $count, $buffer.Length - $count)
+        if ($read -eq 0) { break }
+        $count += $read
+    }
+    if ($count -gt $Script:MaximumSecretBytes) {
+        [Array]::Clear($buffer, 0, $buffer.Length)
+        throw (
+            "Secret values must not exceed " +
+            "$($Script:MaximumSecretBytes) UTF-8 bytes."
+        )
+    }
+    try {
+        $utf8 = [Text.UTF8Encoding]::new($false, $true)
+        return [pscustomobject]@{
+            Buffer = $buffer
+            Secret = $utf8.GetString($buffer, 0, $count)
+        }
+    } catch {
+        [Array]::Clear($buffer, 0, $buffer.Length)
+        throw "The phone submitted an invalid UTF-8 key."
+    }
 }
 
 function Get-KeepKeysRedactionPatterns {
@@ -1083,7 +1687,7 @@ function Invoke-KeepKeysRun {
         (Get-KeepKeysFingerprint $Request.Entrypoint) -cne $Request.EntrypointFingerprint) {
         throw "The script entrypoint changed after approval details were prepared. KeepKeys refused to run it."
     }
-    $run = [BarnLabs.KeepKeys.ScopedRunner]::Run(
+    $run = [Neorome.KeepKeys.ScopedRunner]::Run(
         $Request.Program,
         [string[]]$Request.Arguments,
         $Request.WorkingDirectory,
@@ -1131,7 +1735,7 @@ function Invoke-KeepKeysDoctor {
     }
     try {
         $firstBytes = [Text.Encoding]::UTF8.GetBytes($first)
-        [BarnLabs.KeepKeys.CredentialVault]::Write(
+        [Neorome.KeepKeys.CredentialVault]::Write(
             $secretTarget,
             "KEEPKEYS_SECRET",
             "KeepKeys protected value",
@@ -1140,9 +1744,9 @@ function Invoke-KeepKeysDoctor {
         [Array]::Clear($firstBytes, 0, $firstBytes.Length)
         $firstMetadataBytes = ConvertTo-KeepKeysMetadataBytes `
             "KeepKeys Doctor" `
-            ([string[]]@("https://github.com/barnlabs/keepkeys"))
+            ([string[]]@("https://github.com/neorome/keepkeys"))
         try {
-            [BarnLabs.KeepKeys.CredentialVault]::Write(
+            [Neorome.KeepKeys.CredentialVault]::Write(
                 $metadataTarget,
                 "KEEPKEYS_DOCTOR",
                 "Temporary KeepKeys Credential Manager verification",
@@ -1155,7 +1759,7 @@ function Invoke-KeepKeysDoctor {
                 $firstMetadataBytes.Length
             )
         }
-        $firstRead = [BarnLabs.KeepKeys.CredentialVault]::Read($secretTarget, $true)
+        $firstRead = [Neorome.KeepKeys.CredentialVault]::Read($secretTarget, $true)
         $firstMetadata = Read-KeepKeysMetadata $name
         $firstListed = @(
             Get-KeepKeysCredentials | Where-Object {
@@ -1170,13 +1774,13 @@ function Invoke-KeepKeysDoctor {
             $firstMetadata.Comment -ceq "Temporary KeepKeys Credential Manager verification" -and
             $firstMetadata.Provider -ceq "KeepKeys Doctor" -and
             $firstMetadata.DocumentationUrls.Count -eq 1 -and
-            $firstMetadata.DocumentationUrls[0] -ceq "https://github.com/barnlabs/keepkeys" -and
+            $firstMetadata.DocumentationUrls[0] -ceq "https://github.com/neorome/keepkeys" -and
             $firstListed.Count -eq 1 -and
             (Test-KeepKeysMetadataEqual $firstMetadata $firstListed[0])
         )
         $firstValue = ""
         $secondBytes = [Text.Encoding]::UTF8.GetBytes($second)
-        [BarnLabs.KeepKeys.CredentialVault]::Write(
+        [Neorome.KeepKeys.CredentialVault]::Write(
             $secretTarget,
             "KEEPKEYS_SECRET",
             "KeepKeys protected value",
@@ -1184,13 +1788,13 @@ function Invoke-KeepKeysDoctor {
         )
         [Array]::Clear($secondBytes, 0, $secondBytes.Length)
         $secondMetadataBytes = ConvertTo-KeepKeysMetadataBytes `
-            "BarnLabs" `
+            "Neorome" `
             ([string[]]@(
-                "https://github.com/barnlabs/keepkeys",
-                "https://github.com/barnlabs/keepkeys/blob/main/README.md"
+                "https://github.com/neorome/keepkeys",
+                "https://github.com/neorome/keepkeys/blob/main/README.md"
             ))
         try {
-            [BarnLabs.KeepKeys.CredentialVault]::Write(
+            [Neorome.KeepKeys.CredentialVault]::Write(
                 $metadataTarget,
                 "KEEPKEYS_DOCTOR_UPDATED",
                 "Updated temporary KeepKeys verification",
@@ -1203,7 +1807,7 @@ function Invoke-KeepKeysDoctor {
                 $secondMetadataBytes.Length
             )
         }
-        $secondRead = [BarnLabs.KeepKeys.CredentialVault]::Read($secretTarget, $true)
+        $secondRead = [Neorome.KeepKeys.CredentialVault]::Read($secretTarget, $true)
         $secondMetadata = Read-KeepKeysMetadata $name
         $secondValue = [Text.Encoding]::UTF8.GetString($secondRead.Secret)
         [Array]::Clear($secondRead.Secret, 0, $secondRead.Secret.Length)
@@ -1211,20 +1815,20 @@ function Invoke-KeepKeysDoctor {
             $secondValue -ceq $second -and
             $secondMetadata.UserName -ceq "KEEPKEYS_DOCTOR_UPDATED" -and
             $secondMetadata.Comment -ceq "Updated temporary KeepKeys verification" -and
-            $secondMetadata.Provider -ceq "BarnLabs" -and
+            $secondMetadata.Provider -ceq "Neorome" -and
             $secondMetadata.DocumentationUrls.Count -eq 2 -and
-            $secondMetadata.DocumentationUrls[1] -ceq "https://github.com/barnlabs/keepkeys/blob/main/README.md"
+            $secondMetadata.DocumentationUrls[1] -ceq "https://github.com/neorome/keepkeys/blob/main/README.md"
         )
         $secondValue = ""
     } finally {
-        [void][BarnLabs.KeepKeys.CredentialVault]::Delete($metadataTarget)
-        [void][BarnLabs.KeepKeys.CredentialVault]::Delete($secretTarget)
+        [void][Neorome.KeepKeys.CredentialVault]::Delete($metadataTarget)
+        [void][Neorome.KeepKeys.CredentialVault]::Delete($secretTarget)
         $first = ""
         $second = ""
     }
     if (-not $firstMatches -or -not $secondMatches -or
-        $null -ne [BarnLabs.KeepKeys.CredentialVault]::Read($metadataTarget, $false) -or
-        $null -ne [BarnLabs.KeepKeys.CredentialVault]::Read($secretTarget, $false)) {
+        $null -ne [Neorome.KeepKeys.CredentialVault]::Read($metadataTarget, $false) -or
+        $null -ne [Neorome.KeepKeys.CredentialVault]::Read($secretTarget, $false)) {
         throw "The temporary Credential Manager round trip did not verify."
     }
     return @{
@@ -1236,6 +1840,15 @@ function Invoke-KeepKeysDoctor {
 }
 
 function Invoke-KeepKeysSelfTest {
+    $uncertainError = New-KeepKeysPortalStorageUncertainError `
+        -Message "Synthetic rollback uncertainty." `
+        -Cause ([Exception]::new("Synthetic rollback failure."))
+    $uncertainFailure = ConvertTo-KeepKeysFailure -Exception $uncertainError
+    if ($uncertainFailure.status -cne "error" -or
+        $uncertainFailure.storageState -cne "uncertain" -or
+        $uncertainFailure.cleanupKind -cne "native-rollback") {
+        throw "Credential Manager rollback-uncertainty self-test failed."
+    }
     if (-not (Test-KeepKeysName "github-release") -or
         -not (Test-KeepKeysName "new-key") -or
         (Test-KeepKeysName "../../escape") -or
@@ -1313,7 +1926,8 @@ function Invoke-KeepKeysSelfTest {
         ([string[]]@("https://docs.example.com/api"))
     try {
         $metadata = ([Text.Encoding]::UTF8.GetString($metadataBytes) | ConvertFrom-Json)
-        if ($metadata.version -ne 2 -or $metadata.provider -cne "Example" -or
+        if ($metadata.version -ne 3 -or $metadata.provider -cne "Example" -or
+            $metadata.allowRules.Count -ne 0 -or
             $metadata.documentationUrls[0] -cne "https://docs.example.com/api") {
             throw "Metadata encoding self-test failed."
         }
@@ -1331,9 +1945,64 @@ function Invoke-KeepKeysSelfTest {
         })
     if ($decodedMetadata.Provider -cne "Example" -or
         $decodedMetadata.DocumentationUrls.Count -ne 1 -or
+        $decodedMetadata.AllowRules.Count -ne 0 -or
         $decodedMetadata.DocumentationUrls[0] -cne "https://docs.example.com/api") {
         throw "Metadata parsing self-test failed."
     }
+    $legacyPayload = @{
+        version = 2; provider = "Example";
+        documentationUrls = [string[]]@("https://docs.example.com/api")
+    }
+    $legacyBytes = [Text.Encoding]::UTF8.GetBytes(
+        ($legacyPayload | ConvertTo-Json -Compress)
+    )
+    $legacyMetadata = ConvertFrom-KeepKeysMetadataCredential "new-key" `
+        ([pscustomobject]@{
+            TargetName = $Script:MetadataPrefix + "new-key"; UserName = "SECRET_KEY";
+            Comment = "Credential for future approved agent commands"; Secret = $legacyBytes
+        })
+    if ($legacyMetadata.AllowRules.Count -ne 0) {
+        throw "Legacy metadata compatibility self-test failed."
+    }
+    $legacyV1Payload = @{
+        version = 1; provider = "Example";
+        documentationUrls = [string[]]@("https://docs.example.com/api")
+    }
+    $legacyV1Bytes = [Text.Encoding]::UTF8.GetBytes(
+        ($legacyV1Payload | ConvertTo-Json -Compress)
+    )
+    $legacyV1Metadata = ConvertFrom-KeepKeysMetadataCredential "new-key" `
+        ([pscustomobject]@{
+            TargetName = $Script:MetadataPrefix + "new-key"; UserName = "SECRET_KEY";
+            Comment = "Credential for future approved agent commands"; Secret = $legacyV1Bytes
+        })
+    if ($legacyV1Metadata.AllowRules.Count -ne 0) {
+        throw "Legacy v1 metadata compatibility self-test failed."
+    }
+    $syntheticRequest = [pscustomobject]@{
+        Purpose = "Publish synthetic release"; Program = "C:\\Tools\\publisher.exe";
+        Fingerprint = ("a" * 64); Arguments = [string[]]@("--channel", "synthetic");
+        WorkingDirectory = "C:\\Work"; Entrypoint = $null; EntrypointFingerprint = $null
+    }
+    $syntheticRule = Get-KeepKeysRuleFromRequest $syntheticRequest
+    $differentPurpose = Get-KeepKeysRuleFromRequest $syntheticRequest
+    $differentPurpose.purpose = "Publish a different release"
+    $staleFingerprint = Get-KeepKeysRuleFromRequest $syntheticRequest
+    $staleFingerprint.fingerprint = ("b" * 64)
+    if (-not (Test-KeepKeysAllowRuleMatch $syntheticRule $syntheticRequest) -or
+        (Test-KeepKeysAllowRuleMatch $differentPurpose $syntheticRequest) -or
+        (Test-KeepKeysAllowRuleMatch $staleFingerprint $syntheticRequest)) {
+        throw "Always-allow exact command self-test failed."
+    }
+    $ruleMetadataBytes = ConvertTo-KeepKeysMetadataBytes "Example" `
+        ([string[]]@("https://docs.example.com/api")) ([object[]]@($syntheticRule))
+    try {
+        $ruleMetadata = ([Text.Encoding]::UTF8.GetString($ruleMetadataBytes) | ConvertFrom-Json)
+        if ($ruleMetadata.version -ne 3 -or $ruleMetadata.allowRules.Count -ne 1 -or
+            -not (Test-KeepKeysAllowRuleMatch $ruleMetadata.allowRules[0] $syntheticRequest)) {
+            throw "Always-allow metadata self-test failed."
+        }
+    } finally { [Array]::Clear($ruleMetadataBytes, 0, $ruleMetadataBytes.Length) }
     $changedMetadata = [pscustomobject]@{
         UserName = $decodedMetadata.UserName
         Comment = $decodedMetadata.Comment
@@ -1371,7 +2040,7 @@ public static class KeepKeysScopeProbe
     try {
         Add-Type -TypeDefinition $probeSource -Language CSharp `
             -OutputAssembly $probePath -OutputType ConsoleApplication
-        $run = [BarnLabs.KeepKeys.ScopedRunner]::Run(
+        $run = [Neorome.KeepKeys.ScopedRunner]::Run(
             $probePath,
             [string[]]@(),
             $probeRoot,
@@ -1399,17 +2068,33 @@ public static class KeepKeysScopeProbe
 
 try {
     if ($args.Count -eq 0) {
-        throw "Usage: keepkeys <store|list|remove|run|status|doctor|--self-test>"
+        throw "Usage: keepkeys <store|rotate|revoke|list|remove|run|status|doctor|--self-test>"
     }
     $action = $args[0]
     $rest = if ($args.Count -gt 1) { [string[]]$args[1..($args.Count - 1)] } else { [string[]]@() }
     switch ($action) {
         "store" {
+            $serializedMutation = [string]$env:KEEPKEYS_SERIALIZED_MUTATION
+            $env:KEEPKEYS_SERIALIZED_MUTATION = $null
+            if ($serializedMutation -cne "1") {
+                throw (
+                    "KeepKeys store and remove actions must use the shared per-name " +
+                    "coordinator."
+                )
+            }
             $name = Get-KeepKeysOption $rest "--name" -Required
             $variable = (Get-KeepKeysOption $rest "--variable" -Required).ToUpperInvariant()
             $description = Get-KeepKeysOption $rest "--description" -Required
             $provider = Get-KeepKeysOption $rest "--provider" -Required
             $documentationUrls = Get-KeepKeysOptions $rest "--documentation-url"
+            $expectedExistingValue = Get-KeepKeysOption $rest "--expect-existing"
+            $expectedExisting = $null
+            if (-not [String]::IsNullOrEmpty($expectedExistingValue)) {
+                if ($expectedExistingValue -cne "yes" -and $expectedExistingValue -cne "no") {
+                    throw "The rotation existence check is invalid."
+                }
+                $expectedExisting = $expectedExistingValue -ceq "yes"
+            }
             Assert-KeepKeysMetadata $name $variable $description $provider $documentationUrls
             $entered = Show-KeepKeysStoreDialog $name $variable $description `
                 $provider $documentationUrls
@@ -1417,87 +2102,375 @@ try {
                 $result = @{ status = "cancelled"; message = "Secret storage was cancelled." }
                 break
             }
-            $secretBytes = [Text.Encoding]::UTF8.GetBytes($entered.Secret)
-            $metadataBytes = ConvertTo-KeepKeysMetadataBytes `
-                $entered.Provider $entered.DocumentationUrls
-            $metadataTarget = $Script:MetadataPrefix + $entered.Name
-            $secretTarget = $Script:SecretPrefix + $entered.Name
-            $previousMetadata = [BarnLabs.KeepKeys.CredentialVault]::Read(
-                $metadataTarget,
-                $true
-            )
-            $previousSecret = [BarnLabs.KeepKeys.CredentialVault]::Read(
-                $secretTarget,
-                $true
-            )
             try {
-                [BarnLabs.KeepKeys.CredentialVault]::Write(
-                    $secretTarget,
-                    "KEEPKEYS_SECRET",
-                    "KeepKeys protected value",
-                    $secretBytes
-                )
-                [BarnLabs.KeepKeys.CredentialVault]::Write(
-                    $metadataTarget,
-                    $entered.Variable,
-                    $entered.Description,
-                    $metadataBytes
-                )
-            } catch {
-                $writeFailure = $_
-                try {
-                    if ($null -eq $previousSecret) {
-                        [void][BarnLabs.KeepKeys.CredentialVault]::Delete($secretTarget)
-                    } else {
-                        [BarnLabs.KeepKeys.CredentialVault]::Write(
-                            $secretTarget,
-                            "KEEPKEYS_SECRET",
-                            "KeepKeys protected value",
-                            $previousSecret.Secret
-                        )
-                    }
-                    if ($null -eq $previousMetadata) {
-                        [void][BarnLabs.KeepKeys.CredentialVault]::Delete($metadataTarget)
-                    } else {
-                        [BarnLabs.KeepKeys.CredentialVault]::Write(
-                            $metadataTarget,
-                            $previousMetadata.UserName,
-                            $previousMetadata.Comment,
-                            $previousMetadata.Secret
-                        )
-                    }
-                } catch {
-                    throw "Credential Manager failed during storage and rollback. Remove '$($entered.Name)' from KeepKeys before retrying."
-                }
-                throw $writeFailure
+                $result = Save-KeepKeysRecord `
+                    $entered.Name `
+                    $entered.Variable `
+                    $entered.Description `
+                    $entered.Provider `
+                    $entered.DocumentationUrls `
+                    $entered.Secret `
+                    $expectedExisting
             } finally {
-                [Array]::Clear($secretBytes, 0, $secretBytes.Length)
-                [Array]::Clear($metadataBytes, 0, $metadataBytes.Length)
-                if ($null -ne $previousSecret -and $null -ne $previousSecret.Secret) {
-                    [Array]::Clear(
-                        $previousSecret.Secret,
-                        0,
-                        $previousSecret.Secret.Length
-                    )
-                }
-                if ($null -ne $previousMetadata -and
-                    $null -ne $previousMetadata.Secret) {
-                    [Array]::Clear(
-                        $previousMetadata.Secret,
-                        0,
-                        $previousMetadata.Secret.Length
-                    )
-                }
                 $entered.Secret = ""
             }
-            $result = @{
-                status = "ok"
-                message = "Stored '$($entered.Name)' in Windows Credential Manager."
-                name = $entered.Name
-                variable = $entered.Variable
-                description = $entered.Description
-                provider = $entered.Provider
-                documentationUrls = $entered.DocumentationUrls
+        }
+        "rotate" {
+            $serializedMutation = [string]$env:KEEPKEYS_SERIALIZED_MUTATION
+            $env:KEEPKEYS_SERIALIZED_MUTATION = $null
+            if ($serializedMutation -cne "1") {
+                throw "KeepKeys rotate actions must use the shared per-name coordinator."
+            }
+            $name = Get-KeepKeysOption $rest "--name" -Required
+            if (-not (Test-KeepKeysName $name)) {
+                throw "The requested KeepKeys name is invalid."
+            }
+            $metadata = Read-KeepKeysMetadata $name
+            if ($null -eq $metadata) {
+                throw "No KeepKeys secret is stored as '$name'."
+            }
+            $entered = Show-KeepKeysStoreDialog $name $metadata.UserName `
+                $metadata.Comment $metadata.Provider $metadata.DocumentationUrls
+            if ($null -eq $entered) {
+                $result = @{ status = "cancelled"; message = "Secret rotation was cancelled." }
+                break
+            }
+            try {
+                $result = Save-KeepKeysRecord `
+                    $entered.Name `
+                    $entered.Variable `
+                    $entered.Description `
+                    $entered.Provider `
+                    $entered.DocumentationUrls `
+                    $entered.Secret `
+                    $true
+            } finally { $entered.Secret = "" }
+        }
+        "revoke" {
+            $serializedMutation = [string]$env:KEEPKEYS_SERIALIZED_MUTATION
+            $env:KEEPKEYS_SERIALIZED_MUTATION = $null
+            if ($serializedMutation -cne "1") {
+                throw "KeepKeys revoke actions must use the shared per-name coordinator."
+            }
+            $name = Get-KeepKeysOption $rest "--name" -Required
+            if (-not (Test-KeepKeysName $name)) {
+                throw "The requested KeepKeys name is invalid."
+            }
+            $metadata = Read-KeepKeysMetadata $name
+            if ($null -eq $metadata) {
+                $result = @{ status = "ok"; message = "No KeepKeys item named '$name' exists."; revokedRules = 0 }
+                break
+            }
+            $ruleCount = @($metadata.AllowRules).Count
+            if ($ruleCount -eq 0) {
+                $result = @{ status = "ok"; message = "No always-allow rules are stored for '$name'."; revokedRules = 0 }
+                break
+            }
+            if (-not (Show-KeepKeysRevokeDialog $name $metadata.UserName $metadata.Comment $ruleCount)) {
+                $result = @{ status = "cancelled"; message = "Always-allow revocation was cancelled." }
+                break
+            }
+            $revoked = Clear-KeepKeysAllowRules $name $metadata
+            $result = @{ status = "ok"; message = "Disabled automatic approvals for '$name'."; revokedRules = $revoked }
+        }
+        "_portal-commit" {
+            $name = Get-KeepKeysOption $rest "--name" -Required
+            $variable = (Get-KeepKeysOption $rest "--variable" -Required).ToUpperInvariant()
+            $description = Get-KeepKeysOption $rest "--description" -Required
+            $provider = Get-KeepKeysOption $rest "--provider" -Required
+            $documentationUrls = Get-KeepKeysOptions $rest "--documentation-url"
+            $expectedValue = Get-KeepKeysOption $rest "--expect-existing" -Required
+            if ($expectedValue -cne "yes" -and $expectedValue -cne "no") {
+                throw "The private phone-intake replacement state is invalid."
+            }
+            $nativeSelfTestValue = Get-KeepKeysOption `
+                $rest "--native-self-test"
+            if ([String]::IsNullOrEmpty($nativeSelfTestValue)) {
+                $nativeSelfTestValue = "no"
+            }
+            if ($nativeSelfTestValue -cne "no" -and
+                $nativeSelfTestValue -cne "round-trip" -and
+                $nativeSelfTestValue -cne "create-to-replace" -and
+                $nativeSelfTestValue -cne "replace-to-create") {
+                throw "The private native portal test request is invalid."
+            }
+            $nativeSelfTest = $nativeSelfTestValue -cne "no"
+            $nativeSelfTestFlag = [string]$env:KEEPKEYS_PORTAL_NATIVE_TEST
+            $env:KEEPKEYS_PORTAL_NATIVE_TEST = $null
+            if ($nativeSelfTest -and (
+                $nativeSelfTestFlag -cne "1" -or
+                -not $name.StartsWith(
+                    "keepkeys-portal-test-",
+                    [StringComparison]::Ordinal
+                ) -or
+                (
+                    $nativeSelfTestValue -ceq "replace-to-create" -and
+                    $expectedValue -cne "yes"
+                ) -or
+                (
+                    $nativeSelfTestValue -cne "replace-to-create" -and
+                    $expectedValue -cne "no"
+                )
+            )) {
+                throw "KeepKeys rejected an unauthorized native portal test."
+            }
+            Assert-KeepKeysMetadata $name $variable $description $provider `
+                $documentationUrls
+            $submitted = Read-KeepKeysPortalSecret
+            $secretTarget = $Script:SecretPrefix + $name
+            $metadataTarget = $Script:MetadataPrefix + $name
+            try {
+                if ($nativeSelfTestValue -ceq "replace-to-create") {
+                    [void][Neorome.KeepKeys.CredentialVault]::Delete(
+                        $metadataTarget
+                    )
+                    [void][Neorome.KeepKeys.CredentialVault]::Delete(
+                        $secretTarget
+                    )
+                    $rejected = $false
+                    try {
+                        [void](Save-KeepKeysRecord `
+                            $name `
+                            $variable `
+                            $description `
+                            $provider `
+                            $documentationUrls `
+                            $submitted.Secret `
+                            $true)
+                    } catch {
+                        $rejected = $_.Exception.Message -ceq (
+                            "The stored KeepKeys name changed after the phone " +
+                            "page opened. Start a new phone intake and review " +
+                            "the replacement warning."
+                        )
+                        if (-not $rejected) { throw }
+                    }
+                    $metadataAfter = [Neorome.KeepKeys.CredentialVault]::Read(
+                        $metadataTarget,
+                        $true
+                    )
+                    $secretAfter = [Neorome.KeepKeys.CredentialVault]::Read(
+                        $secretTarget,
+                        $true
+                    )
+                    try {
+                        if (-not $rejected -or
+                            $null -ne $metadataAfter -or
+                            $null -ne $secretAfter) {
+                            throw (
+                                "The temporary native portal " +
+                                "replace-to-create rejection did not verify."
+                            )
+                        }
+                    } finally {
+                        if ($null -ne $metadataAfter -and
+                            $null -ne $metadataAfter.Secret) {
+                            [Array]::Clear(
+                                $metadataAfter.Secret,
+                                0,
+                                $metadataAfter.Secret.Length
+                            )
+                        }
+                        if ($null -ne $secretAfter -and
+                            $null -ne $secretAfter.Secret) {
+                            [Array]::Clear(
+                                $secretAfter.Secret,
+                                0,
+                                $secretAfter.Secret.Length
+                            )
+                        }
+                    }
+                    $result = @{
+                        status = "ok"
+                        message = (
+                            "Temporary native portal replace-to-create " +
+                            "rejection verified."
+                        )
+                        cleaned = $true
+                        scenario = $nativeSelfTestValue
+                    }
+                } else {
+                    $result = Save-KeepKeysRecord `
+                        $name `
+                        $variable `
+                        $description `
+                        $provider `
+                        $documentationUrls `
+                        $submitted.Secret `
+                        ($expectedValue -ceq "yes")
+                if ($nativeSelfTest) {
+                    $storedSecret = $null
+                    $storedMetadata = $null
+                    $matches = $false
+                    try {
+                        $storedSecret = [Neorome.KeepKeys.CredentialVault]::Read(
+                            $secretTarget,
+                            $true
+                        )
+                        $storedMetadata = Read-KeepKeysMetadata $name
+                        if ($null -ne $storedSecret -and
+                            $null -ne $storedSecret.Secret -and
+                            $null -ne $storedMetadata) {
+                            $utf8 = [Text.UTF8Encoding]::new($false, $true)
+                            $loadedSecret = $utf8.GetString(
+                                $storedSecret.Secret
+                            )
+                            $matches = (
+                                $loadedSecret -ceq $submitted.Secret -and
+                                $storedMetadata.UserName -ceq $variable -and
+                                $storedMetadata.Comment -ceq $description -and
+                                $storedMetadata.Provider -ceq $provider -and
+                                (Test-KeepKeysStringArrayEqual `
+                                    ([string[]]$storedMetadata.DocumentationUrls) `
+                                    ([string[]]$documentationUrls))
+                            )
+                            $loadedSecret = ""
+                        }
+                        if ($nativeSelfTestValue -ceq "create-to-replace") {
+                            $raceSecret = $submitted.Secret + "-replacement-race"
+                            $raceRejected = $false
+                            try {
+                                [void](Save-KeepKeysRecord `
+                                    $name `
+                                    $variable `
+                                    $description `
+                                    $provider `
+                                    $documentationUrls `
+                                    $raceSecret `
+                                    $false)
+                            } catch {
+                                $raceRejected = $_.Exception.Message -ceq (
+                                    "The stored KeepKeys name changed after " +
+                                    "the phone page opened. Start a new phone " +
+                                    "intake and review the replacement warning."
+                                )
+                                if (-not $raceRejected) { throw }
+                            } finally {
+                                $raceSecret = ""
+                            }
+                            $secretAfterRace = (
+                                [Neorome.KeepKeys.CredentialVault]::Read(
+                                    $secretTarget,
+                                    $true
+                                )
+                            )
+                            $metadataAfterRace = Read-KeepKeysMetadata $name
+                            try {
+                                $preserved = $false
+                                if ($null -ne $secretAfterRace -and
+                                    $null -ne $secretAfterRace.Secret -and
+                                    $null -ne $metadataAfterRace) {
+                                    $loadedAfterRace = $utf8.GetString(
+                                        $secretAfterRace.Secret
+                                    )
+                                    $preserved = (
+                                        $loadedAfterRace -ceq
+                                            $submitted.Secret -and
+                                        $metadataAfterRace.UserName -ceq
+                                            $variable -and
+                                        $metadataAfterRace.Comment -ceq
+                                            $description -and
+                                        $metadataAfterRace.Provider -ceq
+                                            $provider -and
+                                        (Test-KeepKeysStringArrayEqual `
+                                            ([string[]]$metadataAfterRace.DocumentationUrls) `
+                                            ([string[]]$documentationUrls))
+                                    )
+                                    $loadedAfterRace = ""
+                                }
+                                $matches = (
+                                    $matches -and
+                                    $raceRejected -and
+                                    $preserved
+                                )
+                            } finally {
+                                if ($null -ne $secretAfterRace -and
+                                    $null -ne $secretAfterRace.Secret) {
+                                    [Array]::Clear(
+                                        $secretAfterRace.Secret,
+                                        0,
+                                        $secretAfterRace.Secret.Length
+                                    )
+                                }
+                            }
+                        }
+                    } finally {
+                        if ($null -ne $storedSecret -and
+                            $null -ne $storedSecret.Secret) {
+                            [Array]::Clear(
+                                $storedSecret.Secret,
+                                0,
+                                $storedSecret.Secret.Length
+                            )
+                        }
+                        [void][Neorome.KeepKeys.CredentialVault]::Delete(
+                            $metadataTarget
+                        )
+                        [void][Neorome.KeepKeys.CredentialVault]::Delete(
+                            $secretTarget
+                        )
+                    }
+                    $metadataAfter = [Neorome.KeepKeys.CredentialVault]::Read(
+                        $metadataTarget,
+                        $true
+                    )
+                    $secretAfter = [Neorome.KeepKeys.CredentialVault]::Read(
+                        $secretTarget,
+                        $true
+                    )
+                    try {
+                        if (-not $matches -or
+                            $null -ne $metadataAfter -or
+                            $null -ne $secretAfter) {
+                            throw (
+                                "The temporary native portal Credential " +
+                                "Manager round trip did not verify."
+                            )
+                        }
+                    } finally {
+                        if ($null -ne $metadataAfter -and
+                            $null -ne $metadataAfter.Secret) {
+                            [Array]::Clear(
+                                $metadataAfter.Secret,
+                                0,
+                                $metadataAfter.Secret.Length
+                            )
+                        }
+                        if ($null -ne $secretAfter -and
+                            $null -ne $secretAfter.Secret) {
+                            [Array]::Clear(
+                                $secretAfter.Secret,
+                                0,
+                                $secretAfter.Secret.Length
+                            )
+                        }
+                    }
+                    $result = @{
+                        status = "ok"
+                        message = (
+                            "Temporary native portal Credential Manager " +
+                            "scenario and cleanup verified."
+                        )
+                        cleaned = $true
+                        scenario = $nativeSelfTestValue
+                    }
+                }
+                }
+            } finally {
+                if ($nativeSelfTest) {
+                    [void][Neorome.KeepKeys.CredentialVault]::Delete(
+                        $Script:MetadataPrefix + $name
+                    )
+                    [void][Neorome.KeepKeys.CredentialVault]::Delete(
+                        $Script:SecretPrefix + $name
+                    )
+                }
+                $submitted.Secret = ""
+                [Array]::Clear(
+                    $submitted.Buffer,
+                    0,
+                    $submitted.Buffer.Length
+                )
             }
         }
         "list" {
@@ -1515,13 +2488,23 @@ try {
             $result = @{ status = "ok"; entries = $entries }
         }
         "remove" {
+            $serializedMutation = [string]$env:KEEPKEYS_SERIALIZED_MUTATION
+            $env:KEEPKEYS_SERIALIZED_MUTATION = $null
+            if ($serializedMutation -cne "1") {
+                throw (
+                    "KeepKeys store and remove actions must use the shared per-name " +
+                    "coordinator."
+                )
+            }
             $name = Get-KeepKeysOption $rest "--name" -Required
             if (-not (Test-KeepKeysName $name)) {
                 throw "The requested KeepKeys name is invalid."
             }
             $metadataTarget = $Script:MetadataPrefix + $name
             $secretTarget = $Script:SecretPrefix + $name
-            $credential = [BarnLabs.KeepKeys.CredentialVault]::Read(
+            $mutex = New-KeepKeysNameMutex $name
+            try {
+            $credential = [Neorome.KeepKeys.CredentialVault]::Read(
                 $metadataTarget,
                 $false
             )
@@ -1537,10 +2520,10 @@ try {
                 $result = @{ status = "cancelled"; message = "Secret removal was cancelled." }
                 break
             }
-            $removedMetadata = [BarnLabs.KeepKeys.CredentialVault]::Delete(
+            $removedMetadata = [Neorome.KeepKeys.CredentialVault]::Delete(
                 $metadataTarget
             )
-            $removedSecret = [BarnLabs.KeepKeys.CredentialVault]::Delete(
+            $removedSecret = [Neorome.KeepKeys.CredentialVault]::Delete(
                 $secretTarget
             )
             $removed = $removedMetadata -or $removedSecret
@@ -1548,6 +2531,10 @@ try {
                 status = "ok"
                 message = "Removed '$name' from Windows Credential Manager."
                 removed = $removed
+            }
+            } finally {
+                $mutex.ReleaseMutex()
+                $mutex.Dispose()
             }
         }
         "run" {
@@ -1562,11 +2549,16 @@ try {
                 [string[]]@()
             }
             if ($command.Count -eq 0) { throw "Run requests require an executable." }
+            $commandArguments = if ($command.Count -gt 1) {
+                [string[]]$command[1..($command.Count - 1)]
+            } else {
+                [string[]]@()
+            }
             $request = New-KeepKeysRunRequest `
                 (Get-KeepKeysOption $options "--name" -Required) `
                 (Get-KeepKeysOption $options "--purpose" -Required) `
                 $command[0] `
-                $(if ($command.Count -gt 1) { [string[]]$command[1..($command.Count - 1)] } else { [string[]]@() }) `
+                $commandArguments `
                 (Get-KeepKeysOption $options "--cwd")
             $metadataTarget = $Script:MetadataPrefix + $request.Name
             $secretTarget = $Script:SecretPrefix + $request.Name
@@ -1574,11 +2566,23 @@ try {
             if ($null -eq $metadata) {
                 throw "No KeepKeys secret is stored as '$($request.Name)'."
             }
-            if (-not (Show-KeepKeysApprovalDialog $request $metadata)) {
+            $matchingRule = @($metadata.AllowRules | Where-Object {
+                Test-KeepKeysAllowRuleMatch $_ $request
+            } | Select-Object -First 1)
+            $approval = if ($matchingRule.Count -eq 1) {
+                "always"
+            } else {
+                Show-KeepKeysApprovalDialog $request $metadata
+            }
+            if ($approval -ceq "cancel") {
                 $result = @{ status = "cancelled"; message = "Command use was cancelled." }
                 break
             }
-            $record = [BarnLabs.KeepKeys.CredentialVault]::Read(
+            if ($approval -ceq "always" -and $matchingRule.Count -eq 0) {
+                $metadata = Save-KeepKeysAllowRule $request.Name $metadata `
+                    (Get-KeepKeysRuleFromRequest $request)
+            }
+            $record = [Neorome.KeepKeys.CredentialVault]::Read(
                 $secretTarget,
                 $true
             )
@@ -1624,5 +2628,6 @@ try {
     }
     Write-KeepKeysJson $result
 } catch {
-    Stop-KeepKeys $_.Exception.Message
+    Write-KeepKeysJson (ConvertTo-KeepKeysFailure $_.Exception)
+    exit 1
 }

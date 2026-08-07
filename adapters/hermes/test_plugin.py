@@ -29,11 +29,39 @@ class HermesAdapterTests(unittest.TestCase):
             [tool["name"] for tool in ctx.tools],
             [
                 "keepkeys_store",
+                "keepkeys_store_from_phone",
                 "keepkeys_list",
+                "keepkeys_rotate",
+                "keepkeys_revoke",
                 "keepkeys_remove",
                 "keepkeys_run",
                 "keepkeys_status",
                 "keepkeys_doctor",
+            ],
+        )
+        self.assertEqual(
+            plugin._helper_arguments(
+                "keepkeys_store_from_phone",
+                {
+                    "name": "github-release",
+                    "variable": "GITHUB_TOKEN",
+                    "description": "Publishes approved Neorome releases",
+                    "provider": "GitHub",
+                    "documentation_urls": ["https://docs.github.com/en/rest"],
+                },
+            ),
+            [
+                "portal-store",
+                "--name",
+                "github-release",
+                "--variable",
+                "GITHUB_TOKEN",
+                "--description",
+                "Publishes approved Neorome releases",
+                "--provider",
+                "GitHub",
+                "--documentation-url",
+                "https://docs.github.com/en/rest",
             ],
         )
         self.assertEqual(ctx.skills[0][0], "keepkeys")
@@ -49,7 +77,7 @@ class HermesAdapterTests(unittest.TestCase):
                 {
                     "name": "github-release",
                     "variable": "GITHUB_TOKEN",
-                    "description": "Publishes approved BarnLabs releases",
+                    "description": "Publishes approved Neorome releases",
                     "provider": "GitHub",
                     "documentation_urls": [
                         "https://docs.github.com/en/rest",
@@ -64,7 +92,7 @@ class HermesAdapterTests(unittest.TestCase):
                 "--variable",
                 "GITHUB_TOKEN",
                 "--description",
-                "Publishes approved BarnLabs releases",
+                "Publishes approved Neorome releases",
                 "--provider",
                 "GitHub",
                 "--documentation-url",
@@ -72,6 +100,59 @@ class HermesAdapterTests(unittest.TestCase):
                 "--documentation-url",
                 "https://github.com/github/rest-api-description",
             ],
+        )
+
+    def test_rotation_and_revocation_map_to_serialized_actions(self) -> None:
+        self.assertEqual(
+            plugin._helper_arguments("keepkeys_rotate", {"name": "demo"}),
+            ["rotate", "--name", "demo"],
+        )
+        self.assertEqual(
+            plugin._helper_arguments("keepkeys_revoke", {"name": "demo"}),
+            ["revoke", "--name", "demo"],
+        )
+
+    def test_every_registered_dispatcher_calls_the_shared_runner(self) -> None:
+        payloads = {
+            "keepkeys_store": {
+                "name": "demo",
+                "variable": "DEMO_TOKEN",
+                "description": "Synthetic test metadata",
+                "provider": "Example",
+                "documentation_urls": ["https://docs.example.com/api"],
+            },
+            "keepkeys_store_from_phone": {
+                "name": "demo",
+                "variable": "DEMO_TOKEN",
+                "description": "Synthetic test metadata",
+                "provider": "Example",
+                "documentation_urls": ["https://docs.example.com/api"],
+            },
+            "keepkeys_list": {},
+            "keepkeys_rotate": {"name": "demo"},
+            "keepkeys_revoke": {"name": "demo"},
+            "keepkeys_remove": {"name": "demo"},
+            "keepkeys_run": {
+                "name": "demo",
+                "purpose": "Synthetic test",
+                "program": "/usr/bin/printf",
+                "arguments": ["ok"],
+            },
+            "keepkeys_status": {},
+            "keepkeys_doctor": {},
+        }
+        ctx = _Context()
+        with patch.object(plugin, "_run_helper", return_value={"status": "ok"}) as runner:
+            plugin.register(ctx)
+            for tool in ctx.tools:
+                self.assertEqual(
+                    json.loads(tool["handler"](payloads[tool["name"]])),
+                    {"status": "ok"},
+                )
+        self.assertEqual(runner.call_count, len(ctx.tools))
+        self.assertEqual(
+            [call.args[0] for call in runner.call_args_list],
+            [tool["name"] for tool in ctx.tools],
         )
 
     def test_run_is_an_argument_vector_not_a_shell_string(self) -> None:
@@ -215,12 +296,12 @@ class HermesAdapterTests(unittest.TestCase):
         with patch.object(
             plugin,
             "_run_helper",
-            return_value={"status": "ok", "version": "0.4.2"},
+            return_value={"status": "ok", "version": "0.7.0"},
         ):
             result = plugin._handler_for("keepkeys_status")({})
         self.assertEqual(
             json.loads(result),
-            {"status": "ok", "version": "0.4.2"},
+            {"status": "ok", "version": "0.7.0"},
         )
 
 

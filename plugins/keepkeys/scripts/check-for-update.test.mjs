@@ -16,8 +16,8 @@ const manifest = {
   version: "0.4.1",
   sourceCommit: "a".repeat(40),
   catalogCommit: "b".repeat(40),
-  installGuide: "https://github.com/barnlabs/keepkeys/blob/main/INSTALL.md",
-  releaseNotes: "https://github.com/barnlabs/keepkeys/blob/main/CHANGELOG.md",
+  installGuide: "https://github.com/neorome/keepkeys/blob/main/INSTALL.md",
+  releaseNotes: "https://github.com/neorome/keepkeys/blob/main/CHANGELOG.md",
 };
 
 test("semantic versions compare without coercion or prerelease ambiguity", () => {
@@ -27,7 +27,7 @@ test("semantic versions compare without coercion or prerelease ambiguity", () =>
   assert.throws(() => compareVersions("main", "0.4.1"), /Invalid local/);
 });
 
-test("stable update manifests require immutable commits and BarnLabs URLs", () => {
+test("stable update manifests require immutable commits and Neorome URLs", () => {
   assert.deepEqual(validateUpdateManifest({ ...manifest }), manifest);
   assert.throws(
     () => validateUpdateManifest({ ...manifest, sourceCommit: "main" }),
@@ -52,6 +52,8 @@ test("update status returns deliberate review metadata, never an auto-install ac
     catalogCommit: "b".repeat(40),
     installGuide: manifest.installGuide,
     releaseNotes: manifest.releaseNotes,
+    requiresExplicitInstall: true,
+    verification: "Review the pinned source and catalog commits before installing.",
     message:
       "KeepKeys 0.4.1 is available. Review the immutable commits and install guide before updating.",
   });
@@ -74,6 +76,18 @@ test("network update checks use the fixed manifest URL and validate the response
   assert.equal(request.url, UPDATE_MANIFEST_URL);
   assert.equal(request.options.redirect, "error");
   assert.equal(request.options.headers.Accept, "application/json");
+  assert.equal(request.options.cache, "no-store");
+});
+
+test("update checks reject unsafe manifest links and invalid timeouts", async () => {
+  assert.throws(
+    () => validateUpdateManifest({ ...manifest, releaseNotes: `${manifest.releaseNotes}?raw=1` }),
+    /Expected values to be strictly equal/,
+  );
+  await assert.rejects(
+    fetchStableUpdate({ timeoutMs: 0 }),
+    /timeout from 1 to 60000/,
+  );
 });
 
 test("network update checks stop reading oversized streaming responses", async () => {

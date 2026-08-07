@@ -52,10 +52,110 @@
       ],
       "additionalProperties": false
     },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": { "const": "ok" },
+            "message": { "type": "string" },
+            "name": { "type": "string" },
+            "variable": { "type": "string" },
+            "description": { "type": "string" },
+            "provider": { "type": "string" },
+            "documentationUrls": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["status", "message", "name", "variable", "description", "provider", "documentationUrls"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "status": { "const": "cancelled" }, "message": { "type": "string" } },
+          "required": ["status", "message"],
+          "additionalProperties": false
+        }
+      ]
+    },
     "annotations": {
       "readOnlyHint": false,
       "openWorldHint": false,
-      "destructiveHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false
+    }
+  },
+  {
+    "name": "keepkeys_store_from_phone",
+    "title": "Store a secret from a phone with KeepKeys",
+    "description": "Create a one-time, tailnet-only Tailscale Serve page that sends a pasted secret directly to this computer's native credential vault. The page expires after 10 minutes. This tool never accepts or returns the secret value and never uses Tailscale Funnel.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Suggested friendly name, such as github-release.",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "variable": {
+          "type": "string",
+          "description": "Suggested uppercase environment-variable name, such as GITHUB_TOKEN.",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "description": {
+          "type": "string",
+          "description": "One-line description of what the secret is for, such as publishing approved releases.",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "provider": {
+          "type": "string",
+          "description": "Provider or system that issued the credential, such as GitHub.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "documentation_urls": {
+          "type": "array",
+          "description": "One to three official HTTPS documentation links researched by the agent, preferring AI-readable references such as llms.txt, OpenAPI, or plain-text API documentation.",
+          "items": {
+            "type": "string",
+            "minLength": 9,
+            "maxLength": 1024,
+            "pattern": "^https://"
+          },
+          "minItems": 1,
+          "maxItems": 3
+        }
+      },
+      "required": [
+        "name",
+        "variable",
+        "description",
+        "provider",
+        "documentation_urls"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "status": { "const": "ready" },
+        "message": { "type": "string" },
+        "url": { "type": "string", "pattern": "^https://" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "name": { "type": "string" },
+        "variable": { "type": "string" },
+        "replacing": { "type": "boolean" },
+        "network": { "const": "Tailscale Serve" },
+        "publicInternet": { "const": false }
+      },
+      "required": ["status", "message", "url", "expiresAt", "name", "variable", "replacing", "network", "publicInternet"],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "openWorldHint": false,
+      "destructiveHint": true,
       "idempotentHint": false
     }
   },
@@ -68,8 +168,123 @@
       "properties": {},
       "additionalProperties": false
     },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "status": { "const": "ok" },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "variable": { "type": "string" },
+              "description": { "type": "string" },
+              "provider": { "type": "string" },
+              "documentationUrls": { "type": "array", "items": { "type": "string" } }
+            },
+            "required": ["name", "variable", "description", "provider", "documentationUrls"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["status", "entries"],
+      "additionalProperties": false
+    },
     "annotations": {
       "readOnlyHint": true,
+      "openWorldHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true
+    }
+  },
+  {
+    "name": "keepkeys_rotate",
+    "title": "Rotate a KeepKeys secret",
+    "description": "Reuse the stored metadata and open the native Paste & Store flow to replace one named credential. Rotation clears exact-command always-allow rules and never accepts or returns the secret value.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Exact friendly name of the credential to rotate.",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": { "const": "ok" },
+            "message": { "type": "string" },
+            "name": { "type": "string" },
+            "variable": { "type": "string" },
+            "description": { "type": "string" },
+            "provider": { "type": "string" },
+            "documentationUrls": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["status", "message", "name", "variable", "description", "provider", "documentationUrls"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "status": { "const": "cancelled" }, "message": { "type": "string" } },
+          "required": ["status", "message"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "openWorldHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false
+    }
+  },
+  {
+    "name": "keepkeys_revoke",
+    "title": "Disable KeepKeys automatic approvals",
+    "description": "Open native confirmation and remove exact-command always-allow rules for one named credential without deleting the credential or exposing its value.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Exact friendly name whose automatic approvals should be disabled.",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": { "const": "ok" },
+            "message": { "type": "string" },
+            "revokedRules": { "type": "integer", "minimum": 0 }
+          },
+          "required": ["status", "message", "revokedRules"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "status": { "const": "cancelled" }, "message": { "type": "string" } },
+          "required": ["status", "message"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
       "openWorldHint": false,
       "destructiveHint": false,
       "idempotentHint": true
@@ -93,6 +308,22 @@
         "name"
       ],
       "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "status": { "const": "ok" }, "message": { "type": "string" }, "removed": { "type": "boolean" } },
+          "required": ["status", "message", "removed"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "status": { "const": "cancelled" }, "message": { "type": "string" } },
+          "required": ["status", "message"],
+          "additionalProperties": false
+        }
+      ]
     },
     "annotations": {
       "readOnlyHint": false,
@@ -150,6 +381,30 @@
       ],
       "additionalProperties": false
     },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": { "const": "ok" },
+            "message": { "type": "string" },
+            "exitCode": { "type": "integer" },
+            "stdout": { "type": "string" },
+            "stderr": { "type": "string" },
+            "stdoutTruncated": { "type": "boolean" },
+            "stderrTruncated": { "type": "boolean" }
+          },
+          "required": ["status", "message", "exitCode", "stdout", "stderr", "stdoutTruncated", "stderrTruncated"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "status": { "const": "cancelled" }, "message": { "type": "string" } },
+          "required": ["status", "message"],
+          "additionalProperties": false
+        }
+      ]
+    },
     "annotations": {
       "readOnlyHint": false,
       "openWorldHint": true,
@@ -166,6 +421,21 @@
       "properties": {},
       "additionalProperties": false
     },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "status": { "const": "ok" },
+        "message": { "type": "string" },
+        "platform": { "type": "string", "enum": ["macOS", "Windows", "Linux"] },
+        "version": { "type": "string" },
+        "vault": { "type": "string" },
+        "plaintextRetrieval": { "const": false },
+        "secretTool": { "type": "string" },
+        "graphicalSession": { "type": "boolean" }
+      },
+      "required": ["status", "message", "platform", "version", "vault", "plaintextRetrieval"],
+      "additionalProperties": false
+    },
     "annotations": {
       "readOnlyHint": true,
       "openWorldHint": false,
@@ -180,6 +450,17 @@
     "inputSchema": {
       "type": "object",
       "properties": {},
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "status": { "const": "ok" },
+        "message": { "type": "string" },
+        "platform": { "type": "string", "enum": ["macOS", "Windows", "Linux"] },
+        "version": { "type": "string" }
+      },
+      "required": ["status", "message", "platform", "version"],
       "additionalProperties": false
     },
     "annotations": {

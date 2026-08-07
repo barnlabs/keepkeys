@@ -6,7 +6,9 @@ KeepKeys lets a supported local agent cause one user-approved process to use one
 named secret without placing the plaintext value in the model prompt, tool
 arguments or results, plugin metadata, repository, persistent environment,
 terminal, or plaintext file. Clipboard access occurs only inside the native
-helper after the user explicitly presses **Paste & Store**.
+helper after the user explicitly presses **Paste & Store**. A user on a phone
+may instead press **Paste & Store** on a one-time, tailnet-only Tailscale Serve
+page connected to the host.
 
 This is scoped delegation, not containment after delegation. The approved
 program and its descendants receive the value.
@@ -17,6 +19,8 @@ program and its descendants receive the value.
 - friendly names, variable names, descriptions, provider names, documentation
   URLs, and command purposes;
 - user intent for store, replacement, deletion, and each use;
+- one-time phone-intake URLs, Tailscale identity metadata held for the active
+  session, and the user's intent to submit from the phone;
 - integrity of the plugin source, dispatcher, native helper, approval window,
   target executable, and optional script entrypoint;
 - availability and correctness of the native credential vault;
@@ -30,6 +34,8 @@ program and its descendants receive the value.
 | Agent/client | Untrusted with plaintext through the KeepKeys protocol. It can propose metadata and a command through fixed schemas. A host with unrestricted same-user command execution is not contained while a value is on the shared clipboard. |
 | MCP/Hermes adapter | Trusted code boundary. It validates arguments, selects one bundled backend, uses no shell, and returns bounded JSON. |
 | Native helper | Trusted secret-bearing boundary. It owns click-gated clipboard ingestion, vault access, approval, fingerprints, child environment, and redaction. |
+| Phone portal process | Trusted, temporary secret-bearing boundary. It owns the localhost listener, Tailscale identity and browser binding, one submitted byte buffer, a per-name commit lock, and a capability-framed redirected pipe to the native helper. |
+| Tailscale Serve | Trusted private transport and identity boundary for phone intake. It terminates tailnet HTTPS on the host and forwards only to `127.0.0.1`. Funnel is forbidden. |
 | OS credential vault | Trusted for per-user at-rest protection and its own lock/unlock policy. |
 | Approved executable | Trusted only for this action. It and descendants can read, transform, persist, or transmit the secret. |
 | Same-user malware / administrator | Out of the defended boundary. It can inspect memory, replace local code, automate UI, or access the signed-in vault. |
@@ -41,7 +47,9 @@ program and its descendants receive the value.
 No input schema includes `secret`, `value`, or an equivalent plaintext field.
 The behavioral skill forbids asking for the value. Store carries only name,
 variable, description, provider, and official documentation URLs. There is no
-plaintext retrieval action.
+plaintext retrieval action. `keepkeys_store_from_phone` carries the same
+metadata and returns only a one-time tailnet URL, expiry, replacement state,
+and status.
 
 The MCP server and Hermes adapter form argument arrays and start a
 repository-relative helper with `shell=false`. The dispatcher keeps only
@@ -130,11 +138,14 @@ files and is outside the boundary.
 ### Windows paired-record interruption
 
 A crash can occur between Credential Manager writes. Replacement snapshots the
-old pair, writes the value and metadata, and attempts rollback on failure.
-Doctor verifies create, update, enumerate, read, and deletion. An unclean
-process termination at the exact inter-write boundary can still leave an orphan
-record; listing ignores orphan value records and a later approved store/remove
-repairs the named pair.
+old pair, writes the value and metadata, and attempts both rollback operations
+on failure. If either rollback operation also fails, the helper returns
+`storageState: "uncertain"` and `cleanupKind: "native-rollback"`; the phone
+tells the user to inspect and remove the name instead of claiming the value was
+discarded. Doctor verifies create, update, enumerate, read, and deletion. An
+unclean process termination at the exact inter-write boundary can still leave
+an orphan record; listing ignores orphan value records and a later approved
+store/remove repairs the named pair.
 
 ### Linux Secret Service diversity
 
@@ -143,6 +154,18 @@ master password, or per-application access-control model. KeepKeys requires a
 compatible provider and inherits its security policy. Item attributes and
 labels are explicitly non-secret metadata. The value crosses the local D-Bus
 and a `secret-tool` pipe; it never crosses the agent protocol.
+
+Linux replacement snapshots the prior value and metadata. If either
+`secret-tool store` call raises a KeepKeys error, operating-system error,
+timeout, or other subprocess failure, KeepKeys attempts to restore the complete
+previous pair before returning the failure. A rollback deletion that returns
+false is itself a cleanup failure. KeepKeys records that failure and still
+attempts the other rollback operation instead of reporting incomplete cleanup
+as success. Secret Service search and existing-value lookup errors propagate;
+they cannot be converted into a false no-match for the phone replacement
+check. If storage and rollback both fail, the helper returns a structured
+uncertain state. The phone tells the user to inspect and remove the name before
+retrying instead of claiming that the value was discarded.
 
 KeepKeys refuses to use a plaintext keyring fallback and refuses secret entry
 when no graphical session is available.
@@ -165,6 +188,120 @@ clipboard or native vault; the user must copy only when the Store window is
 ready and activate **Paste & Store** immediately.
 Metadata remains visible to the active agent when list is authorized, so
 descriptions should be useful but minimal.
+
+### Phone to host
+
+Phone intake is opt-in and requires Tailscale 1.52 or newer on the host, a
+signed-in phone in the same tailnet, MagicDNS, and tailnet HTTPS. KeepKeys
+starts one localhost HTTP listener and invokes `tailscale serve` in the
+foreground with an unguessable path. It never invokes `tailscale funnel`,
+listens on a LAN address, creates a Neorome account, or sends the key through a
+Neorome server.
+
+Tailscale Serve strips caller-supplied identity headers and adds the
+authenticated Tailscale user identity for tailnet traffic. KeepKeys rejects
+requests without that header. The first GET binds the session to one identity,
+sets a Secure, HttpOnly, SameSite=Strict cookie, and returns a page with no
+third-party resources. Later GETs require both that identity and cookie, so a
+second browser under the same identity cannot acquire another session cookie.
+The form is disabled until the nonce-authorized script runs, and its password
+input has no HTML `name`. If JavaScript is blocked or fails, the browser cannot
+serialize the value into a query string or form submission.
+POST requires the same identity, exact HTTPS origin, cookie, content type,
+path, and 8-2048-byte body. The first authenticated POST claims the session
+before its body is read; malformed bodies, native failure, and successful
+storage are all terminal. The session expires after ten minutes.
+
+The URL is a short-lived capability visible to the active agent and user.
+Skill instructions forbid the agent from opening, previewing, or testing it
+because the first GET binds the session. Another authorized tailnet user who
+obtains the unused URL could bind it first. Tailscale ACLs remain the user's
+network-level control. A local agent host with arbitrary command execution can
+also call its own Tailscale URL and is outside KeepKeys' containment boundary,
+as it already is for the shared host clipboard.
+
+The page shows metadata and whether the name existed when the page opened. A
+per-name, user-owned exclusive lock serializes native paste-and-store, phone
+commits, and removal. Public desktop dispatch runs through
+`scripts/keepkeys-store.mjs`; each native backend rejects a store or removal
+that bypasses that coordinator. The lock remains held across replacement
+checks, destructive confirmation, and the selected write or deletion. A
+desktop-versus-phone replacement race or removal-versus-store race therefore
+cannot interleave vault mutations. A process crash can leave an orphaned lock
+file; subsequent mutation fails closed until that file is removed from
+`~/Library/Caches/net.neorome.keepkeys/portal-locks` on macOS,
+`%LOCALAPPDATA%\Neorome\KeepKeys\portal-locks` on Windows, or
+`${XDG_RUNTIME_DIR:-~/.cache}/keepkeys/portal-locks` on Linux.
+If the native vault write succeeds but closing or removing that lock fails,
+KeepKeys retains the committed state, returns `stored: true` with the cleanup
+error, and keeps the session terminal. It does not tell the user to submit the
+same value again.
+
+The submitted bytes travel from the localhost portal process to the native
+helper through redirected stdin after a 256-bit capability frame. Public
+dispatch rejects the internal action, and every native backend requires its
+direct parent PID to be Node executing the exact bundled
+`keepkeys-portal.mjs`. These checks remove the public command shortcut; they do
+not contain same-user code injection or modified local plugin source, which are
+outside the defended boundary. The bytes never appear in argv, a tool payload,
+a file, a log, or a persistent environment. KeepKeys clears mutable Node,
+Swift, .NET, and Python buffers where possible, but those runtimes and
+operating-system APIs may retain copies.
+
+KeepKeys cannot clear the phone's clipboard or clipboard history. The page
+tells the user to copy only when it is ready and submit immediately. Tailscale
+and the user's identity provider can observe normal connection and identity
+metadata; the key stays inside the encrypted connection to the host.
+
+### Persistent approval rules and rotation
+
+An Always allow rule is never a blanket grant. It records only the named
+credential and the exact approved request fields: executable identity and
+SHA-256, arguments, working directory, environment scope, and any interpreter
+entrypoint fingerprint. The native helper compares those fields before every
+automatic approval and fails closed on a mismatch, missing rule, or revoked
+rule. Rules are local metadata, are listed without reading secret values, and
+are not synchronized to another device. Revoke removes rules only; it does not
+read or delete the vault value. Rotation holds the same per-name lock across
+the existing-record check and replacement commit, requires an existing-value
+assertion in every native backend, and clears that name's rules after a
+successful replacement so a new value cannot inherit stale authorization.
+
+Submission, expiry, startup failure, or termination closes the listener, aborts
+and kills an in-flight native helper process group, gracefully signals the
+portal process group, waits for the owned Serve child, and queries Tailscale
+until the exact generated path is absent. Route absence without process exit,
+or process exit without route absence, is a cleanup failure; failure of one
+proof cannot stop KeepKeys from awaiting the other. Metadata and Tailscale
+startup operations share an abort signal and both settle before startup failure
+is returned. The detached child requires a two-way IPC handshake before it
+releases the launcher. The launcher acknowledges the ready link but does not
+return it until the child confirms it processed that acknowledgment and
+rechecked Serve. Launcher disconnect before confirmation aborts startup and
+runs verified cleanup. KeepKeys continues watching foreground Serve after
+readiness. An exit before link delivery fails startup, and a later unexpected
+exit—including an exit during either side of the handshake—terminates the
+portal rather than leaving a dead page until expiry. A
+successful vault write does not produce a browser success response
+until the owned Serve process exits and the exact path is absent. If that
+cleanup fails, the response says the key was stored and reports cleanup
+failure. A structured native rollback uncertainty reports neither stored nor
+discarded and remains a teardown cleanup failure. If commit-lock cleanup also
+fails, both failures are preserved. Unconfirmed native-helper termination
+remains a teardown failure after the commit promise settles. If the helper
+exits, returns malformed JSON, or returns an incomplete or inconsistent error
+or success receipt, KeepKeys reports an uncertain vault state instead of
+claiming the value was discarded. Metadata and Tailscale startup helpers each
+receive an independent process group. Cancellation signals and verifies the
+owned group even after its leader exits. On Windows, KeepKeys snapshots the
+owned PID ancestry and process creation identity before signaling, keeps exited
+ancestors in that ownership set while finding live descendants, refuses to
+signal a PID whose creation identity changed, and reports a cleanup failure
+unless every tracked process disappears. Serve output is drained but not
+retained after readiness. Expiry
+teardown is scheduled from the timestamp advertised to the user, including
+time spent starting Serve. A pre-existing listener conflict fails closed
+rather than changing another Tailscale Serve configuration.
 
 ### Approved target disclosure
 
@@ -191,7 +328,7 @@ release metadata. It caps and validates the response, requires full commit
 SHAs, and performs no installation. A compromised repository or GitHub account
 could still publish malicious commit identifiers; the user must review the
 linked diff and green public evidence before updating. KeepKeys does not claim
-signed update metadata in version 0.4.2.
+signed update metadata.
 
 ## Explicit non-goals
 
@@ -201,8 +338,9 @@ signed update metadata in version 0.4.2.
   execution while a credential is present on the shared system clipboard;
 - confinement after delivery to an approved executable;
 - general output DLP or network egress control;
-- team sharing, cloud synchronization, backup, recovery, or rotation;
-- browser, mobile, server, or headless approval support;
+- team sharing, cloud synchronization, backup, or recovery;
+- public browser intake, Tailscale Funnel, server-side secret storage, or
+  headless secret entry;
 - absolute, “unbreakable,” or formal-verification claims.
 
 ## Required regression invariants
@@ -214,7 +352,9 @@ signed update metadata in version 0.4.2.
    after capture.
 4. Listing and pre-approval flow use metadata without loading the protected
    value.
-5. Run requires one-time native approval for an exact request.
+5. Run requires native approval for an exact request. Persistent automatic
+   approval is allowed only after an explicit user choice and an exact local
+   rule match.
 6. The helper invokes a direct absolute executable without a shell.
 7. The child environment contains only the approved secret variable.
 8. Executable and detected entrypoint hashes are rechecked after approval.
@@ -225,3 +365,20 @@ signed update metadata in version 0.4.2.
 13. Update discovery is explicit, bounded, read-only, and cannot install code.
 14. Agent-supplied names, providers, and documentation links are validated
     before native UI opens and are never editable by the user.
+15. Phone intake uses Tailscale Serve only, binds one identity and browser
+    session, accepts one bounded authenticated submission attempt, and expires
+    within ten minutes.
+16. Phone-submitted bytes reach the native helper only through redirected
+    stdin and never enter a tool payload, argv, file, log, or persistent
+    environment.
+17. Phone commits serialize by name across portal processes, and native commit
+    dispatch requires a capability frame plus the exact bundled portal parent.
+18. Portal submission, expiry, startup failure, and termination remove the
+    localhost listener, in-flight native helper, and foreground Serve route
+    without resetting unrelated Tailscale configuration.
+19. Rotation and removal serialize with desktop store, phone store, and run
+    for the same name; rotation requires an existing-value assertion and
+    clears that name's automatic-approval rules after success.
+20. Phone intake is a deliberate one-use transfer into the connected host's
+    vault; KeepKeys never performs background vault synchronization or uploads
+    protected values to a service.

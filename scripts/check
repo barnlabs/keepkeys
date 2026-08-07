@@ -12,6 +12,9 @@ node --check plugins/keepkeys/mcp/server.test.mjs
 node --check plugins/keepkeys/scripts/check-for-update.mjs
 node --check plugins/keepkeys/scripts/check-for-update.test.mjs
 node --check plugins/keepkeys/scripts/keepkeys-cli.mjs
+node --check plugins/keepkeys/scripts/keepkeys-rotate.mjs
+node --check plugins/keepkeys/scripts/keepkeys-portal.mjs
+node --check plugins/keepkeys/scripts/keepkeys-portal.test.mjs
 node --check plugins/keepkeys/scripts/platform.mjs
 node --check scripts/scan-secrets.mjs
 node --check scripts/validate-docs.mjs
@@ -28,6 +31,7 @@ sh -n scripts/test
 sh -n scripts/doctor
 sh -n scripts/package-submission
 sh -n scripts/package-release
+sh -n scripts/tailnet-smoke
 
 if command -v grok >/dev/null 2>&1; then
   grok plugin validate plugins/keepkeys >/dev/null

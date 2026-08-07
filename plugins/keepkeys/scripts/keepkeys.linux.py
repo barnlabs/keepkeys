@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """KeepKeys native Linux helper.
 
-Secrets live in a freedesktop Secret Service implementation and enter this
-process only after a local graphical approval. This module intentionally has no
-plaintext retrieval action.
+Secrets live in a freedesktop Secret Service implementation. They enter this
+process after a local graphical paste or through the private stdin pipe owned
+by a one-time KeepKeys Tailscale portal. This module has no plaintext retrieval
+action.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import base64
 from dataclasses import dataclass
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -22,12 +24,16 @@ import threading
 from typing import Any, NoReturn
 from urllib.parse import quote, urlsplit
 
-VERSION = "0.4.2"
-METADATA_SERVICE = "net.barnlabs.keepkeys.metadata"
-SECRET_SERVICE = "net.barnlabs.keepkeys.secret"
+VERSION = "0.7.0"
+METADATA_SERVICE = "net.neorome.keepkeys.metadata"
+SECRET_SERVICE = "net.neorome.keepkeys.secret"
 LABEL_PREFIX_V1 = "KeepKeys|v1|"
 LABEL_PREFIX_V2 = "KeepKeys|v2|"
+LABEL_PREFIX_V3 = "KeepKeys|v3|"
 MAX_SECRET_BYTES = 2_048
+MAX_ALLOW_RULES = 8
+MAX_ALLOW_RULE_BYTES = 12_288
+PORTAL_CAPABILITY_BYTES = 32
 MAX_CAPTURED_BYTES = 1_048_576
 OMITTED_OUTPUT = (
     "[OUTPUT OMITTED BY KEEPKEYS: stream exceeded the 1 MiB safety limit]"
@@ -109,6 +115,10 @@ class KeepKeysError(Exception):
     """Expected user-facing helper failure."""
 
 
+class PortalStorageUncertainError(KeepKeysError):
+    """A portal write whose rollback could not prove the final vault state."""
+
+
 @dataclass(frozen=True)
 class Metadata:
     name: str
@@ -116,6 +126,25 @@ class Metadata:
     description: str
     provider: str = ""
     documentation_urls: tuple[str, ...] = ()
+    allow_rules: tuple["AllowRule", ...] = ()
+
+
+@dataclass(frozen=True)
+class AllowRule:
+    """A metadata-only grant for one immutable command identity."""
+
+    name: str
+    variable: str
+    description: str
+    provider: str
+    documentation_urls: tuple[str, ...]
+    purpose: str
+    program: str
+    fingerprint: str
+    arguments: tuple[str, ...]
+    cwd: str | None
+    entrypoint: str | None
+    entrypoint_fingerprint: str | None
 
 
 @dataclass(frozen=True)
@@ -135,8 +164,8 @@ def emit(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, separators=(",", ":"), sort_keys=True), flush=True)
 
 
-def fail(message: str) -> NoReturn:
-    emit({"status": "error", "message": message})
+def fail(message: str, **details: Any) -> NoReturn:
+    emit({"status": "error", "message": message, **details})
     raise SystemExit(1)
 
 
@@ -190,6 +219,54 @@ def valid_purpose(value: str) -> bool:
     return valid_description(value)
 
 
+def valid_sha256(value: str) -> bool:
+    return bool(re.fullmatch(r"[a-f0-9]{64}", value))
+
+
+def allow_rule_payload(rule: AllowRule) -> dict[str, Any]:
+    return {
+        "name": rule.name,
+        "variable": rule.variable,
+        "description": rule.description,
+        "provider": rule.provider,
+        "documentationUrls": list(rule.documentation_urls),
+        "purpose": rule.purpose,
+        "program": rule.program,
+        "fingerprint": rule.fingerprint,
+        "arguments": list(rule.arguments),
+        "cwd": rule.cwd,
+        "entrypoint": rule.entrypoint,
+        "entrypointFingerprint": rule.entrypoint_fingerprint,
+    }
+
+
+def validate_allow_rule(rule: AllowRule) -> None:
+    size = len(
+        json.dumps(allow_rule_payload(rule), separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    )
+    if (
+        not valid_name(rule.name)
+        or not valid_variable(rule.variable)
+        or not valid_description(rule.description)
+        or not valid_provider(rule.provider)
+        or not 1 <= len(rule.documentation_urls) <= 3
+        or len(set(rule.documentation_urls)) != len(rule.documentation_urls)
+        or sum(len(url.encode("utf-8")) for url in rule.documentation_urls) > 1_800
+        or not all(valid_documentation_url(url) for url in rule.documentation_urls)
+        or not valid_purpose(rule.purpose)
+        or not rule.program.startswith("/")
+        or any(ord(character) < 32 for character in rule.program)
+        or not valid_sha256(rule.fingerprint)
+        or len(rule.arguments) > 64
+        or any(len(value.encode("utf-8")) > 4_096 or any(ord(character) < 32 for character in value) for value in rule.arguments)
+        or (rule.cwd is not None and (not rule.cwd.startswith("/") or any(ord(character) < 32 for character in rule.cwd)))
+        or (rule.entrypoint is None) != (rule.entrypoint_fingerprint is None)
+        or (rule.entrypoint is not None and (not rule.entrypoint.startswith("/") or any(ord(character) < 32 for character in rule.entrypoint) or not valid_sha256(rule.entrypoint_fingerprint or "")))
+        or size > MAX_ALLOW_RULE_BYTES
+    ):
+        raise KeepKeysError("KeepKeys persistent allow rule is invalid.")
+
+
 def validate_secret(value: str) -> None:
     size = len(value.encode("utf-8"))
     if size < 8:
@@ -214,6 +291,8 @@ def validate_metadata(metadata: Metadata, *, allow_legacy: bool = False) -> None
     if not valid_description(metadata.description):
         raise KeepKeysError("Use a one-line description of at most 240 UTF-8 bytes.")
     if allow_legacy and not metadata.provider and not metadata.documentation_urls:
+        if metadata.allow_rules:
+            raise KeepKeysError("Legacy metadata cannot contain persistent allow rules.")
         return
     if not valid_provider(metadata.provider):
         raise KeepKeysError("Use a visible provider name of at most 80 UTF-8 bytes.")
@@ -226,6 +305,12 @@ def validate_metadata(metadata: Metadata, *, allow_legacy: bool = False) -> None
         raise KeepKeysError(
             "Use one to three distinct official HTTPS documentation links."
         )
+    if len(metadata.allow_rules) > MAX_ALLOW_RULES:
+        raise KeepKeysError("KeepKeys permits at most eight persistent allow rules.")
+    if len(set(metadata.allow_rules)) != len(metadata.allow_rules):
+        raise KeepKeysError("KeepKeys persistent allow rules must be distinct.")
+    for rule in metadata.allow_rules:
+        validate_allow_rule(rule)
 
 
 def encode_label(metadata: Metadata, *, legacy: bool = False) -> str:
@@ -242,39 +327,70 @@ def encode_label(metadata: Metadata, *, legacy: bool = False) -> str:
         ).encode("utf-8")
         encoded = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
         return LABEL_PREFIX_V1 + encoded
-    payload = json.dumps(
-        {
+    record = {
             "name": metadata.name,
             "variable": metadata.variable,
             "description": metadata.description,
             "provider": metadata.provider,
             "documentationUrls": list(metadata.documentation_urls),
-        },
+    }
+    prefix = LABEL_PREFIX_V2
+    if metadata.allow_rules:
+        record["allowRules"] = [allow_rule_payload(rule) for rule in metadata.allow_rules]
+        prefix = LABEL_PREFIX_V3
+    payload = json.dumps(
+        record,
         separators=(",", ":"),
         ensure_ascii=False,
     ).encode("utf-8")
     encoded = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
-    return LABEL_PREFIX_V2 + encoded
+    return prefix + encoded
 
 
 def decode_label(label: str) -> Metadata | None:
-    if label.startswith(LABEL_PREFIX_V2):
+    if label.startswith(LABEL_PREFIX_V3):
+        encoded = label[len(LABEL_PREFIX_V3) :]
+        legacy = False
+        rules_allowed = True
+    elif label.startswith(LABEL_PREFIX_V2):
         encoded = label[len(LABEL_PREFIX_V2) :]
         legacy = False
+        rules_allowed = False
     elif label.startswith(LABEL_PREFIX_V1):
         encoded = label[len(LABEL_PREFIX_V1) :]
         legacy = True
+        rules_allowed = False
     else:
         return None
     encoded += "=" * (-len(encoded) % 4)
     try:
         payload = json.loads(base64.urlsafe_b64decode(encoded).decode("utf-8"))
+        rules = tuple(
+            AllowRule(
+                name=rule["name"],
+                variable=rule["variable"],
+                description=rule["description"],
+                provider=rule["provider"],
+                documentation_urls=tuple(rule["documentationUrls"]),
+                purpose=rule["purpose"],
+                program=rule["program"],
+                fingerprint=rule["fingerprint"],
+                arguments=tuple(rule["arguments"]),
+                cwd=rule["cwd"],
+                entrypoint=rule["entrypoint"],
+                entrypoint_fingerprint=rule["entrypointFingerprint"],
+            )
+            for rule in payload.get("allowRules", [])
+        )
+        if rules and not rules_allowed:
+            return None
         metadata = Metadata(
             name=payload["name"],
             variable=payload["variable"],
             description=payload["description"],
             provider=payload.get("provider", ""),
             documentation_urls=tuple(payload.get("documentationUrls", [])),
+            allow_rules=rules,
         )
         validate_metadata(metadata, allow_legacy=legacy)
         return metadata
@@ -362,9 +478,7 @@ def search_metadata(name: str | None = None) -> list[Metadata]:
     ]
     if name is not None:
         arguments.extend(["name", name])
-    result = run_secret_tool(arguments, required=False)
-    if result.returncode != 0:
-        return []
+    result = run_secret_tool(arguments)
     output = result.stdout.decode("utf-8", errors="replace")
     entries: dict[str, Metadata] = {}
     for raw_line in output.splitlines():
@@ -386,21 +500,6 @@ def lookup_secret(name: str) -> str:
         raise KeepKeysError("The Secret Service item is not valid UTF-8.") from error
     validate_secret(secret)
     return secret
-
-
-def lookup_secret_optional(name: str) -> str | None:
-    result = run_secret_tool(
-        ["lookup", "service", SECRET_SERVICE, "name", name],
-        required=False,
-    )
-    if result.returncode != 0:
-        return None
-    try:
-        secret = result.stdout.decode("utf-8")
-        validate_secret(secret)
-        return secret
-    except (UnicodeDecodeError, KeepKeysError):
-        return None
 
 
 def store_value(name: str, secret: str) -> None:
@@ -441,6 +540,43 @@ def clear_item(service: str, name: str) -> bool:
         required=False,
     )
     return result.returncode == 0
+
+
+def clear_native_portal_test_record(name: str) -> None:
+    failures: list[BaseException] = []
+    for service in (METADATA_SERVICE, SECRET_SERVICE):
+        try:
+            if not clear_item(service, name):
+                failures.append(
+                    KeepKeysError(
+                        "Secret Service did not remove a temporary portal item."
+                    )
+                )
+        except (
+            KeepKeysError,
+            OSError,
+            subprocess.SubprocessError,
+        ) as error:
+            failures.append(error)
+    if not failures:
+        try:
+            if search_metadata(name):
+                failures.append(
+                    KeepKeysError(
+                        "Temporary portal metadata remained after cleanup."
+                    )
+                )
+        except (
+            KeepKeysError,
+            OSError,
+            subprocess.SubprocessError,
+        ) as error:
+            failures.append(error)
+    if failures:
+        raise KeepKeysError(
+            "The temporary native portal Secret Service cleanup could not "
+            "be confirmed."
+        ) from failures[0]
 
 
 def remove_secret(name: str) -> bool:
@@ -786,14 +922,70 @@ class BrandedUI:
         self.root.destroy()
         return result[0]
 
-    def approve(self, request: RunRequest, metadata: Metadata) -> bool:
+    def confirm_revoke(self, metadata: Metadata) -> bool:
         result = [False]
+        window = self._window("KeepKeys - Disable automatic approvals", 620, 420)
+        self._header(
+            window,
+            "Approval policy",
+            f"Disable automatic approvals for '{metadata.name}'?",
+            f"This removes {len(metadata.allow_rules)} exact-command rule(s). Future uses will show the native approval window again.",
+        )
+        body = self.tk.Frame(window, bg=self.paper, padx=26, pady=20)
+        body.pack(fill="both", expand=True)
+        self.tk.Label(
+            body,
+            text=f"{metadata.variable}\n{metadata.description}",
+            bg="white",
+            fg=self.night,
+            justify="left",
+            anchor="w",
+            padx=16,
+            pady=14,
+            relief="solid",
+            borderwidth=1,
+        ).pack(fill="x")
+        buttons = self.tk.Frame(body, bg=self.paper)
+        buttons.pack(fill="x", side="bottom")
+
+        def finish(value: bool) -> None:
+            result[0] = value
+            window.destroy()
+
+        self.tk.Button(
+            buttons,
+            text="Cancel",
+            command=lambda: finish(False),
+            bg="#e8e2d7",
+            fg=self.night,
+            relief="flat",
+            padx=18,
+            pady=9,
+        ).pack(side="right")
+        self.tk.Button(
+            buttons,
+            text="Disable automatic approvals",
+            command=lambda: finish(True),
+            bg=self.brass,
+            fg=self.night,
+            relief="flat",
+            padx=18,
+            pady=9,
+        ).pack(side="right", padx=(0, 10))
+        window.bind("<Escape>", lambda _event: finish(False))
+        window.grab_set()
+        self.root.wait_window(window)
+        self.root.destroy()
+        return result[0]
+
+    def approve(self, request: RunRequest, metadata: Metadata) -> str:
+        result = ["cancel"]
         window = self._window("KeepKeys — Approve secret use", 720, 650)
         self._header(
             window,
             request.risk,
             f"Allow this command to use “{request.name}”?",
-            "Approval is one-time. The executable and its child processes can read the secret.",
+            "Allow once is one-time. Always allow saves only this exact command identity.",
         )
         body = self.tk.Frame(window, bg=self.paper, padx=26, pady=18)
         body.pack(fill="both", expand=True)
@@ -849,14 +1041,14 @@ class BrandedUI:
         buttons = self.tk.Frame(body, bg=self.paper)
         buttons.pack(fill="x", pady=(14, 0))
 
-        def finish(value: bool) -> None:
+        def finish(value: str) -> None:
             result[0] = value
             window.destroy()
 
         self.tk.Button(
             buttons,
             text="Cancel",
-            command=lambda: finish(False),
+            command=lambda: finish("cancel"),
             bg="#e8e2d7",
             fg=self.night,
             relief="flat",
@@ -866,14 +1058,24 @@ class BrandedUI:
         self.tk.Button(
             buttons,
             text="Allow once",
-            command=lambda: finish(True),
+            command=lambda: finish("once"),
             bg=self.ember,
             fg="white",
             relief="flat",
             padx=18,
             pady=9,
         ).pack(side="right", padx=(0, 10))
-        window.bind("<Escape>", lambda _event: finish(False))
+        self.tk.Button(
+            buttons,
+            text="Always allow this exact command",
+            command=lambda: finish("always"),
+            bg=self.brass,
+            fg=self.night,
+            relief="flat",
+            padx=18,
+            pady=9,
+        ).pack(side="right", padx=(0, 10))
+        window.bind("<Escape>", lambda _event: finish("cancel"))
         window.grab_set()
         self.root.wait_window(window)
         self.root.destroy()
@@ -964,6 +1166,43 @@ def make_run_request(
         entrypoint=entrypoint,
         entrypoint_fingerprint=entrypoint_fingerprint,
     )
+
+
+def allow_rule_for(request: RunRequest, metadata: Metadata) -> AllowRule:
+    return AllowRule(
+        name=metadata.name,
+        variable=metadata.variable,
+        description=metadata.description,
+        provider=metadata.provider,
+        documentation_urls=metadata.documentation_urls,
+        purpose=request.purpose,
+        program=str(request.program),
+        fingerprint=request.fingerprint,
+        arguments=tuple(request.arguments),
+        cwd=str(request.cwd) if request.cwd else None,
+        entrypoint=str(request.entrypoint) if request.entrypoint else None,
+        entrypoint_fingerprint=request.entrypoint_fingerprint,
+    )
+
+
+def matching_allow_rule(request: RunRequest, metadata: Metadata) -> bool:
+    return allow_rule_for(request, metadata) in metadata.allow_rules
+
+
+def metadata_with_allow_rule(metadata: Metadata, rule: AllowRule) -> Metadata:
+    rules = metadata.allow_rules
+    if rule not in rules:
+        rules = (*rules, rule)
+    updated = Metadata(
+        name=metadata.name,
+        variable=metadata.variable,
+        description=metadata.description,
+        provider=metadata.provider,
+        documentation_urls=metadata.documentation_urls,
+        allow_rules=rules,
+    )
+    validate_metadata(updated)
+    return updated
 
 
 def redaction_patterns(secret: str) -> list[str]:
@@ -1093,7 +1332,32 @@ def repeated_options(arguments: list[str], name: str) -> tuple[str, ...]:
     return tuple(values)
 
 
+def portal_parent_is_bundled_portal(parent_pid: int) -> bool:
+    try:
+        executable_name = Path(
+            os.readlink(f"/proc/{parent_pid}/exe")
+        ).name.lower()
+        arguments = Path(f"/proc/{parent_pid}/cmdline").read_bytes().split(
+            b"\0"
+        )
+        expected_portal = Path(__file__).with_name(
+            "keepkeys-portal.mjs"
+        ).resolve()
+        parent_script = Path(
+            arguments[1].decode("utf-8", errors="strict")
+        ).resolve()
+    except (IndexError, OSError, UnicodeError, ValueError):
+        return False
+    return (
+        executable_name in {"node", "nodejs"}
+        and parent_script == expected_portal
+    )
+
+
 def action_store(arguments: list[str]) -> dict[str, Any]:
+    expected_value = option(arguments, "--expect-existing")
+    if expected_value not in {None, "yes", "no"}:
+        raise KeepKeysError("The rotation existence check is invalid.")
     metadata = Metadata(
         name=require_option(arguments, "--name"),
         variable=require_option(arguments, "--variable").upper(),
@@ -1106,26 +1370,93 @@ def action_store(arguments: list[str]) -> dict[str, Any]:
     if entered is None:
         return {"status": "cancelled", "message": "Secret storage was cancelled."}
     final_metadata, secret = entered
+    return store_record(
+        final_metadata,
+        secret,
+        expected_existing=(expected_value == "yes") if expected_value else None,
+    )
+
+
+def action_rotate(arguments: list[str]) -> dict[str, Any]:
+    name = require_option(arguments, "--name")
+    if not valid_name(name):
+        raise KeepKeysError("The requested KeepKeys name is invalid.")
+    matches = search_metadata(name)
+    if not matches:
+        raise KeepKeysError(f"No KeepKeys secret is stored as '{name}'.")
+    metadata = matches[0]
+    rotation_metadata = Metadata(
+        name=metadata.name,
+        variable=metadata.variable,
+        description=metadata.description,
+        provider=metadata.provider,
+        documentation_urls=metadata.documentation_urls,
+    )
+    entered = BrandedUI().store(rotation_metadata)
+    if entered is None:
+        return {"status": "cancelled", "message": "Secret rotation was cancelled."}
+    final_metadata, secret = entered
+    return store_record(final_metadata, secret, expected_existing=True)
+
+
+def store_record(
+    final_metadata: Metadata,
+    secret: str,
+    *,
+    expected_existing: bool | None = None,
+) -> dict[str, Any]:
+    validate_metadata(final_metadata)
+    validate_secret(secret)
     previous_metadata_items = search_metadata(final_metadata.name)
     previous_metadata = (
         previous_metadata_items[0] if previous_metadata_items else None
     )
+    if (
+        expected_existing is not None
+        and (previous_metadata is not None) != expected_existing
+    ):
+        raise KeepKeysError(
+            "The stored KeepKeys name changed after the phone page opened. "
+            "Start a new phone intake and review the replacement warning."
+        )
     previous_secret = (
-        lookup_secret_optional(final_metadata.name)
+        lookup_secret(final_metadata.name)
         if previous_metadata is not None
         else None
     )
     try:
         store_value(final_metadata.name, secret)
         store_metadata(final_metadata)
-    except KeepKeysError as write_error:
+    except (
+        KeepKeysError,
+        OSError,
+        subprocess.SubprocessError,
+    ) as write_error:
+        rollback_errors: list[BaseException] = []
         try:
             if previous_secret is None:
-                clear_item(SECRET_SERVICE, final_metadata.name)
+                if not clear_item(SECRET_SERVICE, final_metadata.name):
+                    rollback_errors.append(
+                        KeepKeysError(
+                            "Secret Service did not remove the failed value."
+                        )
+                    )
             else:
                 store_value(final_metadata.name, previous_secret)
+        except (
+            KeepKeysError,
+            OSError,
+            subprocess.SubprocessError,
+        ) as rollback_error:
+            rollback_errors.append(rollback_error)
+        try:
             if previous_metadata is None:
-                clear_item(METADATA_SERVICE, final_metadata.name)
+                if not clear_item(METADATA_SERVICE, final_metadata.name):
+                    rollback_errors.append(
+                        KeepKeysError(
+                            "Secret Service did not remove the failed metadata."
+                        )
+                    )
             else:
                 store_metadata(
                     previous_metadata,
@@ -1134,11 +1465,17 @@ def action_store(arguments: list[str]) -> dict[str, Any]:
                         and not previous_metadata.documentation_urls
                     ),
                 )
-        except KeepKeysError as rollback_error:
-            raise KeepKeysError(
+        except (
+            KeepKeysError,
+            OSError,
+            subprocess.SubprocessError,
+        ) as rollback_error:
+            rollback_errors.append(rollback_error)
+        if rollback_errors:
+            raise PortalStorageUncertainError(
                 f"Secret Service failed during storage and rollback. Remove "
                 f"'{final_metadata.name}' from KeepKeys before retrying."
-            ) from rollback_error
+            ) from rollback_errors[0]
         raise write_error
     finally:
         secret = ""
@@ -1152,6 +1489,196 @@ def action_store(arguments: list[str]) -> dict[str, Any]:
         "provider": final_metadata.provider,
         "documentationUrls": list(final_metadata.documentation_urls),
     }
+
+
+def read_portal_secret() -> bytearray:
+    expected_digest = os.environ.pop(
+        "KEEPKEYS_PORTAL_CAPABILITY_SHA256", ""
+    )
+    expected_parent = os.environ.pop("KEEPKEYS_PORTAL_PARENT_PID", "")
+    if (
+        sys.stdin.isatty()
+        or not re.fullmatch(r"[a-f0-9]{64}", expected_digest)
+        or not expected_parent.isascii()
+        or not expected_parent.isdigit()
+        or int(expected_parent) != os.getppid()
+        or not portal_parent_is_bundled_portal(int(expected_parent))
+    ):
+        raise KeepKeysError(
+            "The private phone-intake commit requires the live KeepKeys "
+            "portal channel."
+        )
+    capability = bytearray()
+    while len(capability) < PORTAL_CAPABILITY_BYTES:
+        chunk = sys.stdin.buffer.read(
+            PORTAL_CAPABILITY_BYTES - len(capability)
+        )
+        if not chunk:
+            break
+        capability.extend(chunk)
+    try:
+        if len(capability) != PORTAL_CAPABILITY_BYTES:
+            raise KeepKeysError(
+                "The private phone-intake channel ended before authorization."
+            )
+        actual_digest = hashlib.sha256(capability).hexdigest()
+        if not hmac.compare_digest(actual_digest, expected_digest):
+            raise KeepKeysError(
+                "The private phone-intake channel was not authorized."
+            )
+    finally:
+        for index in range(len(capability)):
+            capability[index] = 0
+    return bytearray(sys.stdin.buffer.read(MAX_SECRET_BYTES + 1))
+
+
+def action_portal_commit(arguments: list[str]) -> dict[str, Any]:
+    metadata = Metadata(
+        name=require_option(arguments, "--name"),
+        variable=require_option(arguments, "--variable").upper(),
+        description=require_option(arguments, "--description"),
+        provider=require_option(arguments, "--provider"),
+        documentation_urls=repeated_options(arguments, "--documentation-url"),
+    )
+    validate_metadata(metadata)
+    expected_value = require_option(arguments, "--expect-existing")
+    if expected_value not in {"yes", "no"}:
+        raise KeepKeysError(
+            "The private phone-intake replacement state is invalid."
+        )
+    native_self_test_value = option(arguments, "--native-self-test") or "no"
+    if native_self_test_value not in {
+        "no",
+        "round-trip",
+        "create-to-replace",
+        "replace-to-create",
+    }:
+        raise KeepKeysError(
+            "The private native portal test request is invalid."
+        )
+    native_self_test = native_self_test_value != "no"
+    native_self_test_flag = os.environ.pop(
+        "KEEPKEYS_PORTAL_NATIVE_TEST", ""
+    )
+    if native_self_test and (
+        native_self_test_flag != "1"
+        or not metadata.name.startswith("keepkeys-portal-test-")
+        or (
+            native_self_test_value == "replace-to-create"
+            and expected_value != "yes"
+        )
+        or (
+            native_self_test_value != "replace-to-create"
+            and expected_value != "no"
+        )
+    ):
+        raise KeepKeysError(
+            "KeepKeys rejected an unauthorized native portal test."
+        )
+    secret_bytes = read_portal_secret()
+    try:
+        if len(secret_bytes) > MAX_SECRET_BYTES:
+            raise KeepKeysError(
+                f"Secret values must not exceed {MAX_SECRET_BYTES} UTF-8 bytes."
+            )
+        try:
+            secret = secret_bytes.decode("utf-8", errors="strict")
+        except UnicodeDecodeError as error:
+            raise KeepKeysError(
+                "The phone submitted an invalid UTF-8 key."
+            ) from error
+        try:
+            if not native_self_test:
+                return store_record(
+                    metadata,
+                    secret,
+                    expected_existing=expected_value == "yes",
+                )
+            race_secret = f"{secret}-replacement-race"
+            validate_secret(race_secret)
+            replacement_state_message = (
+                "The stored KeepKeys name changed after the phone page opened. "
+                "Start a new phone intake and review the replacement warning."
+            )
+            record_created = False
+            try:
+                if native_self_test_value == "round-trip":
+                    result = store_record(
+                        metadata,
+                        secret,
+                        expected_existing=False,
+                    )
+                    record_created = True
+                    verified = (
+                        result.get("status") == "ok"
+                        and lookup_secret(metadata.name) == secret
+                        and search_metadata(metadata.name) == [metadata]
+                    )
+                elif native_self_test_value == "create-to-replace":
+                    store_record(
+                        metadata,
+                        secret,
+                        expected_existing=False,
+                    )
+                    record_created = True
+                    rejected = False
+                    try:
+                        store_record(
+                            metadata,
+                            race_secret,
+                            expected_existing=False,
+                        )
+                    except KeepKeysError as error:
+                        if str(error) != replacement_state_message:
+                            raise
+                        rejected = True
+                    verified = (
+                        rejected
+                        and lookup_secret(metadata.name) == secret
+                        and search_metadata(metadata.name) == [metadata]
+                    )
+                else:
+                    rejected = False
+                    try:
+                        store_record(
+                            metadata,
+                            race_secret,
+                            expected_existing=True,
+                        )
+                    except KeepKeysError as error:
+                        if str(error) != replacement_state_message:
+                            raise
+                        rejected = True
+                    verified = (
+                        rejected
+                        and not search_metadata(metadata.name)
+                    )
+            finally:
+                if record_created:
+                    clear_native_portal_test_record(metadata.name)
+                race_secret = ""
+            if (
+                not verified
+                or search_metadata(metadata.name)
+            ):
+                raise KeepKeysError(
+                    "The temporary native portal Secret Service scenario or "
+                    "cleanup did not verify."
+                )
+            return {
+                "status": "ok",
+                "message": (
+                    "Temporary native portal Secret Service scenario and "
+                    "cleanup verified."
+                ),
+                "cleaned": True,
+                "scenario": native_self_test_value,
+            }
+        finally:
+            secret = ""
+    finally:
+        for index in range(len(secret_bytes)):
+            secret_bytes[index] = 0
 
 
 def action_remove(arguments: list[str]) -> dict[str, Any]:
@@ -1175,6 +1702,49 @@ def action_remove(arguments: list[str]) -> dict[str, Any]:
     }
 
 
+def action_revoke(arguments: list[str]) -> dict[str, Any]:
+    name = require_option(arguments, "--name")
+    if not valid_name(name):
+        raise KeepKeysError("The requested KeepKeys name is invalid.")
+    matches = search_metadata(name)
+    if not matches:
+        return {
+            "status": "ok",
+            "message": f"No KeepKeys item named '{name}' exists.",
+            "revokedRules": 0,
+        }
+    metadata = matches[0]
+    if not metadata.allow_rules:
+        return {
+            "status": "ok",
+            "message": f"No always-allow rules are stored for '{name}'.",
+            "revokedRules": 0,
+        }
+    if not BrandedUI().confirm_revoke(metadata):
+        return {
+            "status": "cancelled",
+            "message": "Always-allow revocation was cancelled.",
+        }
+    current = search_metadata(name)
+    if not current or current[0] != metadata:
+        raise KeepKeysError(
+            "The secret metadata changed before approval rules could be revoked. Try again."
+        )
+    cleared = Metadata(
+        name=metadata.name,
+        variable=metadata.variable,
+        description=metadata.description,
+        provider=metadata.provider,
+        documentation_urls=metadata.documentation_urls,
+    )
+    store_metadata(cleared)
+    return {
+        "status": "ok",
+        "message": f"Disabled automatic approvals for '{name}'.",
+        "revokedRules": len(metadata.allow_rules),
+    }
+
+
 def action_run(arguments: list[str]) -> dict[str, Any]:
     try:
         separator = arguments.index("--")
@@ -1195,8 +1765,23 @@ def action_run(arguments: list[str]) -> dict[str, Any]:
     if not matches:
         raise KeepKeysError(f"No KeepKeys secret is stored as '{request.name}'.")
     metadata = matches[0]
-    if not BrandedUI().approve(request, metadata):
+    if matching_allow_rule(request, metadata):
+        decision = "always"
+    else:
+        decision = BrandedUI().approve(request, metadata)
+    if decision == "cancel":
         return {"status": "cancelled", "message": "Command use was cancelled."}
+    if decision not in {"once", "always"}:
+        raise KeepKeysError("KeepKeys received an invalid approval decision.")
+    refreshed = search_metadata(request.name)
+    if not refreshed or refreshed[0] != metadata:
+        raise KeepKeysError(
+            "The secret metadata changed after approval. KeepKeys refused to run."
+        )
+    if decision == "always" and not matching_allow_rule(request, metadata):
+        # Store only metadata after explicit UI approval; a rotation replaces this with no rules.
+        metadata = metadata_with_allow_rule(metadata, allow_rule_for(request, metadata))
+        store_metadata(metadata)
     secret = lookup_secret(request.name)
     try:
         refreshed = search_metadata(request.name)
@@ -1218,16 +1803,16 @@ def action_doctor() -> dict[str, Any]:
         name=name,
         variable="KEEPKEYS_DOCTOR",
         description="Temporary KeepKeys Secret Service verification",
-        provider="BarnLabs",
-        documentation_urls=("https://github.com/barnlabs/keepkeys",),
+        provider="Neorome",
+        documentation_urls=("https://github.com/neorome/keepkeys",),
     )
     second_metadata = Metadata(
         name=name,
         variable="KEEPKEYS_DOCTOR_UPDATED",
         description="Updated temporary KeepKeys verification",
-        provider="BarnLabs",
+        provider="Neorome",
         documentation_urls=(
-            "https://github.com/barnlabs/keepkeys/blob/main/README.md",
+            "https://github.com/neorome/keepkeys/blob/main/README.md",
         ),
     )
     try:
@@ -1276,8 +1861,8 @@ def action_self_test() -> dict[str, Any]:
         name="self-test",
         variable="KEEPKEYS_TEST",
         description="Synthetic scoped-process self-test",
-        provider="BarnLabs",
-        documentation_urls=("https://github.com/barnlabs/keepkeys",),
+        provider="Neorome",
+        documentation_urls=("https://github.com/neorome/keepkeys",),
     )
     label = encode_label(metadata)
     if decode_label(label) != metadata:
@@ -1313,11 +1898,30 @@ def action_self_test() -> dict[str, Any]:
 
 def main(arguments: list[str]) -> None:
     if not arguments:
-        fail("Usage: keepkeys <store|list|remove|run|status|doctor|--self-test>")
+        fail("Usage: keepkeys <store|rotate|revoke|list|remove|run|status|doctor|--self-test>")
     action, rest = arguments[0], arguments[1:]
     try:
         if action == "store":
+            if os.environ.pop("KEEPKEYS_SERIALIZED_MUTATION", "") != "1":
+                raise KeepKeysError(
+                    "KeepKeys store and remove actions must use the shared "
+                    "per-name coordinator."
+                )
             result = action_store(rest)
+        elif action == "rotate":
+            if os.environ.pop("KEEPKEYS_SERIALIZED_MUTATION", "") != "1":
+                raise KeepKeysError(
+                    "KeepKeys rotate actions must use the shared per-name coordinator."
+                )
+            result = action_rotate(rest)
+        elif action == "revoke":
+            if os.environ.pop("KEEPKEYS_SERIALIZED_MUTATION", "") != "1":
+                raise KeepKeysError(
+                    "KeepKeys revoke actions must use the shared per-name coordinator."
+                )
+            result = action_revoke(rest)
+        elif action == "_portal-commit":
+            result = action_portal_commit(rest)
         elif action == "list":
             result = {
                 "status": "ok",
@@ -1333,6 +1937,11 @@ def main(arguments: list[str]) -> None:
                 ],
             }
         elif action == "remove":
+            if os.environ.pop("KEEPKEYS_SERIALIZED_MUTATION", "") != "1":
+                raise KeepKeysError(
+                    "KeepKeys store, rotate, revoke, and remove actions must use the shared "
+                    "per-name coordinator."
+                )
             result = action_remove(rest)
         elif action == "run":
             result = action_run(rest)
@@ -1357,6 +1966,12 @@ def main(arguments: list[str]) -> None:
         else:
             raise KeepKeysError(f"Unknown KeepKeys action '{action}'.")
         emit(result)
+    except PortalStorageUncertainError as error:
+        fail(
+            str(error),
+            storageState="uncertain",
+            cleanupKind="native-rollback",
+        )
     except KeepKeysError as error:
         fail(str(error))
     except (OSError, subprocess.SubprocessError) as error:

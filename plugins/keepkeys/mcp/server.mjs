@@ -6,6 +6,7 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
 import { helperInvocation, terminateProcessTree } from "../scripts/platform.mjs";
+import { withPortalCommitLock } from "../scripts/keepkeys-portal.mjs";
 
 const PROTOCOL_VERSION = "2025-06-18";
 const MAX_HELPER_OUTPUT = 2 * 1024 * 1024;
@@ -100,9 +101,10 @@ export function helperArguments(toolName, rawArguments) {
   const args = assertObject(rawArguments);
   assertExactKeys(toolName, args);
   switch (toolName) {
-    case "keepkeys_store": {
+    case "keepkeys_store":
+    case "keepkeys_store_from_phone": {
       const command = [
-        "store",
+        toolName === "keepkeys_store" ? "store" : "portal-store",
         "--name",
         readRequiredString(args, "name", 128),
         "--variable",
@@ -121,6 +123,10 @@ export function helperArguments(toolName, rawArguments) {
       return ["list"];
     case "keepkeys_remove":
       return ["remove", "--name", readRequiredString(args, "name", 128)];
+    case "keepkeys_rotate":
+      return ["rotate", "--name", readRequiredString(args, "name", 128)];
+    case "keepkeys_revoke":
+      return ["revoke", "--name", readRequiredString(args, "name", 128)];
     case "keepkeys_status":
       return ["status"];
     case "keepkeys_doctor":
@@ -158,7 +164,7 @@ function runHelper(toolName, args) {
     10,
   );
 
-  return new Promise((resolvePromise, rejectPromise) => {
+  const run = () => new Promise((resolvePromise, rejectPromise) => {
     const child = spawn(invocation.command, invocation.args, {
       cwd: invocation.env.KEEPKEYS_PLUGIN_ROOT,
       env: invocation.env,
@@ -244,6 +250,9 @@ function runHelper(toolName, args) {
       );
     }, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS);
   });
+  return toolName === "keepkeys_run"
+    ? withPortalCommitLock(args.name, run, { operationKind: "run" })
+    : run();
 }
 
 export function createRequestHandler(helperRunner = runHelper) {
@@ -259,9 +268,9 @@ export function createRequestHandler(helperRunner = runHelper) {
               ? params.protocolVersion
               : PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: "keepkeys", version: "0.4.2" },
+          serverInfo: { name: "keepkeys", version: "0.7.0" },
           instructions:
-            "KeepKeys stores values outside chat and never exposes plaintext secrets. Use keepkeys_run only for direct commands the user intends to approve.",
+            "KeepKeys stores values outside chat and never exposes plaintext secrets. Use keepkeys_store_from_phone only when the user asks for phone intake, and never open its one-time link. Use keepkeys_run only for direct commands the user intends to approve.",
         },
       };
     }

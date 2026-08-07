@@ -13,6 +13,7 @@ chmod 700 "$ci_home" "$ci_runtime"
 export HOME="$ci_home"
 export XDG_RUNTIME_DIR="$ci_runtime"
 export KEEPKEYS_LINUX_HELPER="$root/plugins/keepkeys/scripts/keepkeys.linux.py"
+export KEEPKEYS_PLUGIN_ROOT="$root"
 
 dbus-run-session -- sh -eu <<'INNER'
 daemon_environment=$(
@@ -22,4 +23,7 @@ daemon_environment=$(
 eval "$daemon_environment"
 export GNOME_KEYRING_CONTROL
 python3 "$KEEPKEYS_LINUX_HELPER" doctor
+KEEPKEYS_PORTAL_NATIVE_TEST=1 \
+  node "$KEEPKEYS_PLUGIN_ROOT/plugins/keepkeys/scripts/keepkeys-portal.mjs" \
+  --native-portal-self-test
 INNER

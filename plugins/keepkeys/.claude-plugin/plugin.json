@@ -1,20 +1,22 @@
 {
   "name": "keepkeys",
   "displayName": "KeepKeys",
-  "version": "0.4.2",
-  "description": "Paste local secrets into the native OS vault and let your agent use them through approval-gated commands.",
+  "version": "0.7.0",
+  "description": "Store, rotate, and use native-vault secrets with exact-command approval and no plaintext retrieval.",
   "author": {
-    "name": "BarnLabs",
-    "url": "https://github.com/barnlabs"
+    "name": "Neorome",
+    "url": "https://github.com/neorome"
   },
-  "homepage": "https://github.com/barnlabs/keepkeys",
-  "repository": "https://github.com/barnlabs/keepkeys",
+  "homepage": "https://github.com/neorome/keepkeys",
+  "repository": "https://github.com/neorome/keepkeys",
   "license": "Apache-2.0",
   "keywords": [
     "secrets",
     "credential-vault",
     "windows",
     "linux",
+    "tailscale",
+    "mobile",
     "agents",
     "mcp"
   ],

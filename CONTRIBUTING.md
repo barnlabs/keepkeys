@@ -9,11 +9,14 @@ KeepKeys stays small because every additional capability expands a credential bo
 3. Keep the plugin as the product. Do not add a standalone app, cloud vault,
    account system, telemetry service, silent/background updater, or raw-secret
    retrieval path. Deliberate update discovery must stay read-only and
-   user-initiated.
+   user-initiated. The optional phone path must stay one-use, tailnet-only, and
+   free of Neorome-hosted secret handling.
 4. Preserve the one shared contract and dispatcher. A new client integration
    must be a thin adapter; a new operating system needs a threat-modeled native
    vault and human-gate backend.
 5. Discuss changes to storage, command execution, tool schemas, native prompts, permissions, or distribution before implementing them.
+6. Treat Tailscale Funnel, persistent listeners, secret synchronization, and
+   public browser intake as out of scope.
 
 ## Development
 

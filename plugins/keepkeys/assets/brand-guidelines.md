@@ -20,9 +20,12 @@ Primary assets:
 - `keykeeper.png`: full-resolution character artwork;
 - `social-preview.png`: GitHub/README hero lockup;
 - `icon.png`, `logo.png`, and `logo-dark.png`: plugin-store crops.
+- [`.github/assets/keepkeys/`](../../../.github/assets/keepkeys/): the
+  repository copy of the web favicon family and its GitHub-rendered previews,
+  including separate full and 16px optical masters.
 
 The character artwork is an original OpenAI-generated illustration produced for
-BarnLabs on 2026-07-24. Do not substitute stock art, another product's mascot,
+Neorome on 2026-08-07. Do not substitute stock art, another product's mascot,
 or a recognizable real person.
 
 ## Palette
@@ -35,6 +38,8 @@ or a recognizable real person.
 | Aged brass | `#C79A45` | Key ring, metadata labels, restrained highlights |
 | Warm paper | `#FFF8EC` | Light surfaces and reverse type |
 | Field sage | `#41544C` | Supporting copy |
+| Favicon brass | `#D9A83E` | Small key-ring mark |
+| Favicon coral | `#E56F51` | Small keeper tab |
 
 Use ember as an accent, not a full-page background. Warm paper replaces clinical
 white. The hero may use a subtle paper gradient; product icons and wordmarks stay
@@ -46,6 +51,14 @@ Use the complete Keykeeper illustration for hero, store, social, and
 announcement surfaces. At very small sizes, the brass key-ring utility mark may
 replace the character, but a shield or padlock must not become the primary
 identity.
+
+Use the two-key full master at 32px and above. The 16px favicon has its own
+single-key optical master; do not reduce the full mark to 16px. The older
+`icon.svg` remains for compatibility but is not the source for new GitHub or
+web favicon assets.
+
+GitHub can render the mark in repository Markdown, but GitHub controls its own
+browser-tab favicon and does not provide a per-repository favicon setting.
 
 Preserve the original crop, expression, coat, scarf, and visible ring. Do not
 stretch, mirror, recolor, add dramatic shadows, place text over the face or keys,

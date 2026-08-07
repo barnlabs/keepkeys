@@ -7,9 +7,9 @@ import { fileURLToPath } from "node:url";
 
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const WINDOWS_HELPER_SHA256 =
-  "ab40d476aa1bc540295573e2cf72575c9d8722ae94581c98ba44bb2ce7c17cbb";
+  "54daed073804153f14295d658a2ef7f99bf0fc05be5fa0612b2b0f70945535a2";
 const LINUX_HELPER_SHA256 =
-  "d7a1e07b01eb3c0705507e5ab871622e9c8acce15cf6de13baee37a2c2289323";
+  "3272397ee843c7c5889ebf1ea119f941520e887f13a22f8ae76cefc7daf97e69";
 
 function copyPresent(target, source, names) {
   for (const name of names) {
@@ -38,13 +38,52 @@ function verifiedHelper(relativePath, expectedHash) {
   return path;
 }
 
-export function helperInvocation(
+function routedInvocation(helperArguments, nativeInvocation) {
+  if (helperArguments[0] === "portal-store") {
+    return {
+      command: process.execPath,
+      args: [
+        resolve(pluginRoot, "scripts", "keepkeys-portal.mjs"),
+        ...helperArguments.slice(1),
+      ],
+      env: nativeInvocation.env,
+    };
+  }
+  if (helperArguments[0] === "rotate") {
+    return {
+      command: process.execPath,
+      args: [
+        resolve(pluginRoot, "scripts", "keepkeys-rotate.mjs"),
+        ...helperArguments.slice(1),
+      ],
+      env: nativeInvocation.env,
+    };
+  }
+  if (
+    helperArguments[0] === "store" ||
+    helperArguments[0] === "remove" ||
+    helperArguments[0] === "revoke"
+  ) {
+    return {
+      command: process.execPath,
+      args: [
+        resolve(pluginRoot, "scripts", "keepkeys-store.mjs"),
+        ...helperArguments,
+      ],
+      env: nativeInvocation.env,
+    };
+  }
+  return nativeInvocation;
+}
+
+function buildInvocation(
   helperArguments,
   {
     platform = process.platform,
     environment = process.env,
     home = homedir(),
   } = {},
+  routePortalStore = true,
 ) {
   const common = {
     KEEPKEYS_CALLED_FROM_MCP: "1",
@@ -59,11 +98,14 @@ export function helperInvocation(
       KEEPKEYS_ASSETS_DIR: resolve(pluginRoot, "assets"),
     };
     copyPresent(env, environment, ["LANG", "LC_ALL", "TMPDIR"]);
-    return {
+    const invocation = {
       command: resolve(pluginRoot, "scripts", "keepkeys"),
       args: helperArguments,
       env,
     };
+    return routePortalStore
+      ? routedInvocation(helperArguments, invocation)
+      : invocation;
   }
 
   if (platform === "win32") {
@@ -99,7 +141,7 @@ export function helperInvocation(
       "USERNAME",
       "USERDOMAIN",
     ]);
-    return {
+    const invocation = {
       command: powershell,
       args: [
         "-NoLogo",
@@ -114,6 +156,9 @@ export function helperInvocation(
       ],
       env,
     };
+    return routePortalStore
+      ? routedInvocation(helperArguments, invocation)
+      : invocation;
   }
 
   if (platform === "linux") {
@@ -138,7 +183,7 @@ export function helperInvocation(
       "XDG_RUNTIME_DIR",
       "XDG_SESSION_TYPE",
     ]);
-    return {
+    const invocation = {
       command: "/usr/bin/python3",
       args: [
         helper,
@@ -146,6 +191,9 @@ export function helperInvocation(
       ],
       env,
     };
+    return routePortalStore
+      ? routedInvocation(helperArguments, invocation)
+      : invocation;
   }
 
   throw new Error(
@@ -153,23 +201,523 @@ export function helperInvocation(
   );
 }
 
-export function terminateProcessTree(child, platform = process.platform) {
-  if (!child?.pid) return;
-  if (platform === "win32") {
-    spawnSync(
-      resolve(
-        process.env.SystemRoot ?? "C:\\Windows",
-        "System32",
-        "taskkill.exe",
-      ),
-      ["/PID", `${child.pid}`, "/T", "/F"],
-      { windowsHide: true, stdio: "ignore" },
+export function helperInvocation(helperArguments, options = {}) {
+  if (
+    helperArguments[0] === "portal-commit" ||
+    helperArguments[0] === "_portal-commit"
+  ) {
+    throw new Error(
+      "The private phone-intake commit is not a public KeepKeys action.",
     );
-    return;
+  }
+  return buildInvocation(helperArguments, options, true);
+}
+
+export function portalCommitInvocation(
+  helperArguments,
+  { capabilitySha256, parentPid },
+  options = {},
+) {
+  if (
+    helperArguments[0] !== "_portal-commit" ||
+    !/^[a-f0-9]{64}$/u.test(capabilitySha256) ||
+    !Number.isSafeInteger(parentPid) ||
+    parentPid <= 0
+  ) {
+    throw new Error("KeepKeys rejected an invalid private portal channel.");
+  }
+  const invocation = buildInvocation(helperArguments, options, false);
+  invocation.env.KEEPKEYS_PORTAL_CAPABILITY_SHA256 = capabilitySha256;
+  invocation.env.KEEPKEYS_PORTAL_PARENT_PID = String(parentPid);
+  return invocation;
+}
+
+export function nativeMutationInvocation(helperArguments, options = {}) {
+  if (
+    helperArguments[0] !== "store" &&
+    helperArguments[0] !== "remove" &&
+    helperArguments[0] !== "revoke"
+  ) {
+    throw new Error("KeepKeys rejected an invalid serialized mutation.");
+  }
+  const invocation = buildInvocation(helperArguments, options, false);
+  invocation.env.KEEPKEYS_SERIALIZED_MUTATION = "1";
+  return invocation;
+}
+
+export function nativeStoreInvocation(helperArguments, options = {}) {
+  if (helperArguments[0] !== "store") {
+    throw new Error("KeepKeys rejected an invalid serialized store action.");
+  }
+  return nativeMutationInvocation(helperArguments, options);
+}
+
+export function processHasExited(child) {
+  return Boolean(
+    child &&
+      ((child.exitCode !== undefined && child.exitCode !== null) ||
+        (child.signalCode !== undefined && child.signalCode !== null)),
+  );
+}
+
+function windowsProcessSnapshot() {
+  const result = spawnSync(
+    resolve(
+      process.env.SystemRoot ?? "C:\\Windows",
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe",
+    ),
+    [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      [
+        "$ErrorActionPreference='Stop';",
+        "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);",
+        "Get-CimInstance Win32_Process | ForEach-Object {",
+        "$created=if($null -eq $_.CreationDate){'0'}else{$_.CreationDate.ToUniversalTime().Ticks.ToString([Globalization.CultureInfo]::InvariantCulture)};",
+        "[Console]::Out.WriteLine(('{0},{1},{2}' -f $_.ProcessId,$_.ParentProcessId,$created))",
+        "}",
+      ].join(""),
+    ],
+    {
+      encoding: "utf8",
+      timeout: 5000,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  if (result.error || result.status !== 0 || typeof result.stdout !== "string") {
+    throw new Error("KeepKeys could not inspect the Windows process tree.");
+  }
+  const processes = new Map();
+  for (const line of result.stdout.replace(/^\uFEFF/u, "").split(/\r?\n/u)) {
+    if (line.length === 0) continue;
+    const [
+      processIdText,
+      parentProcessIdText,
+      creationToken,
+      ...extra
+    ] = line.split(",");
+    const processId = Number.parseInt(processIdText, 10);
+    const parentProcessId = Number.parseInt(parentProcessIdText, 10);
+    if (
+      extra.length > 0 ||
+      !/^\d+$/u.test(creationToken ?? "") ||
+      !Number.isSafeInteger(processId) ||
+      processId < 0 ||
+      !Number.isSafeInteger(parentProcessId) ||
+      parentProcessId < 0
+    ) {
+      throw new Error("KeepKeys received an invalid Windows process snapshot.");
+    }
+    if (processId === 0) continue;
+    processes.set(processId, { parentProcessId, creationToken });
+  }
+  return processes;
+}
+
+export function ownedWindowsTreeFromSnapshot(
+  processes,
+  rootRecords,
+  {
+    pinUnknownRoots = false,
+    discoverFromMissingRoots = false,
+  } = {},
+) {
+  const owned = new Map(
+    rootRecords.map((record) => [record.processId, { ...record }]),
+  );
+  const expandable = new Set();
+  let ambiguous = false;
+  for (const record of owned.values()) {
+    const current = processes.get(record.processId);
+    if (record.creationToken === undefined) {
+      if (current && pinUnknownRoots) {
+        record.creationToken = current.creationToken;
+        expandable.add(record.processId);
+      } else if (!current && discoverFromMissingRoots) {
+        expandable.add(record.processId);
+      } else if (current) {
+        ambiguous = true;
+      }
+      continue;
+    }
+    if (current?.creationToken === record.creationToken) {
+      expandable.add(record.processId);
+    }
+  }
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [processId, processRecord] of processes) {
+      if (
+        expandable.has(processRecord.parentProcessId) &&
+        !owned.has(processId)
+      ) {
+        owned.set(processId, {
+          processId,
+          creationToken: processRecord.creationToken,
+        });
+        expandable.add(processId);
+        changed = true;
+      }
+    }
+  }
+  const records = [...owned.values()];
+  const liveRecords = records.filter((record) => {
+    const current = processes.get(record.processId);
+    return Boolean(
+      current && current.creationToken === record.creationToken,
+    );
+  });
+  return { ambiguous, records, liveRecords };
+}
+
+function windowsOwnedTreeRecords(rootRecords, options) {
+  return ownedWindowsTreeFromSnapshot(
+    windowsProcessSnapshot(),
+    rootRecords,
+    options,
+  );
+}
+
+function runWindowsTaskkill(processId) {
+  // Windows has no portable SIGTERM for console process trees. Node also maps
+  // its supported termination signals to a forced stop on this platform.
+  const result = spawnSync(
+    resolve(
+      process.env.SystemRoot ?? "C:\\Windows",
+      "System32",
+      "taskkill.exe",
+    ),
+    [
+      "/PID",
+      `${processId}`,
+      "/T",
+      "/F",
+    ],
+    { windowsHide: true, stdio: "ignore" },
+  );
+  return !result.error && result.status === 0;
+}
+
+function signalProcessTree(
+  child,
+  platform,
+  signal,
+  knownWindowsProcesses = [],
+) {
+  if (!child?.pid) return { requested: true, processGroup: false };
+  if (platform === "win32") {
+    let ownedTree;
+    try {
+      const knownRecords =
+        knownWindowsProcesses.length > 0
+          ? knownWindowsProcesses
+          : [{ processId: child.pid }];
+      const childExited = processHasExited(child);
+      ownedTree = windowsOwnedTreeRecords(knownRecords, {
+        pinUnknownRoots: !childExited,
+        discoverFromMissingRoots: childExited,
+      });
+    } catch {
+      return {
+        requested: false,
+        processGroup: false,
+        windowsProcesses: knownWindowsProcesses,
+      };
+    }
+    if (ownedTree.ambiguous) {
+      return {
+        requested: false,
+        processGroup: false,
+        windowsProcesses: ownedTree.records,
+      };
+    }
+    let requested = false;
+    const attempted = new Set();
+    while (true) {
+      const record = ownedTree.liveRecords.find(
+        (candidate) =>
+          !attempted.has(
+            `${candidate.processId}:${candidate.creationToken}`,
+          ),
+      );
+      if (!record) break;
+      attempted.add(`${record.processId}:${record.creationToken}`);
+      requested = runWindowsTaskkill(record.processId) || requested;
+      try {
+        ownedTree = windowsOwnedTreeRecords(ownedTree.records);
+      } catch {
+        return {
+          requested: false,
+          processGroup: false,
+          windowsProcesses: ownedTree.records,
+        };
+      }
+      if (ownedTree.ambiguous) {
+        return {
+          requested: false,
+          processGroup: false,
+          windowsProcesses: ownedTree.records,
+        };
+      }
+    }
+    if (ownedTree.liveRecords.length === 0) requested = true;
+    return {
+      requested,
+      processGroup: false,
+      windowsProcesses: ownedTree.records,
+    };
   }
   try {
-    process.kill(-child.pid, "SIGKILL");
-  } catch {
-    child.kill("SIGKILL");
+    process.kill(-child.pid, signal);
+    return { requested: true, processGroup: true };
+  } catch (error) {
+    if (error?.code === "ESRCH" && processHasExited(child)) {
+      return { requested: true, processGroup: true };
+    }
+    try {
+      return {
+        requested: processHasExited(child) ? false : child.kill(signal),
+        processGroup: false,
+      };
+    } catch {
+      return { requested: false, processGroup: false };
+    }
   }
+}
+
+export function terminateProcessTree(child, platform = process.platform) {
+  return signalProcessTree(child, platform, "SIGKILL").requested;
+}
+
+function processGroupExists(pid) {
+  try {
+    process.kill(-pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code !== "ESRCH";
+  }
+}
+
+function waitForProcessGroupExit(pid, timeoutMs, message) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const deadline = Date.now() + timeoutMs;
+    const inspect = () => {
+      if (!processGroupExists(pid)) {
+        resolvePromise();
+        return;
+      }
+      if (Date.now() >= deadline) {
+        rejectPromise(new Error(message));
+        return;
+      }
+      setTimeout(inspect, 25);
+    };
+    inspect();
+  });
+}
+
+function requestGracefulTermination(child, platform, tree) {
+  if (tree) {
+    return signalProcessTree(child, platform, "SIGTERM");
+  }
+  if (processHasExited(child)) {
+    return { requested: true, processGroup: false };
+  }
+  try {
+    return { requested: child.kill("SIGTERM"), processGroup: false };
+  } catch {
+    return { requested: false, processGroup: false };
+  }
+}
+
+function waitForWindowsTreeExit(windowsProcesses, timeoutMs, message) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const deadline = Date.now() + timeoutMs;
+    let trackedProcesses = windowsProcesses;
+    const inspect = () => {
+      let ownedTree;
+      try {
+        ownedTree = windowsOwnedTreeRecords(trackedProcesses);
+        trackedProcesses = ownedTree.records;
+      } catch (error) {
+        rejectPromise(error);
+        return;
+      }
+      if (ownedTree.ambiguous) {
+        rejectPromise(
+          new Error(
+            "KeepKeys detected ambiguous Windows process identity during cleanup.",
+          ),
+        );
+        return;
+      }
+      if (ownedTree.liveRecords.length === 0) {
+        resolvePromise();
+        return;
+      }
+      if (Date.now() >= deadline) {
+        rejectPromise(new Error(message));
+        return;
+      }
+      setTimeout(inspect, 100);
+    };
+    inspect();
+  });
+}
+
+async function waitForTermination(
+  child,
+  platform,
+  timeoutMs,
+  processGroup,
+  message,
+  windowsProcesses = [],
+) {
+  if (platform === "win32" && windowsProcesses.length > 0) {
+    const deadline = Date.now() + timeoutMs;
+    await waitForWindowsTreeExit(windowsProcesses, timeoutMs, message);
+    if (!processHasExited(child)) {
+      await waitForProcessClose(
+        child,
+        Math.max(0, deadline - Date.now()),
+        message,
+      );
+    }
+    return;
+  }
+  if (platform !== "win32" && processGroup) {
+    return waitForProcessGroupExit(child.pid, timeoutMs, message);
+  }
+  if (processHasExited(child)) return Promise.resolve();
+  return waitForProcessClose(child, timeoutMs, message);
+}
+
+function waitForProcessClose(child, timeoutMs, message) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.removeListener("close", close);
+      callback(value);
+    };
+    const close = () => finish(resolvePromise);
+    child.once("close", close);
+    const timer = setTimeout(
+      () => finish(rejectPromise, new Error(message)),
+      timeoutMs,
+    );
+    if (processHasExited(child)) close();
+  });
+}
+
+async function terminateGracefullyAndWait(
+  child,
+  platform,
+  timeoutMs,
+  tree,
+) {
+  if (!child?.pid) return;
+  if (
+    typeof child.once !== "function" ||
+    typeof child.removeListener !== "function" ||
+    typeof child.kill !== "function"
+  ) {
+    throw new Error("KeepKeys cannot confirm graceful process termination.");
+  }
+  const termination = requestGracefulTermination(child, platform, tree);
+  if (!termination.requested) {
+    const requestError = new Error(
+      "KeepKeys could not request graceful process termination.",
+    );
+    if (termination.windowsProcesses) {
+      requestError.windowsProcesses = termination.windowsProcesses;
+    }
+    throw requestError;
+  }
+  try {
+    await waitForTermination(
+      child,
+      platform,
+      timeoutMs,
+      termination.processGroup,
+      "KeepKeys could not confirm graceful process termination.",
+      termination.windowsProcesses,
+    );
+  } catch (error) {
+    if (termination.windowsProcesses) {
+      error.windowsProcesses = termination.windowsProcesses;
+    }
+    throw error;
+  }
+}
+
+export function terminateProcessGracefullyAndWait(
+  child,
+  platform = process.platform,
+  timeoutMs = 5000,
+) {
+  return terminateGracefullyAndWait(child, platform, timeoutMs, false);
+}
+
+export async function terminateProcessTreeGracefullyAndWait(
+  child,
+  platform = process.platform,
+  timeoutMs = 5000,
+) {
+  try {
+    await terminateGracefullyAndWait(child, platform, timeoutMs, true);
+  } catch (error) {
+    await terminateProcessTreeAndWait(
+      child,
+      platform,
+      timeoutMs,
+      error?.windowsProcesses,
+    );
+    const forcedError = new Error(
+      "KeepKeys forced a process tree to stop after graceful cleanup could not be confirmed.",
+      { cause: error },
+    );
+    forcedError.processTreeTerminated = true;
+    throw forcedError;
+  }
+}
+
+export async function terminateProcessTreeAndWait(
+  child,
+  platform = process.platform,
+  timeoutMs = 5000,
+  knownWindowsProcesses = [],
+) {
+  if (!child?.pid) return;
+  if (typeof child.once !== "function") {
+    throw new Error("KeepKeys cannot confirm termination for this process.");
+  }
+  const termination = signalProcessTree(
+    child,
+    platform,
+    "SIGKILL",
+    knownWindowsProcesses,
+  );
+  if (!termination.requested) {
+    throw new Error(
+      "KeepKeys could not request process-tree termination or confirm exit.",
+    );
+  }
+  await waitForTermination(
+    child,
+    platform,
+    timeoutMs,
+    termination.processGroup,
+    "KeepKeys could not confirm that the process tree exited.",
+    termination.windowsProcesses,
+  );
 }

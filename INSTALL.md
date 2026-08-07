@@ -16,7 +16,7 @@ xcode-select --install
 ```
 
 The Swift helper compiles on first use into
-`~/Library/Caches/net.barnlabs.keepkeys`. Secret values stay in macOS Keychain.
+`~/Library/Caches/net.neorome.keepkeys`. Secret values stay in macOS Keychain.
 
 ### Windows
 
@@ -54,6 +54,37 @@ GNOME Keyring works directly. KDE needs a KWallet configuration that exposes
 the freedesktop Secret Service interface. KeepKeys fails closed when it cannot
 reach a secure vault or graphical prompt.
 
+### optional phone intake with Tailscale
+
+Phone intake works when ChatGPT mobile controls a connected Mac or Windows host
+through [ChatGPT Remote](https://learn.chatgpt.com/docs/remote-connections), or
+when another supported agent client runs on that host.
+
+Install [Tailscale](https://tailscale.com/download) on the host and phone, sign
+both into the same tailnet, and confirm the host has Tailscale 1.52 or newer:
+
+```sh
+tailscale version
+tailscale status
+```
+
+Tailscale Serve needs MagicDNS and HTTPS enabled for the tailnet. Follow
+[Tailscale's Serve setup](https://tailscale.com/docs/features/tailscale-serve)
+if the first phone-intake request reports that either is missing. KeepKeys does
+not install Tailscale, sign devices in, edit tailnet policy, or enable Funnel.
+
+Keep port 443 free of another foreground Tailscale Serve listener while the
+one-time page is active. KeepKeys refuses a listener conflict and does not
+reset or replace another Serve configuration.
+
+After installation, the phone flow is one request:
+
+> Store this key from my phone with KeepKeys.
+
+The agent asks only for missing non-secret metadata, then returns the private
+link without opening it. Open the link on the phone, paste the key, and press
+**Paste & Store**. No Neorome account or relay setup is required.
+
 ## Reviewed source pins
 
 KeepKeys is security-sensitive, so the commands below avoid a mutable `main`
@@ -61,10 +92,10 @@ checkout:
 
 ```text
 functional plugin commit
-e5276925d390704fccdf4aaeba47280464762a1c
+2525a3358831d2a539d6a1dbdcb5f7148c0418b5
 
 Claude/OMP catalog commit
-c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd
+fbccd06be00df77db27004355a6cac8b29e8533e
 ```
 
 The catalog commit pins its plugin source to the functional commit. Review both
@@ -73,9 +104,9 @@ before installation.
 ## Codex
 
 ```sh
-codex plugin marketplace add barnlabs/keepkeys \
-  --ref e5276925d390704fccdf4aaeba47280464762a1c
-codex plugin add keepkeys@barnlabs
+codex plugin marketplace add neorome/keepkeys \
+  --ref 2525a3358831d2a539d6a1dbdcb5f7148c0418b5
+codex plugin add keepkeys@neorome
 ```
 
 Start a new Codex session, then ask:
@@ -89,7 +120,7 @@ plugin hosts.
 
 ```sh
 grok plugin install \
-  'barnlabs/keepkeys@e5276925d390704fccdf4aaeba47280464762a1c#plugins/keepkeys' \
+  'neorome/keepkeys@2525a3358831d2a539d6a1dbdcb5f7148c0418b5#plugins/keepkeys' \
   --trust
 grok plugin list
 grok plugin details keepkeys
@@ -102,21 +133,21 @@ The exact-SHA subdirectory install is the credential-sensitive route.
 
 ```sh
 claude plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keepkeys/c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd/.claude-plugin/marketplace.json
-claude plugin install keepkeys@barnlabs
+  https://raw.githubusercontent.com/neorome/keepkeys/fbccd06be00df77db27004355a6cac8b29e8533e/.claude-plugin/marketplace.json
+claude plugin install keepkeys@neorome
 claude plugin list
 ```
 
 Claude Code does not expose a raw commit option for a Git marketplace checkout.
 The immutable raw catalog above pins `plugins/keepkeys` to functional commit
-`e5276925d390704fccdf4aaeba47280464762a1c`. Start a new Claude Code session.
+`2525a3358831d2a539d6a1dbdcb5f7148c0418b5`. Start a new Claude Code session.
 
 ## Oh My Pi
 
 ```sh
 omp plugin marketplace add \
-  https://raw.githubusercontent.com/barnlabs/keepkeys/c6e8c89c8dd38a7fecfdf6726a19f878aa80d1dd/.omp-plugin/marketplace.json
-omp plugin install keepkeys@barnlabs
+  https://raw.githubusercontent.com/neorome/keepkeys/fbccd06be00df77db27004355a6cac8b29e8533e/.omp-plugin/marketplace.json
+omp plugin install keepkeys@neorome
 omp plugin list
 ```
 
@@ -128,19 +159,19 @@ bundled MCP server. Start a new OMP session.
 Hermes installs the repository root. Use a detached reviewed checkout:
 
 ```sh
-git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.4.2
-git -C keepkeys-0.4.2 checkout --detach \
-  e5276925d390704fccdf4aaeba47280464762a1c
-hermes plugins install "file://$(cd keepkeys-0.4.2 && pwd)" --enable
+git clone https://github.com/neorome/keepkeys.git keepkeys-0.7.0
+git -C keepkeys-0.7.0 checkout --detach \
+  2525a3358831d2a539d6a1dbdcb5f7148c0418b5
+hermes plugins install "file://$(cd keepkeys-0.7.0 && pwd)" --enable
 hermes plugins list
 ```
 
 On Windows PowerShell:
 
 ```powershell
-git clone https://github.com/barnlabs/keepkeys.git keepkeys-0.4.2
-git -C keepkeys-0.4.2 checkout --detach e5276925d390704fccdf4aaeba47280464762a1c
-$path = (Resolve-Path .\keepkeys-0.4.2).Path
+git clone https://github.com/neorome/keepkeys.git keepkeys-0.7.0
+git -C keepkeys-0.7.0 checkout --detach 2525a3358831d2a539d6a1dbdcb5f7148c0418b5
+$path = (Resolve-Path .\keepkeys-0.7.0).Path
 hermes plugins install "file://$path" --enable
 hermes plugins list
 ```
@@ -151,8 +182,8 @@ Hermes plugins are opt-in. If installed without `--enable`, run
 ## Gemini CLI
 
 ```sh
-gemini extensions install https://github.com/barnlabs/keepkeys \
-  --ref e5276925d390704fccdf4aaeba47280464762a1c
+gemini extensions install https://github.com/neorome/keepkeys \
+  --ref 2525a3358831d2a539d6a1dbdcb5f7148c0418b5
 gemini extensions list
 ```
 
@@ -165,7 +196,7 @@ Compatible clients can load `skills/keepkeys/SKILL.md` from the reviewed
 checkout. The skills-only distribution includes a cross-platform Node launcher
 and all three native backends but intentionally omits MCP configuration.
 
-When the six `keepkeys_*` tools are available, use them. The fallback launcher
+When the nine `keepkeys_*` tools are available, use them. The fallback launcher
 is:
 
 ```sh
@@ -197,6 +228,31 @@ stores the value directly in the OS vault. Same-user software or clipboard
 history may still observe a shared clipboard value, so copy only when the
 window is ready and click immediately. Never paste it into the conversation.
 
+From a phone, ask:
+
+> Store a new secret from my phone with KeepKeys.
+
+The agent prepares the same metadata and calls
+`keepkeys_store_from_phone`. KeepKeys returns a one-time Tailscale HTTPS link
+that expires after ten minutes. Open it on a phone in the same tailnet, review
+the metadata and any replacement warning, paste the key, and press
+**Paste & Store**. The page sends the value to the host's native vault and
+closes its local listener. KeepKeys never uses Tailscale Funnel or a Neorome
+server. The detached portal stays coupled to its launcher until the launcher
+acknowledges the ready link and the portal confirms it processed that
+acknowledgment after rechecking Serve. Native paste-and-store, phone intake,
+and removal use the same per-name coordinator, so removal cannot interleave
+with a write and a concurrent store cannot silently bypass a replacement
+warning. If ChatGPT Remote cancels during startup or foreground Serve exits
+during either side of the handshake, KeepKeys closes the portal and the user
+starts a new phone intake. If a native helper ends without a complete,
+recognized commit receipt, KeepKeys reports the vault state as uncertain and
+asks the user to inspect the named record before retrying.
+
+KeepKeys cannot clear the phone's clipboard or clipboard history. Copy the key
+only after the page is ready, submit it immediately, and close the page after
+it reports success.
+
 For use, ask for a concrete direct command. The native approval surface shows:
 
 - risk class;
@@ -208,16 +264,20 @@ For use, ask for a concrete direct command. The native approval surface shows:
 - working directory;
 - exact child-environment scope.
 
-Choose **Allow once** only when the displayed program and action are intended.
+Choose **Allow once** for a single use, or choose **Always allow this exact
+command** only when every displayed identity and scope field is intended. The
+automatic rule is local metadata, not a name-only grant, and can be removed
+with `keepkeys_revoke`. A successful `keepkeys_rotate` clears that name's old
+automatic-approval rules before the replacement is used.
 
 ## Verify a checkout
 
 macOS or Linux:
 
 ```sh
-git clone https://github.com/barnlabs/keepkeys.git
+git clone https://github.com/neorome/keepkeys.git
 cd keepkeys
-git checkout --detach e5276925d390704fccdf4aaeba47280464762a1c
+git checkout --detach 2525a3358831d2a539d6a1dbdcb5f7148c0418b5
 ./scripts/bootstrap
 ./scripts/check
 ./scripts/test
@@ -227,9 +287,9 @@ git checkout --detach e5276925d390704fccdf4aaeba47280464762a1c
 Windows:
 
 ```powershell
-git clone https://github.com/barnlabs/keepkeys.git
+git clone https://github.com/neorome/keepkeys.git
 Set-Location keepkeys
-git checkout --detach e5276925d390704fccdf4aaeba47280464762a1c
+git checkout --detach 2525a3358831d2a539d6a1dbdcb5f7148c0418b5
 .\scripts\bootstrap.ps1
 .\scripts\check.ps1
 .\scripts\test.ps1
@@ -252,7 +312,7 @@ For a client-level smoke test:
 
 | Client | Development install |
 | --- | --- |
-| Codex | `codex plugin marketplace add "$(pwd)"` then `codex plugin add keepkeys@barnlabs` |
+| Codex | `codex plugin marketplace add "$(pwd)"` then `codex plugin add keepkeys@neorome` |
 | Grok Build | `grok plugin validate "$PWD/plugins/keepkeys"` |
 | Claude Code | `claude --plugin-dir "$PWD/plugins/keepkeys"` |
 | Oh My Pi | `omp plugin link "$PWD/plugins/keepkeys"` |
@@ -281,9 +341,9 @@ read-only; details and rollback steps are in [docs/updating.md](docs/updating.md
 Codex:
 
 ```sh
-codex plugin marketplace remove barnlabs
-codex plugin marketplace add barnlabs/keepkeys --ref NEW_REVIEWED_COMMIT_SHA
-codex plugin add keepkeys@barnlabs
+codex plugin marketplace remove neorome
+codex plugin marketplace add neorome/keepkeys --ref NEW_REVIEWED_COMMIT_SHA
+codex plugin add keepkeys@neorome
 ```
 
 Grok Build:
@@ -291,19 +351,19 @@ Grok Build:
 ```sh
 grok plugin uninstall keepkeys
 grok plugin install \
-  'barnlabs/keepkeys@NEW_REVIEWED_COMMIT_SHA#plugins/keepkeys' --trust
+  'neorome/keepkeys@NEW_REVIEWED_COMMIT_SHA#plugins/keepkeys' --trust
 ```
 
 Claude Code and Oh My Pi require the new immutable raw catalog URL:
 
 ```sh
-claude plugin marketplace remove barnlabs
+claude plugin marketplace remove neorome
 claude plugin marketplace add NEW_REVIEWED_RAW_CATALOG_URL
-claude plugin install keepkeys@barnlabs
+claude plugin install keepkeys@neorome
 
-omp plugin marketplace remove barnlabs
+omp plugin marketplace remove neorome
 omp plugin marketplace add NEW_REVIEWED_RAW_CATALOG_URL
-omp plugin install keepkeys@barnlabs
+omp plugin install keepkeys@neorome
 ```
 
 Gemini can pin the new functional commit directly. Hermes should repeat the
@@ -322,15 +382,15 @@ Then remove integrations:
 
 ```sh
 codex plugin remove keepkeys
-codex plugin marketplace remove barnlabs
+codex plugin marketplace remove neorome
 
 grok plugin uninstall keepkeys
 
-claude plugin uninstall keepkeys@barnlabs
-claude plugin marketplace remove barnlabs
+claude plugin uninstall keepkeys@neorome
+claude plugin marketplace remove neorome
 
-omp plugin uninstall keepkeys@barnlabs
-omp plugin marketplace remove barnlabs
+omp plugin uninstall keepkeys@neorome
+omp plugin marketplace remove neorome
 
 hermes plugins remove keepkeys
 
@@ -340,7 +400,7 @@ gemini extensions uninstall keepkeys
 macOS alone has a compiled code cache. After reviewing this exact path:
 
 ```sh
-rm -rf "$HOME/Library/Caches/net.barnlabs.keepkeys"
+rm -rf "$HOME/Library/Caches/net.neorome.keepkeys"
 ```
 
 The cache contains code and a build digest, never values. Windows compiles its
